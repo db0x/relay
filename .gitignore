@@ -1,0 +1,15 @@
+# Secrets — niemals ins Repo (JWT/FILE/SESSION_SECRET, INSTANCE_NAME etc.)
+.env
+
+# Nutzerdaten: echte Dokumente und die Nutzerdatenbank (gehashte Passwörter, API-Token)
+documents/
+state/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Betriebssystem-/Editor-Reste
+.DS_Store
+*.swp
+.vscode

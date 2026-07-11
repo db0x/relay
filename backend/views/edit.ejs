@@ -1,0 +1,7 @@
+<!doctype html><meta charset="utf-8"><title><%= appName %> — Bearbeiten</title>
+<link rel="stylesheet" href="/static/css/edit.css?v=<%= v %>">
+<div id="editor"></div>
+<!-- api.js vom DocumentServer, dann Config (JWT-signiert, als JSON) und Editor-Start -->
+<script src="<%= ds_api %>"></script>
+<script type="application/json" id="editor-config"><%- config %></script>
+<script src="/static/js/edit.js?v=<%= v %>"></script>

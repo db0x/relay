@@ -1,0 +1,327 @@
+<!doctype html><meta charset="utf-8"><title><%= appName %> — Dokumente</title>
+<link rel="stylesheet" href="/static/css/index.css?v=<%= v %>">
+<script defer src="/static/js/index.js?v=<%= v %>"></script>
+<div class="page">
+  <header class="topbar">
+    <div class="brand">
+      <img src="/static/img/logo.svg" alt="" width="28" height="28">
+      <span><%= appName %></span>
+    </div>
+    <div class="user">
+      <span class="uname"><%= user %></span>
+      <div class="menu">
+        <button type="button" class="iconbtn menu-btn" aria-haspopup="true"
+                aria-expanded="false" aria-label="Menü" title="Menü">
+          <img src="/static/img/open-menu.svg" alt="" width="16" height="16">
+        </button>
+        <div class="menu-panel" hidden>
+          <button type="button" class="menu-item" data-dialog="dlg-pw">Passwort ändern</button>
+          <button type="button" class="menu-item" data-dialog="dlg-tok">API-Token</button>
+          <% if (isAdmin) { %>
+          <button type="button" class="menu-item" data-dialog="dlg-users">Nutzerverwaltung</button>
+          <% } %>
+          <a class="menu-item" href="/logout">Abmelden</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <% flashes.forEach(function(f){ %>
+  <div class="flash <%= f[0] %>"><%= f[1] %></div>
+  <% }); %>
+
+  <section class="toolbar">
+    <form class="row-form" action="/create" method="post">
+      <input type="hidden" name="dir" value="<%= curDir %>">
+      <input class="field grow" name="name" placeholder="Name der neuen Datei" required>
+      <select class="field" name="ext">
+        <option value="docx">Textdokument (.docx)</option>
+        <option value="xlsx">Tabelle (.xlsx)</option>
+        <option value="pptx">Präsentation (.pptx)</option>
+      </select>
+      <button class="btn">Erstellen</button>
+    </form>
+    <form class="row-form" action="/upload" method="post" enctype="multipart/form-data">
+      <input type="hidden" name="dir" value="<%= curDir %>">
+      <label class="btn btn-secondary file-label">
+        <img class="btn-icon" src="/static/img/add-file.svg" alt="" width="16" height="16">Datei wählen
+        <input type="file" name="file" hidden>
+      </label>
+      <span class="file-name grow" data-empty="Keine Datei gewählt">Keine Datei gewählt</span>
+      <button class="btn btn-secondary">
+        <img class="btn-icon" src="/static/img/upload.svg" alt="" width="16" height="16">Hochladen
+      </button>
+      <button type="button" class="btn btn-secondary" data-dialog="dlg-mkdir">
+        <img class="btn-icon" src="/static/img/folder.svg" alt="" width="16" height="16">Neuer Ordner
+      </button>
+    </form>
+  </section>
+
+  <% if (crumbs.length > 1) { %>
+  <nav class="crumbs">
+    <% crumbs.forEach(function(c, i){ %>
+      <% if (i) { %><span class="crumb-sep">/</span><% } %>
+      <% if (i === crumbs.length - 1) { %>
+      <span class="crumb current"><%= c.label %></span>
+      <% } else { %>
+      <a class="crumb" href="<%= c.href %>"><%= c.label %></a>
+      <% } %>
+    <% }); %>
+  </nav>
+  <% } %>
+
+  <div class="table-wrap">
+    <table class="files">
+      <thead>
+        <tr>
+          <% columns.forEach(function(c){ %>
+          <th class="<%= c.cls %>">
+            <a class="sort<%= c.active ? ' active' : '' %>" href="<%= c.href %>">
+              <%= c.label %><span class="arrow"><%= c.arrow %></span>
+            </a>
+          </th>
+          <% }); %>
+          <th class="col-actions"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (files.length) { files.forEach(function(f, i){ %>
+        <tr>
+          <td>
+            <div class="file-cell">
+              <img class="ficon" src="/static/img/<%= f.icon %>.svg" alt="" width="28" height="28">
+              <span class="fname-wrap">
+                <% if (f.isDir) { %>
+                <a class="fname" href="/?p=<%= encodeURIComponent(f.relpath) %>"><%= f.name %></a>
+                <% } else { %>
+                <a class="fname" href="/edit/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>"><%= f.name %></a>
+                <% } %>
+                <% if (!f.isOwner) { %>
+                <span class="badge">von <%= f.ownerName %><% if (f.perm === "view") { %> · nur lesen<% } %></span>
+                <% } else if (f.shares.length) { %>
+                <span class="badge badge-soft">geteilt · <%= f.shares.length %></span>
+                <% } %>
+              </span>
+            </div>
+          </td>
+          <td class="col-size"><%= f.size %></td>
+          <td class="col-date"><%= f.modified %></td>
+          <td class="col-actions">
+            <div class="actions">
+              <% if (f.isDir) { %>
+              <form class="del-form" action="/rmdir/<%= encPath(f.relpath) %>" method="post"
+                    data-confirm="Ordner „<%= f.name %>“ löschen? Das geht nur, wenn er leer ist.">
+                <input type="hidden" name="dir" value="<%= curDir %>">
+                <button class="iconbtn iconbtn-danger" title="Löschen" aria-label="Löschen">
+                  <img src="/static/img/delete.svg" alt="" width="16" height="16">
+                </button>
+              </form>
+              <% } else { %>
+              <a class="iconbtn" href="/download/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>"
+                 title="Herunterladen" aria-label="Herunterladen">
+                <img src="/static/img/download.svg" alt="" width="16" height="16">
+              </a>
+              <% if (f.isOwner) { %>
+              <button type="button" class="iconbtn" data-dialog="dlg-move-<%= i %>"
+                      title="Verschieben" aria-label="Verschieben">
+                <img src="/static/img/move.svg" alt="" width="16" height="16">
+              </button>
+              <button type="button" class="iconbtn" data-dialog="dlg-share-<%= i %>"
+                      title="Freigeben" aria-label="Freigeben">
+                <img src="/static/img/share.svg" alt="" width="16" height="16">
+              </button>
+              <form class="del-form" action="/delete/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>" method="post"
+                    data-confirm="„<%= f.name %>“ wirklich löschen? Das lässt sich nicht rückgängig machen.">
+                <input type="hidden" name="dir" value="<%= curDir %>">
+                <button class="iconbtn iconbtn-danger" title="Löschen" aria-label="Löschen">
+                  <img src="/static/img/delete.svg" alt="" width="16" height="16">
+                </button>
+              </form>
+              <% } %>
+              <% } %>
+            </div>
+          </td>
+        </tr>
+        <% }); } else { %>
+        <tr><td class="empty" colspan="4">Dieser Ordner ist leer — oben eine Datei anlegen oder hochladen.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+
+  <% files.forEach(function(f, i){ if (!f.isOwner || f.isDir) return; %>
+  <dialog id="dlg-share-<%= i %>" class="dialog">
+    <form method="dialog" class="dialog-close-row">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+    <h2>„<%= f.name %>“ freigeben</h2>
+    <div class="sharebox">
+      <% if (f.shares.length) { %>
+      <ul class="share-list">
+        <% f.shares.forEach(function(s){ %>
+        <li>
+          <span><%= s.display_name %>
+            <span class="muted">· <%= s.perm === "edit" ? "Bearbeiten" : "Nur lesen" %></span>
+          </span>
+          <form class="unshare-form" action="/unshare/<%= encPath(f.relpath) %>" method="post"
+                data-confirm="Freigabe für <%= s.display_name %> entziehen?">
+            <input type="hidden" name="dir" value="<%= curDir %>">
+            <input type="hidden" name="target" value="<%= s.target %>">
+            <button class="btn btn-secondary btn-sm">entziehen</button>
+          </form>
+        </li>
+        <% }); %>
+      </ul>
+      <% } else { %>
+      <p class="muted">Noch für niemanden freigegeben.</p>
+      <% } %>
+
+      <% if (f.availableUsers.length) { %>
+      <form class="share-form" action="/share/<%= encPath(f.relpath) %>" method="post">
+        <input type="hidden" name="dir" value="<%= curDir %>">
+        <select class="field grow" name="target">
+          <% f.availableUsers.forEach(function(u){ %>
+          <option value="<%= u.username %>"><%= u.display_name %></option>
+          <% }); %>
+        </select>
+        <select class="field" name="perm">
+          <option value="edit">Bearbeiten</option>
+          <option value="view">Nur lesen</option>
+        </select>
+        <button class="btn">Freigeben</button>
+      </form>
+      <% } else { %>
+      <p class="muted">Alle anderen Nutzer haben bereits Zugriff.</p>
+      <% } %>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-move-<%= i %>" class="dialog">
+    <form method="dialog" class="dialog-close-row">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+    <h2>„<%= f.name %>“ verschieben</h2>
+    <% var moveTargets = allDirs.filter(function(d){ return d !== curDir; }); %>
+    <% if (curDir === "" && !moveTargets.length) { %>
+    <p class="muted dialog-hint">Es gibt noch keine Ordner — erst über „Neuer Ordner“ einen anlegen.</p>
+    <% } else { %>
+    <form class="stack-form" action="/move/<%= encPath(f.relpath) %>" method="post">
+      <input type="hidden" name="dir" value="<%= curDir %>">
+      <select class="field" name="to">
+        <% if (curDir !== "") { %>
+        <option value="">Meine Dateien (oberste Ebene)</option>
+        <% } %>
+        <% moveTargets.forEach(function(d){ %>
+        <option value="<%= d %>"><%= d %></option>
+        <% }); %>
+      </select>
+      <button class="btn">Verschieben</button>
+    </form>
+    <% } %>
+  </dialog>
+  <% }); %>
+
+  <dialog id="dlg-mkdir" class="dialog">
+    <form method="dialog" class="dialog-close-row">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+    <h2>Neuer Ordner</h2>
+    <form class="stack-form" action="/mkdir" method="post">
+      <input type="hidden" name="dir" value="<%= curDir %>">
+      <input class="field" name="name" placeholder="Name des Ordners" required autocomplete="off">
+      <button class="btn">Anlegen</button>
+    </form>
+  </dialog>
+
+  <% if (isAdmin) { %>
+  <dialog id="dlg-users" class="dialog">
+    <form method="dialog" class="dialog-close-row">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+    <h2>Nutzerverwaltung</h2>
+    <div class="sharebox">
+      <ul class="share-list">
+        <% allUsers.forEach(function(u){ %>
+        <li>
+          <span><%= u.display_name %>
+            <span class="muted">· <%= u.username %></span>
+            <% if (u.is_admin) { %><span class="badge">Admin</span><% } %>
+            <% if (u.locked) { %><span class="badge badge-lock">gesperrt</span><% } %>
+          </span>
+          <% if (u.username !== me) { %>
+          <span class="user-actions">
+            <%# gesperrte Nutzer koennen keine Admins werden — Knopf ausblenden %>
+            <% if (u.is_admin || !u.locked) { %>
+            <form class="unshare-form" action="/users/admin" method="post"
+                  <% if (u.is_admin) { %>data-confirm="<%= u.display_name %> die Admin-Rechte entziehen?"<% } %>>
+              <input type="hidden" name="target" value="<%= u.username %>">
+              <input type="hidden" name="value" value="<%= u.is_admin ? 0 : 1 %>">
+              <button class="btn btn-secondary btn-sm">
+                <%= u.is_admin ? "Admin entziehen" : "zum Admin machen" %>
+              </button>
+            </form>
+            <% } %>
+            <%# Admins koennen nicht gesperrt werden — Knopf ausblenden %>
+            <% if (u.locked || !u.is_admin) { %>
+            <form class="unshare-form" action="/users/lock" method="post"
+                  <% if (!u.locked) { %>data-confirm="<%= u.display_name %> sperren? Login, Sitzungen und API-Token sind dann blockiert."<% } %>>
+              <input type="hidden" name="target" value="<%= u.username %>">
+              <input type="hidden" name="value" value="<%= u.locked ? 0 : 1 %>">
+              <button class="btn btn-secondary btn-sm<%= u.locked ? '' : ' btn-sm-danger' %>">
+                <%= u.locked ? "entsperren" : "sperren" %>
+              </button>
+            </form>
+            <% } %>
+          </span>
+          <% } %>
+        </li>
+        <% }); %>
+      </ul>
+      <form class="share-form user-create" action="/users/create" method="post" autocomplete="off">
+        <input class="field grow" name="username" placeholder="Nutzername (Login)" required>
+        <input class="field grow" name="display" placeholder="Anzeigename">
+        <input class="field grow" name="password" type="password"
+               placeholder="Startpasswort (min. 6 Zeichen)" required minlength="6"
+               autocomplete="new-password">
+        <label class="check"><input type="checkbox" name="admin" value="1"> Admin</label>
+        <button class="btn">Nutzer anlegen</button>
+      </form>
+    </div>
+  </dialog>
+  <% } %>
+
+  <dialog id="dlg-pw" class="dialog">
+    <form method="dialog" class="dialog-close-row">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+    <h2>Passwort ändern</h2>
+    <form class="stack-form" action="/password" method="post">
+      <input class="field" name="old" type="password" placeholder="Altes Passwort"
+             autocomplete="current-password" required>
+      <input class="field" name="new1" type="password" placeholder="Neues Passwort"
+             autocomplete="new-password" required minlength="6">
+      <input class="field" name="new2" type="password" placeholder="Neues Passwort (wiederholen)"
+             autocomplete="new-password" required minlength="6">
+      <button class="btn">Ändern</button>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-tok" class="dialog">
+    <form method="dialog" class="dialog-close-row">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+    <h2>API-Token (für Sync / Skripte)</h2>
+    <div class="tokbox">
+      <div class="tokrow">
+        <code id="tok"><%= api_token %></code>
+        <button type="button" class="btn btn-secondary copy">kopieren</button>
+        <form class="reset-form" action="/token/reset" method="post"
+              data-confirm="Neues Token erzeugen? Bestehende Sync-Verbindungen mit dem alten Token funktionieren dann nicht mehr.">
+          <button class="btn btn-danger">neu erzeugen</button>
+        </form>
+      </div>
+      <div class="tokhint">Wie ein Passwort behandeln — nicht weitergeben.
+        Nutzung: <code>Authorization: Bearer &lt;token&gt;</code> gegen <code>/api/files</code>.</div>
+    </div>
+  </dialog>
+</div>

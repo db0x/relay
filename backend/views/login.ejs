@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title><%= appName %> — Anmelden</title>
+<link rel="stylesheet" href="/static/css/login.css?v=<%= v %>">
+<form method="post" action="/login">
+  <h1><img src="/static/img/logo.svg" alt="" width="26" height="26"><%= appName %></h1>
+  <% if (error) { %><div class="err"><%= error %></div><% } %>
+  <input name="username" placeholder="Name" autofocus autocomplete="username">
+  <input name="password" type="password" placeholder="Passwort"
+         autocomplete="current-password">
+  <input type="hidden" name="next" value="<%= next %>">
+  <button>Anmelden</button>
+</form>
+<script>
+  // Cursor direkt ins Namensfeld setzen — das autofocus-Attribut greift in
+  // eingebetteten Ansichten (Voltage-Webview) nicht zuverlaessig. Hat der
+  // Browser den Namen schon ausgefuellt, direkt weiter ins Passwortfeld.
+  window.addEventListener("DOMContentLoaded", function () {
+    var u = document.querySelector("input[name=username]");
+    var p = document.querySelector("input[name=password]");
+    (u.value ? p : u).focus();
+  });
+</script>

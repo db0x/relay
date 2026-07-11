@@ -1,0 +1,201 @@
+:root{
+  --bg:#eef1f5;
+  --card:#ffffff;
+  --ink:#1f2937;
+  --muted:#6b7280;
+  --line:#e5e7eb;
+  --line-soft:#f1f3f5;
+  --brand:#2563eb;
+  --brand-dark:#1d4ed8;
+  --danger:#dc2626;
+  --radius:14px;
+  --radius-sm:9px;
+}
+
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
+  padding:32px 16px;line-height:1.45;
+}
+
+/* Karte, die die ganze Seite hält */
+.page{
+  max-width:840px;margin:0 auto;background:var(--card);
+  border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
+  padding:24px 26px 28px;
+}
+
+/* Kopfzeile */
+.topbar{
+  display:flex;justify-content:space-between;align-items:center;
+  padding-bottom:16px;margin-bottom:20px;border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:.55em;font-size:1.2rem;font-weight:650}
+.user{display:flex;align-items:center;gap:.9em}
+.uname{color:var(--muted);font-size:.92rem}
+
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;gap:.45em;
+  padding:.5rem .95rem;border:1px solid transparent;border-radius:var(--radius-sm);
+  background:var(--brand);color:#fff;font:inherit;font-weight:550;
+  cursor:pointer;white-space:nowrap;transition:background .12s,border-color .12s,box-shadow .12s;
+}
+.btn:hover{background:var(--brand-dark)}
+.btn-secondary{background:#fff;color:var(--ink);border-color:var(--line)}
+.btn-secondary:hover{background:#f7f8fa;border-color:#d5d9df}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{background:#b91c1c}
+.btn-icon{display:block}
+.btn-ghost{
+  color:var(--muted);text-decoration:none;font-size:.9rem;
+  padding:.35rem .6rem;border-radius:var(--radius-sm);
+}
+.btn-ghost:hover{background:#f2f4f7;color:var(--ink)}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+/* Formularfelder */
+.field{
+  padding:.55rem .65rem;border:1px solid var(--line);border-radius:var(--radius-sm);
+  font:inherit;background:#fff;color:var(--ink);
+}
+.field:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.grow{flex:1;min-width:140px}
+.file-label{cursor:pointer}
+.file-name{color:var(--muted);font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Werkzeugleiste (Neu / Hochladen) */
+.toolbar{display:flex;flex-direction:column;gap:.65rem;margin-bottom:22px}
+.row-form{
+  display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;
+  background:#f7f8fa;border:1px solid var(--line);border-radius:var(--radius-sm);padding:.7rem;
+}
+
+/* Meldungen */
+.flash{padding:.6em .85em;border-radius:var(--radius-sm);margin:0 0 14px;font-size:.9em}
+.flash.ok{background:#e7f6ec;color:#166534}
+.flash.err{background:#fdecec;color:#991b1b}
+
+/* Brotkrumen-Navigation in Unterordnern */
+.crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:.4em;margin:0 0 12px;font-size:.92rem}
+.crumb{color:var(--brand);text-decoration:none}
+a.crumb:hover{text-decoration:underline}
+.crumb.current{color:var(--ink);font-weight:550}
+.crumb-sep{color:var(--muted)}
+
+/* Dateitabelle */
+.table-wrap{overflow-x:auto}
+.files{width:100%;border-collapse:collapse}
+.files th{
+  text-align:left;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;padding:.5rem .7rem;border-bottom:1px solid var(--line);
+}
+.files th .sort{
+  display:inline-flex;align-items:center;gap:.35em;color:inherit;text-decoration:none;
+  font:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;
+}
+.files th .sort:hover{color:var(--ink)}
+.files th .sort.active{color:var(--ink)}
+.files th .arrow{font-size:.85em}
+.files td{padding:.55rem .7rem;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+.files tbody tr:last-child td{border-bottom:0}
+.files tbody tr:hover{background:#f9fafb}
+.col-size,.col-date{white-space:nowrap;color:var(--muted);font-size:.86rem;width:1%}
+.col-actions{width:1%;white-space:nowrap}
+
+.file-cell{display:flex;align-items:center;gap:.6em;min-width:0}
+.ficon{width:28px;height:28px;flex:0 0 auto;display:block}
+.fname-wrap{display:flex;align-items:center;gap:.5em;min-width:0}
+.fname{color:var(--brand);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fname:hover{text-decoration:underline}
+.empty{color:var(--muted);text-align:center;padding:2rem 0}
+
+/* Kennzeichnung geteilter Dateien */
+.badge{
+  flex:0 0 auto;font-size:.7rem;padding:.15em .5em;border-radius:999px;
+  background:#e8f0fe;color:#1a4fa0;white-space:nowrap;
+}
+.badge-soft{background:#f1f3f5;color:var(--muted)}
+
+/* Freigabe-Dialog */
+.sharebox{padding:.9rem}
+.share-list{list-style:none;margin:0 0 .9rem;padding:0;display:flex;flex-direction:column;gap:.4rem}
+.share-list li{
+  display:flex;justify-content:space-between;align-items:center;gap:.6rem;
+  padding:.45rem .6rem;border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:#fff;font-size:.9rem;
+}
+.share-form{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;
+  border-top:1px solid var(--line);padding-top:.9rem}
+.unshare-form{margin:0}
+.user-create .field{flex:1 1 100%}
+.check{display:flex;align-items:center;gap:.4em;font-size:.9rem;cursor:pointer}
+.user-actions{display:flex;gap:.35rem;flex:0 0 auto}
+.badge-lock{background:#fdecec;color:#991b1b}
+.btn-sm-danger{color:var(--danger);border-color:#f3caca}
+.btn-sm-danger:hover{background:#fef2f2;border-color:var(--danger)}
+.btn-sm{padding:.3rem .6rem;font-size:.82rem}
+.muted{color:var(--muted);font-size:.88rem;margin:0 0 .9rem}
+
+/* Aktions-Icon-Buttons */
+.actions{display:flex;justify-content:flex-end;gap:.4rem}
+.iconbtn{
+  display:grid;place-items:center;width:34px;height:34px;padding:0;
+  border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;
+  color:var(--muted);font-size:1rem;line-height:1;cursor:pointer;text-decoration:none;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.iconbtn:hover{border-color:var(--brand);color:var(--brand);background:#f0f6ff}
+.iconbtn img{display:block}
+.iconbtn-danger:hover{border-color:var(--danger);background:#fef2f2}
+.del-form{margin:0;display:flex}
+
+/* Kebab-Menü neben dem Nutzernamen */
+.menu{position:relative}
+.menu-panel{
+  position:absolute;right:0;top:calc(100% + 8px);z-index:20;min-width:190px;
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);
+  box-shadow:0 8px 28px rgba(16,24,40,.14);padding:6px;
+  display:flex;flex-direction:column;gap:2px;
+}
+/* muss das display:flex oben schlagen, sonst ignoriert das Panel [hidden] */
+.menu-panel[hidden]{display:none}
+.menu-item{
+  display:block;width:100%;text-align:left;padding:.5rem .6rem;border:0;background:none;
+  color:var(--ink);font:inherit;border-radius:7px;cursor:pointer;text-decoration:none;
+}
+.menu-item:hover{background:#f2f4f7}
+
+/* Dialoge (Passwort / Token) */
+.dialog{
+  border:1px solid var(--line);border-radius:14px;padding:0 0 1.1rem;
+  width:min(92vw,380px);box-shadow:0 16px 48px rgba(16,24,40,.22);
+}
+.dialog::backdrop{background:rgba(16,24,40,.4)}
+.dialog h2{margin:0;padding:0 1.1rem;font-size:1.05rem}
+.dialog-close-row{display:flex;justify-content:flex-end;margin:0}
+.dialog-x{
+  margin:.5rem .5rem 0 0;border:0;background:none;font-size:1.4rem;line-height:1;
+  color:var(--muted);cursor:pointer;padding:.1rem .45rem;border-radius:7px;
+}
+.dialog-x:hover{background:#f2f4f7;color:var(--ink)}
+
+.stack-form{display:flex;flex-direction:column;gap:.6em;max-width:340px;padding:.9rem}
+.dialog-hint{padding:.9rem}
+.tokbox{padding:.9rem}
+.tokrow{display:flex;gap:.6em;align-items:center;flex-wrap:wrap}
+.tokrow code{
+  flex:1;min-width:220px;padding:.55em;background:#fff;border:1px solid var(--line);
+  border-radius:var(--radius-sm);font-size:.85em;word-break:break-all;
+}
+.reset-form{margin:0}
+.tokhint{color:var(--muted);font-size:.8em;margin-top:.7em}
+.tokhint code{background:#eef1f5;padding:.05em .35em;border-radius:5px}
+
+@media (max-width:560px){
+  .page{padding:18px 16px 22px}
+  .col-date{display:none}
+}

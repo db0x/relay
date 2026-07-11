@@ -1,0 +1,28 @@
+{
+  "services": {
+    "CoAuthoring": {
+      "request-filtering-agent": {
+        "allowPrivateIPAddress": true,
+        "allowMetaIPAddress": true
+      },
+      "autoAssembly": {
+        "enable": true,
+        "interval": "5m"
+      },
+      "token": {
+        "enable": {
+          "browser": false,
+          "request": { "inbox": false, "outbox": false }
+        },
+        "inbox":  { "header": "Authorization", "inBody": false },
+        "outbox": { "header": "Authorization", "inBody": false }
+      },
+      "secret": {
+        "inbox":   { "string": "", "file": "" },
+        "outbox":  { "string": "", "file": "" },
+        "session": { "string": "", "file": "" },
+        "browser": { "string": "", "file": "" }
+      }
+    }
+  }
+}
