@@ -1,0 +1,61 @@
+# Relay fully behind nginx: UI at http://moria/relay, OnlyOffice
+# DocumentServer at http://moria/ds — only port 80 is exposed.
+#
+# Matching .env on the server:
+#   BASE_PATH=/relay
+#   PUBLIC_DS_URL=http://moria/ds
+#   BIND_ADDR=127.0.0.1     # container ports only reachable by nginx on the host
+#
+# Install e.g. as /etc/nginx/sites-available/relay (symlink + reload),
+# or copy the blocks into an existing server block.
+
+# Pass WebSocket upgrades through cleanly (co-editing runs over WebSockets).
+# `map` belongs at http level — inside sites-available/* that is automatic.
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ""      close;
+}
+
+server {
+    listen 80;
+    server_name moria;              # hostname of the server on the LAN
+
+    # must match the file API's 512mb limit, or nginx cuts off large uploads
+    client_max_body_size 512m;
+
+    # --- Relay UI + API ---------------------------------------------------
+    # NO trailing slash on proxy_pass: the /relay prefix is passed through
+    # unchanged; the backend expects it (BASE_PATH=/relay).
+    location /relay {
+        proxy_pass http://127.0.0.1:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # --- OnlyOffice DocumentServer at /ds/ ----------------------------------
+    # Official "virtual path" pattern: strip the prefix, allow WebSockets,
+    # and send X-Forwarded-Host WITH the path — the DS builds its own
+    # absolute URLs from it (api.js, editor assets, cache links).
+    location /ds/ {
+        rewrite ^/ds/(.*)$ /$1 break;
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host/ds;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Convenience: http://moria/ -> http://moria/relay/
+    location = / {
+        return 302 /relay/;
+    }
+}
+
+# Simpler alternative without /ds/: drop the /ds/ location block and the map,
+# and do NOT set PUBLIC_DS_URL and BIND_ADDR in .env — the DocumentServer then
+# stays directly reachable at http://moria:5000 (users never type that address;
+# JWT and signed links protect it).

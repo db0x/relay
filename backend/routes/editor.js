@@ -10,7 +10,7 @@ const jwt = require("jsonwebtoken");
 const users = require("../users");
 const { accessFor } = require("../access");
 const { secureFilename, encPath, securePath, dirFor, pathFor, walkFiles } = require("../storage");
-const { PUBLIC_DS, HOST_INTERNAL, DS_INTERNAL, JWT_SECRET, FILE_SECRET, DOCTYPE } = require("../config");
+const { PUBLIC_DS, HOST_INTERNAL, DS_INTERNAL, JWT_SECRET, FILE_SECRET, DOCTYPE, BASE } = require("../config");
 const { loginRequired } = require("./auth");
 
 const router = express.Router();
@@ -39,7 +39,9 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   const mtime = Math.floor(fs.statSync(p).mtimeMs / 1000);
   // signierter Download-Link, damit nur vom Backend ausgegebene URLs ziehen
   const exp = Math.floor(Date.now() / 1000) + 12 * 3600;
-  const src = `${HOST_INTERNAL}/files/${encodeURIComponent(uid)}/${encPath(fid)}`
+  // BASE auch hier: die Routen sind unter BASE gemountet, auch fuer den
+  // internen Direktzugriff des DocumentServers (der laeuft NICHT ueber nginx)
+  const src = `${HOST_INTERNAL}${BASE}/files/${encodeURIComponent(uid)}/${encPath(fid)}`
     + `?expires=${exp}&token=${fileToken(uid, fid, exp)}`;
   // fid als kurzer Hash: der Key erlaubt kein "/", und Pfad + Nutzer + mtime
   // koennten die 128-Zeichen-Grenze des DocumentServers sprengen
@@ -62,7 +64,7 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
       mode: canEdit ? "edit" : "view",
       lang: "de-DE",
       region: "de-DE",
-      callbackUrl: `${HOST_INTERNAL}/callback/${encodeURIComponent(uid)}/${encPath(fid)}`,
+      callbackUrl: `${HOST_INTERNAL}${BASE}/callback/${encodeURIComponent(uid)}/${encPath(fid)}`,
       user: { id: uid, name: req.session.name }, // eingeloggter Nutzer -> echte Namen beim Co-Editing
       customization: { forcesave: true, autosave: true },
     },
@@ -103,7 +105,7 @@ router.get("/edit/:fid", (req, res, next) => {
   const hits = walkFiles(dirFor(me)).filter((p) => path.basename(p) === fid);
   const target = hits.includes(fid) ? fid : (hits.length === 1 ? hits[0] : null);
   if (!target) return res.sendStatus(404);
-  res.redirect(`/edit/${encodeURIComponent(me)}/${encPath(target)}`);
+  res.redirect(`${BASE}/edit/${encodeURIComponent(me)}/${encPath(target)}`);
 });
 
 // --- DocumentServer-Schnittstelle (kein Login-Cookie, daher signiert) ----

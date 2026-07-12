@@ -1,9 +1,20 @@
 // Konfiguration: Umgebungsvariablen (docker-compose reicht die .env durch)
 // und feste Konstanten, die mehrere Module brauchen.
 
+// Pfad-Praefix, wenn Relay hinter einem Reverse Proxy unter einem Unterpfad
+// laeuft (z.B. BASE_PATH=/relay fuer http://moria/relay). Leer = an der Wurzel.
+// Normalisiert: fuehrender Slash ja, abschliessender nein.
+let base = process.env.BASE_PATH || "";
+if (base && !base.startsWith("/")) base = "/" + base;
+base = base.replace(/\/+$/, "");
+
 module.exports = {
+  BASE: base,
   DOCS: "/data/documents",                        // Wurzel der Nutzer-Dateien
-  PUBLIC_DS: process.env.PUBLIC_DS_URL,           // browserseitig (api.js, Editor, Cache)
+  // browserseitig (api.js, Editor, Cache): explizit gesetzt (z.B. http://moria/ds
+  // hinter nginx) oder aus SERVER_HOST:DS_PORT gebaut
+  PUBLIC_DS: process.env.PUBLIC_DS_URL
+    || `http://${process.env.SERVER_HOST}:${process.env.DS_PORT || 5000}`,
   HOST_INTERNAL: process.env.HOST_INTERNAL,       // DocumentServer -> uns
   DS_INTERNAL: process.env.DS_INTERNAL,           // uns -> DocumentServer (Cache)
   JWT_SECRET: process.env.JWT_SECRET,             // OnlyOffice-Config/Callback signieren

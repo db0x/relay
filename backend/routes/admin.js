@@ -3,17 +3,18 @@ const express = require("express");
 
 const users = require("../users");
 const { secureFilename } = require("../storage");
+const { BASE } = require("../config");
 
 const router = express.Router();
 
 // Admin-Status immer frisch aus der DB, nicht aus der Session — ein
 // entzogenes Recht wirkt so sofort, nicht erst nach Neu-Login.
 function adminRequired(req, res, next) {
-  if (!req.session.user) return res.redirect("/login?next=" + encodeURIComponent(req.path));
+  if (!req.session.user) return res.redirect(`${BASE}/login?next=` + encodeURIComponent(BASE + req.path));
   const row = users.get(req.session.user);
   if (!row || !row.is_admin) {
     req.flash("err", "Dafür braucht es Admin-Rechte.");
-    return res.redirect("/");
+    return res.redirect(`${BASE}/`);
   }
   next();
 }
@@ -34,7 +35,7 @@ router.post("/users/create", adminRequired, (req, res) => {
     users.addUser(name, display, pw, isAdmin);
     req.flash("ok", `Nutzer „${display}“ angelegt${isAdmin ? " (Admin)" : ""}.`);
   }
-  res.redirect("/");
+  res.redirect(`${BASE}/`);
 });
 
 router.post("/users/admin", adminRequired, (req, res) => {
@@ -54,7 +55,7 @@ router.post("/users/admin", adminRequired, (req, res) => {
       ? `${row.display_name} ist jetzt Admin.`
       : `${row.display_name} ist kein Admin mehr.`);
   }
-  res.redirect("/");
+  res.redirect(`${BASE}/`);
 });
 
 router.post("/users/lock", adminRequired, (req, res) => {
@@ -73,7 +74,7 @@ router.post("/users/lock", adminRequired, (req, res) => {
       ? `${row.display_name} ist gesperrt — Login, Sitzungen und API-Token sind blockiert.`
       : `${row.display_name} ist wieder entsperrt.`);
   }
-  res.redirect("/");
+  res.redirect(`${BASE}/`);
 });
 
 module.exports = { router };

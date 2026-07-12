@@ -9,7 +9,7 @@ const users = require("../users");
 const shares = require("../shares");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs } = require("../storage");
-const { BLANKS } = require("../config");
+const { BLANKS, BASE } = require("../config");
 const { loginRequired } = require("./auth");
 
 const router = express.Router();
@@ -40,7 +40,7 @@ function formatDate(ms) {
 // zurueck in den Ordner, aus dem eine Aktion kam (Formulare schicken `dir` mit)
 function redirectDir(req, res) {
   const d = securePath(req.body && req.body.dir || "");
-  res.redirect(d ? `/?p=${encodeURIComponent(d)}` : "/");
+  res.redirect(d ? `${BASE}/?p=${encodeURIComponent(d)}` : `${BASE}/`);
 }
 
 // --- Startseite -------------------------------------------------------
@@ -55,7 +55,7 @@ router.get("/", loginRequired, (req, res) => {
   const cur = securePath(req.query.p || "");
   const curAbs = cur ? path.join(userDir, cur) : userDir;
   if (cur === null || !fs.existsSync(curAbs) || !fs.statSync(curAbs).isDirectory())
-    return res.redirect("/");
+    return res.redirect(`${BASE}/`);
 
   const meta = (name, p) => {
     const st = fs.statSync(p);
@@ -132,16 +132,16 @@ router.get("/", loginRequired, (req, res) => {
     const nextDir = active ? (dir === "asc" ? "desc" : "asc") : defaultDir[c.key];
     return {
       label: c.label, cls: c.cls, active,
-      href: `/?sort=${c.key}&dir=${nextDir}${pParam}`,
+      href: `${BASE}/?sort=${c.key}&dir=${nextDir}${pParam}`,
       arrow: active ? (dir === "asc" ? "▲" : "▼") : "",
     };
   });
 
   // Brotkrumen: "Meine Dateien / steuern / 2026"
-  const crumbs = [{ label: "Meine Dateien", href: "/" }];
+  const crumbs = [{ label: "Meine Dateien", href: `${BASE}/` }];
   cur.split("/").filter(Boolean).reduce((prefix, seg) => {
     const rel = prefix ? `${prefix}/${seg}` : seg;
-    crumbs.push({ label: seg, href: `/?p=${encodeURIComponent(rel)}` });
+    crumbs.push({ label: seg, href: `${BASE}/?p=${encodeURIComponent(rel)}` });
     return rel;
   }, "");
 
@@ -210,7 +210,7 @@ router.post("/create", loginRequired, (req, res) => {
     return redirectDir(req, res);
   }
   fs.copyFileSync(BLANKS[ext], p);
-  res.redirect(`/edit/${encodeURIComponent(req.session.user)}/${encPath(fid)}`);
+  res.redirect(`${BASE}/edit/${encodeURIComponent(req.session.user)}/${encPath(fid)}`);
 });
 
 // neuer Unterordner im aktuellen Ordner

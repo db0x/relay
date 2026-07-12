@@ -15,25 +15,36 @@ services:
       - ds_lib:/var/lib/onlyoffice
       - ds_db:/var/lib/postgresql
     # im LAN erreichbar: Browser laedt api.js/Editor direkt von hier;
-    # ohne gueltiges JWT bzw. signierten Link gibt der Server nichts heraus
-    ports: ["${DS_PORT}:80"]
+    # ohne gueltiges JWT bzw. signierten Link gibt der Server nichts heraus.
+    # Default 5000 statt 8080 — der ist auf vielen Rechnern schon belegt.
+    # BIND_ADDR=127.0.0.1 setzen, wenn ein Reverse Proxy davor haengt.
+    ports: ["${BIND_ADDR:-0.0.0.0}:${DS_PORT:-5000}:80"]
 
   backend:
     build: ./backend
     restart: unless-stopped
     environment:
-      - PUBLIC_DS_URL=http://${SERVER_HOST}:${DS_PORT}  # Browser -> DocumentServer
+      # Browser -> DocumentServer: entweder explizit gesetzt (PUBLIC_DS_URL,
+      # z.B. http://moria/ds hinter nginx) oder aus SERVER_HOST:DS_PORT gebaut
+      # (Zusammenbau passiert in config.js — Compose kann keine verschachtelten
+      # Defaults, die auf allen Versionen funktionieren)
+      - PUBLIC_DS_URL=${PUBLIC_DS_URL:-}
+      - SERVER_HOST=${SERVER_HOST}
+      - DS_PORT=${DS_PORT:-5000}
       - HOST_INTERNAL=http://backend:5000               # DocumentServer -> uns
       - DS_INTERNAL=http://documentserver               # uns -> DocumentServer (Cache)
       - JWT_SECRET=${JWT_SECRET}                        # OnlyOffice-Config/Callback signieren
       - FILE_SECRET=${FILE_SECRET}                      # signierte /files-Links
       - SESSION_SECRET=${SESSION_SECRET}                # signiert Login-Session-Cookies
       - INSTANCE_NAME=${INSTANCE_NAME:-Relay}           # Anzeigename der Instanz in der UI
+      - BASE_PATH=${BASE_PATH:-}                        # Unterpfad hinter Reverse Proxy, z.B. /relay
     volumes:
-      - ./documents:/data/documents
-      - ./state:/data/state                             # Nutzerdatenbank (users.db)
+      # Ablageorte auf dem Host per .env steuerbar (Default: im Projektordner).
+      # So braucht ein Server-Deployment keine Aenderung an dieser Datei.
+      - ${DOCUMENTS_DIR:-./documents}:/data/documents
+      - ${STATE_DIR:-./state}:/data/state               # Nutzerdatenbank (users.db)
     # im LAN erreichbar; Browser-Routen sind per Login geschuetzt
-    ports: ["${UI_PORT}:5000"]
+    ports: ["${BIND_ADDR:-0.0.0.0}:${UI_PORT:-5001}:5000"]
     depends_on: [documentserver]
 
 volumes:

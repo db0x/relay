@@ -9,7 +9,7 @@ through and passes things on — documents between family members.
 
 ## Components
 
-- **documentserver** — OnlyOffice DocumentServer (editor engine), port `8080`.
+- **documentserver** — OnlyOffice DocumentServer (editor engine), port `5000`.
 - **backend** — small Node.js/Express service: login, file list,
   upload/download, WOPI-style integration (signed file links + JWT config +
   callback) and the file API. Web UI on port `5001`. Split by domain:
@@ -32,10 +32,17 @@ through and passes things on — documents between family members.
 
 ## First start
 
-1. In `.env`, set `SERVER_HOST` to this machine's LAN address and review the
-   secrets (fresh installation: roll all four secrets anew).
+1. Copy `.env.example` to `.env`, set `SERVER_HOST` to this machine's LAN
+   address and roll all four secrets (`openssl rand -hex 32`).
    Optionally set `INSTANCE_NAME` — that name appears in the UI instead of
    "Relay" (page title, header, login).
+   Optionally set `BASE_PATH` (e.g. `/relay`) to serve Relay under a sub-path
+   behind a reverse proxy, e.g. `http://moria/relay` — see
+   `deploy/nginx-relay.conf.example`. All UI links, redirects and the file API
+   then live under that prefix (API base becomes `<host>/relay/api/files`).
+   The DocumentServer is reachable directly on port `5000` by default; to put
+   it behind nginx as well (`PUBLIC_DS_URL=http://moria/ds`, only port 80
+   exposed via `BIND_ADDR=127.0.0.1`), see the same example file.
 2. `docker compose up -d --build`
 3. Browser (any device on the LAN): `http://<SERVER_HOST>:5001` — with an empty
    user database, the user **`admin` with password `admin`** exists (with admin
@@ -158,9 +165,11 @@ docker compose down                      # stop (data survives in volumes/folder
 docker compose up -d                      # start
 ```
 
-Documents live in `./documents/`, the user database in `./state/`.
-DocumentServer data (DB, cache) lives in the Docker volumes `ds_db`,
-`ds_lib`, `ds_data` and survives restarts.
+Documents live in `./documents/`, the user database in `./state/` — both
+locations are configurable via `DOCUMENTS_DIR` / `STATE_DIR` in `.env`
+(e.g. `/srv/relay/documents` on a server), so `docker-compose.yml` never
+needs local edits. DocumentServer data (DB, cache) lives in the Docker
+volumes `ds_db`, `ds_lib`, `ds_data` and survives restarts.
 
 ## Security / status
 

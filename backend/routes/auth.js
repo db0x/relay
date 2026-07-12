@@ -3,15 +3,18 @@
 const express = require("express");
 
 const users = require("../users");
+const { BASE } = require("../config");
 
 const router = express.Router();
 
 // Prueft den Nutzer bei jedem Request frisch gegen die DB: wer inzwischen
 // gesperrt oder geloescht wurde, fliegt sofort raus — auch mit gueltigem Cookie.
+// (req.path ist im gemounteten Router OHNE das BASE-Praefix, daher selbst praefixen.)
 function loginRequired(req, res, next) {
-  if (!req.session.user) return res.redirect("/login?next=" + encodeURIComponent(req.path));
+  if (!req.session.user)
+    return res.redirect(`${BASE}/login?next=` + encodeURIComponent(BASE + req.path));
   const row = users.get(req.session.user);
-  if (!row || row.locked) return req.session.destroy(() => res.redirect("/login"));
+  if (!row || row.locked) return req.session.destroy(() => res.redirect(`${BASE}/login`));
   next();
 }
 
@@ -36,7 +39,7 @@ router.post("/login", (req, res) => {
       req.flash("err", "Es gilt noch das Standard-Passwort „admin“ — bitte gleich ändern (Menü → Passwort ändern).");
     let nxt = req.body.next || "";
     // nur interne Pfade, sonst waere das ein Open Redirect
-    if (!nxt.startsWith("/") || nxt.startsWith("//")) nxt = "/";
+    if (!nxt.startsWith("/") || nxt.startsWith("//")) nxt = `${BASE}/`;
     return res.redirect(nxt);
   }
   setTimeout(() => // bremst Passwort-Raten
@@ -45,7 +48,7 @@ router.post("/login", (req, res) => {
 });
 
 router.get("/logout", (req, res) => {
-  req.session.destroy(() => res.redirect("/login"));
+  req.session.destroy(() => res.redirect(`${BASE}/login`));
 });
 
 router.post("/password", loginRequired, (req, res) => {
@@ -53,19 +56,19 @@ router.post("/password", loginRequired, (req, res) => {
   if (!users.verify(req.session.user, old || "")) {
     return setTimeout(() => { // bremst Passwort-Raten
       req.flash("err", "Altes Passwort falsch.");
-      res.redirect("/");
+      res.redirect(`${BASE}/`);
     }, 400);
   }
   if (new1 !== new2) req.flash("err", "Die neuen Passwörter stimmen nicht überein.");
   else if ((new1 || "").length < 6) req.flash("err", "Das neue Passwort braucht mindestens 6 Zeichen.");
   else { users.setPassword(req.session.user, new1); req.flash("ok", "Passwort geändert."); }
-  res.redirect("/");
+  res.redirect(`${BASE}/`);
 });
 
 router.post("/token/reset", loginRequired, (req, res) => {
   users.resetToken(req.session.user);
   req.flash("ok", "Neues API-Token erzeugt. Das alte gilt nicht mehr.");
-  res.redirect("/");
+  res.redirect(`${BASE}/`);
 });
 
 module.exports = { router, loginRequired };

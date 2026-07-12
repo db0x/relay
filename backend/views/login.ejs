@@ -1,7 +1,7 @@
 <!doctype html><meta charset="utf-8"><title><%= appName %> — Anmelden</title>
-<link rel="stylesheet" href="/static/css/login.css?v=<%= v %>">
-<form method="post" action="/login">
-  <h1><img src="/static/img/logo.svg" alt="" width="26" height="26"><%= appName %></h1>
+<link rel="stylesheet" href="<%= base %>/static/css/login.css?v=<%= v %>">
+<form method="post" action="<%= base %>/login">
+  <h1><img src="<%= base %>/static/img/logo.svg" alt="" width="26" height="26"><%= appName %></h1>
   <% if (error) { %><div class="err"><%= error %></div><% } %>
   <input name="username" placeholder="Name" autofocus autocomplete="username">
   <input name="password" type="password" placeholder="Passwort"
