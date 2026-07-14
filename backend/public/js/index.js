@@ -29,6 +29,29 @@
     });
   });
 
+  // Symbol-Buttons "Neue Datei": Dateityp übernehmen, Titel anpassen, Dialog öffnen
+  var createDlg = document.getElementById("dlg-create");
+  if (createDlg) {
+    var createTitles = {
+      docx: "Neues Textdokument",
+      xlsx: "Neue Tabelle",
+      pptx: "Neue Präsentation",
+    };
+    document.querySelectorAll("[data-create]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var ext = btn.dataset.create;
+        document.getElementById("dlg-create-title").textContent = createTitles[ext] || "Neue Datei";
+        document.getElementById("dlg-create-ext").value = ext;
+        var icon = document.getElementById("dlg-create-icon");
+        icon.src = icon.src.replace(/[^/]+$/, ext + ".svg");
+        var nameInput = document.getElementById("dlg-create-name");
+        nameInput.value = "";
+        createDlg.showModal();
+        nameInput.focus();
+      });
+    });
+  }
+
   var copyBtn = document.querySelector(".copy");
   if (copyBtn) {
     copyBtn.addEventListener("click", function () {

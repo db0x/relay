@@ -17,21 +17,24 @@ html{background:var(--bg)}
 body{
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
-  padding:32px 16px;line-height:1.45;
+  line-height:1.45;
 }
 
-/* Karte, die die ganze Seite hält */
+/* Karte, die den Seiteninhalt hält */
 .page{
-  max-width:840px;margin:0 auto;background:var(--card);
+  width:min(840px,calc(100% - 32px));margin:28px auto;background:var(--card);
   border:1px solid var(--line);border-radius:var(--radius);
   box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
   padding:24px 26px 28px;
 }
 
-/* Kopfzeile */
+/* Titelleiste als voller Streifen über die ganze Breite */
 .topbar{
+  position:sticky;top:0;z-index:30;
   display:flex;justify-content:space-between;align-items:center;
-  padding-bottom:16px;margin-bottom:20px;border-bottom:1px solid var(--line);
+  background:var(--card);border-bottom:1px solid var(--line);
+  padding:.7rem clamp(16px,4vw,36px);
+  box-shadow:0 1px 3px rgba(16,24,40,.06);
 }
 .brand{display:flex;align-items:center;gap:.55em;font-size:1.2rem;font-weight:650}
 .user{display:flex;align-items:center;gap:.9em}
@@ -77,12 +80,15 @@ body{
 .file-label{cursor:pointer}
 .file-name{color:var(--muted);font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* Werkzeugleiste (Neu / Hochladen) */
-.toolbar{display:flex;flex-direction:column;gap:.65rem;margin-bottom:22px}
-.row-form{
-  display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;
+/* Werkzeugleiste (Neu / Hochladen / Ordner) */
+.toolbar{
+  display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:22px;
   background:#f7f8fa;border:1px solid var(--line);border-radius:var(--radius-sm);padding:.7rem;
 }
+.create-group{display:flex;gap:.4rem}
+.create-btn{width:40px;height:40px}
+.tool-sep{width:1px;align-self:stretch;background:var(--line);margin:0 .35rem}
+.upload-form{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;flex:1;min-width:0}
 
 /* Meldungen */
 .flash{padding:.6em .85em;border-radius:var(--radius-sm);margin:0 0 14px;font-size:.9em}
@@ -188,8 +194,37 @@ a.crumb:hover{text-decoration:underline}
   border:1px solid var(--line);border-radius:14px;padding:0 0 1.1rem;
   width:min(92vw,380px);box-shadow:0 16px 48px rgba(16,24,40,.22);
 }
-.dialog::backdrop{background:rgba(16,24,40,.4)}
+
+/* Ein-/Ausblenden aller Dialoge: allow-discrete hält display/overlay während
+   der Transition aktiv, @starting-style liefert den Startwert beim Öffnen */
+.dialog,.dialog::backdrop{
+  opacity:0;
+  transition:opacity .18s ease,transform .18s ease,
+    overlay .18s ease allow-discrete,display .18s ease allow-discrete;
+}
+.dialog{transform:translateY(10px) scale(.97)}
+.dialog[open]{opacity:1;transform:none}
+.dialog[open]::backdrop{opacity:1;background:rgba(16,24,40,.4)}
+@starting-style{
+  .dialog[open]{opacity:0;transform:translateY(10px) scale(.97)}
+  .dialog[open]::backdrop{opacity:0}
+}
+@media (prefers-reduced-motion:reduce){
+  .dialog,.dialog::backdrop{transition:none}
+}
 .dialog h2{margin:0;padding:0 1.1rem;font-size:1.05rem}
+
+/* Kopfzeile im Dialog — analog zur Titelleiste des Hauptfensters */
+.dialog-head{
+  display:flex;align-items:center;gap:.55em;
+  padding:.65rem .55rem .65rem 1.1rem;margin-bottom:.2rem;
+  border-bottom:1px solid var(--line);background:#f7f8fa;
+  border-radius:14px 14px 0 0;
+}
+.dialog-head img{display:block;flex:0 0 auto}
+.dialog-head h2{padding:0;flex:1;font-size:1.02rem}
+.dialog-head form{margin:0;display:flex}
+.dialog-head .dialog-x{margin:0}
 .dialog-close-row{display:flex;justify-content:flex-end;margin:0}
 .dialog-x{
   margin:.5rem .5rem 0 0;border:0;background:none;font-size:1.4rem;line-height:1;
@@ -197,7 +232,8 @@ a.crumb:hover{text-decoration:underline}
 }
 .dialog-x:hover{background:#f2f4f7;color:var(--ink)}
 
-.stack-form{display:flex;flex-direction:column;gap:.6em;max-width:340px;padding:.9rem}
+.stack-form{display:flex;flex-direction:column;gap:.6em;padding:.9rem}
+.dialog-submit{align-self:flex-end}
 .dialog-hint{padding:.9rem}
 .tokbox{padding:.9rem}
 .tokrow{display:flex;gap:.6em;align-items:center;flex-wrap:wrap}
