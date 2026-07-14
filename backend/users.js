@@ -72,6 +72,7 @@ function del(username) {
   if (r.changes === 0) throw new Error(`Unbekannter Nutzer: ${username}`);
   // Freigaben des/an den Nutzer mit entfernen, sonst bleiben Karteileichen
   db().prepare("DELETE FROM shares WHERE owner=? OR target=?").run(username, username);
+  require("./avatars").remove(username); // lazy: vermeidet Zyklus beim Modul-Laden
 }
 
 function listUsers() {

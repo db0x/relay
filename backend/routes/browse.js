@@ -6,6 +6,7 @@ const express = require("express");
 const multer = require("multer");
 
 const users = require("../users");
+const avatars = require("../avatars");
 const shares = require("../shares");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs } = require("../storage");
@@ -153,6 +154,7 @@ router.get("/", loginRequired, (req, res) => {
     allDirs: walkDirs(userDir).sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" })),
     user: req.session.name,
     me,
+    hasAvatar: avatars.has(me),
     isAdmin: !!row.is_admin,
     allUsers: users.listUsers(),
     api_token: row.api_token,

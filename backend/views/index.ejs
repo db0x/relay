@@ -8,6 +8,9 @@
       <span><%= appName %></span>
     </div>
     <div class="user">
+      <% if (hasAvatar) { %>
+      <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="26" height="26">
+      <% } %>
       <span class="uname"><%= user %></span>
       <div class="menu">
         <button type="button" class="iconbtn menu-btn" aria-haspopup="true"
@@ -15,6 +18,7 @@
           <img src="<%= base %>/static/img/open-menu.svg" alt="" width="16" height="16">
         </button>
         <div class="menu-panel" hidden>
+          <button type="button" class="menu-item" data-dialog="dlg-avatar">Profilbild</button>
           <button type="button" class="menu-item" data-dialog="dlg-pw">Passwort ändern</button>
           <button type="button" class="menu-item" data-dialog="dlg-tok">API-Token</button>
           <% if (isAdmin) { %>
@@ -290,6 +294,30 @@
     </div>
   </dialog>
   <% } %>
+
+  <dialog id="dlg-avatar" class="dialog">
+    <form method="dialog" class="dialog-close-row">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+    <h2>Profilbild</h2>
+    <% if (hasAvatar) { %>
+    <img class="avatar-preview" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="Aktuelles Profilbild" width="96" height="96">
+    <% } else { %>
+    <div class="avatar-preview avatar-empty">kein Bild</div>
+    <% } %>
+    <form class="stack-form" action="<%= base %>/avatar" method="post" enctype="multipart/form-data">
+      <input class="field" type="file" name="file" accept="image/png,image/jpeg,image/webp" required>
+      <button class="btn">Hochladen</button>
+    </form>
+    <% if (hasAvatar) { %>
+    <form class="stack-form avatar-delete" action="<%= base %>/avatar/delete" method="post"
+          data-confirm="Profilbild entfernen?">
+      <button class="btn btn-secondary">entfernen</button>
+    </form>
+    <% } %>
+    <p class="muted dialog-hint">Wird beim gemeinsamen Bearbeiten, in Kommentaren
+      und der Versionshistorie angezeigt. Das Bild wird auf 128×128 verkleinert.</p>
+  </dialog>
 
   <dialog id="dlg-pw" class="dialog">
     <form method="dialog" class="dialog-close-row">

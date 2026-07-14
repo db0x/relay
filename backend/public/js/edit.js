@@ -64,6 +64,8 @@
   }
 
   var cfg = JSON.parse(document.getElementById("editor-config").textContent);
+  // alle Nutzer (id, name, image) fuer onRequestUsers — kommt vom Backend
+  var relayUsers = JSON.parse(document.getElementById("relay-users").textContent);
   cfg.events = {
     // Editor laeuft -> ein etwaiger Retry-Marker ist erledigt
     onDocumentReady: function () { sessionStorage.removeItem(retryKey); },
@@ -76,6 +78,16 @@
       retryOnce("Das Dokument konnte nicht geöffnet werden" +
         (detail ? ": " + detail : "."));
     },
+    // Editor fragt Name + Avatar zu Nutzer-IDs an (Co-Editing-Cursor,
+    // Kommentare, Versionshistorie) — aus der eingebetteten Nutzerliste
+    onRequestUsers: function (e) {
+      if (!e || !e.data || e.data.c !== "info") return;
+      var ids = e.data.id || [];
+      editor.setUsers({
+        c: "info",
+        users: relayUsers.filter(function (u) { return ids.indexOf(u.id) >= 0; }),
+      });
+    },
   };
-  new DocsAPI.DocEditor("editor", cfg);
+  var editor = new DocsAPI.DocEditor("editor", cfg);
 })();

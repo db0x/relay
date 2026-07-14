@@ -68,6 +68,7 @@ app.use((req, res, next) => {
 // Alles unter BASE gemountet (Reverse Proxy mit Unterpfad); "" = Wurzel.
 const mount = BASE || "/";
 app.use(mount, require("./routes/auth").router);
+app.use(mount, require("./routes/avatar").router);
 app.use(mount, require("./routes/admin").router);
 app.use(mount, require("./routes/api").router);
 app.use(mount, require("./routes/browse").router);

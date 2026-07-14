@@ -4,4 +4,5 @@
 <!-- api.js vom DocumentServer, dann Config (JWT-signiert, als JSON) und Editor-Start -->
 <script src="<%= ds_api %>"></script>
 <script type="application/json" id="editor-config"><%- config %></script>
+<script type="application/json" id="relay-users"><%- usersJson %></script>
 <script src="<%= base %>/static/js/edit.js?v=<%= v %>"></script>

@@ -88,6 +88,18 @@ Every user can change their own password on the home page ("Passwort ändern",
 old + 2× new password). `manage.js passwd` remains the emergency path in case
 someone forgot their password.
 
+## Avatars
+
+Every user can upload a profile picture (menu → "Profilbild"; PNG/JPEG/WebP,
+resized server-side to 128×128 via sharp). It shows up next to the user name
+on the home page and inside the editor: header, co-editing cursors, comments
+and version history. Storage is one file per user in `state/avatars/`
+(no DB column — file existence is the truth; deleted with the user).
+The editor loads the images via **HMAC-signed URLs** (like the `/files`
+links), because the editor iframe may run on a different origin where
+session cookies are not sent; the other users' avatars are answered from
+the embedded user list via the `onRequestUsers` API event.
+
 ## Folders
 
 Every user can create subfolders in their own area ("Neuer Ordner" in the
@@ -206,3 +218,15 @@ volumes `ds_db`, `ds_lib`, `ds_data` and survives restarts.
   authenticates via **API token** (`?token=`, Voltage knows no user), builds
   the login session from it, redirects to `/edit/<user>/<path>`, and if
   needed finds the file by name search in the user's own folder tree.
+
+## License
+
+Relay is licensed under the **GNU AGPL-3.0** (see [LICENSE](LICENSE)).
+Copyright (C) 2026 db0x.
+
+The deployment pulls in the OnlyOffice DocumentServer (Community Edition),
+which is itself AGPL-3.0 licensed — Relay integrates it via its documented
+API (api.js, JWT-signed config, save callbacks) and matches its license, the
+same model OnlyOffice uses for its own connectors. The repository contains
+no OnlyOffice source code; `documentserver/` only holds build/config files
+for the official image.

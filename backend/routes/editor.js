@@ -8,6 +8,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 
 const users = require("../users");
+const avatars = require("../avatars");
 const { accessFor } = require("../access");
 const { secureFilename, encPath, securePath, dirFor, pathFor, walkFiles } = require("../storage");
 const { PUBLIC_DS, HOST_INTERNAL, DS_INTERNAL, JWT_SECRET, FILE_SECRET, DOCTYPE, BASE, EDITOR_THEME } = require("../config");
@@ -46,6 +47,11 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   // fid als kurzer Hash: der Key erlaubt kein "/", und Pfad + Nutzer + mtime
   // koennten die 128-Zeichen-Grenze des DocumentServers sprengen
   const fidHash = crypto.createHash("sha256").update(fid).digest("hex").slice(0, 16);
+  // Avatare: absolute, signierte URLs — der Editor-iframe laeuft je nach Setup
+  // auf fremder Origin (Port-Setup) und der Browser schickt dorthin keine
+  // Session-Cookies. Host aus dem Request: darueber hat der Browser uns erreicht.
+  const pub = `${req.protocol}://${req.get("host")}`;
+  const avatarUrl = (u) => (avatars.has(u) ? pub + avatars.signedUrl(u, exp) : undefined);
   const config = {
     document: {
       fileType: ext,
@@ -65,7 +71,9 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
       lang: "de-DE",
       region: "de-DE",
       callbackUrl: `${HOST_INTERNAL}${BASE}/callback/${encodeURIComponent(uid)}/${encPath(fid)}`,
-      user: { id: uid, name: req.session.name }, // eingeloggter Nutzer -> echte Namen beim Co-Editing
+      // id = EINGELOGGTER Nutzer (nicht der Datei-Besitzer!) — sonst waeren
+      // beim Co-Editing einer Freigabe beide Teilnehmer dieselbe Person
+      user: { id: req.session.user, name: req.session.name, image: avatarUrl(req.session.user) },
       // uiTheme/tabStyle sind nur Startwerte (eine im Browser gespeicherte
       // Wahl gewinnt) — edit.js ueberschreibt den Speicher deshalb bei jedem Start
       customization: {
@@ -78,9 +86,18 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   config.token = jwt.sign(config, JWT_SECRET, { algorithm: "HS256", noTimestamp: true });
   // Session-Key merken, damit /forcesave ihn spaeter dem DocumentServer geben kann.
   activeEditorKey.set(`${uid}/${fid}`, config.document.key);
+  // alle Nutzer mit Avatar-URL: edit.js beantwortet damit onRequestUsers
+  // (Avatare der ANDEREN beim Co-Editing, in Kommentaren, Versionshistorie)
+  const usersInfo = users.listUsers().map((u) => ({
+    id: u.username, name: u.display_name, image: avatarUrl(u.username),
+  }));
+  // "<" escapen: die JSONs landen roh in <script>-Tags der Editor-Seite —
+  // ein "</script>" in einem Anzeigenamen darf dort nicht ausbrechen
+  const embed = (o) => JSON.stringify(o).replace(/</g, "\\u003c");
   res.render("edit", {
     ds_api: `${PUBLIC_DS}/web-apps/apps/api/documents/api.js`,
-    config: JSON.stringify(config),
+    config: embed(config),
+    usersJson: embed(usersInfo),
     // fuer edit.js: Editor-Einstellungen liegen im localStorage der DS-Origin —
     // nur wenn sie mit unserer identisch ist (nginx-Setup), kann er sie setzen
     dsOrigin: new URL(PUBLIC_DS).origin,
