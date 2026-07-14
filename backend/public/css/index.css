@@ -168,6 +168,10 @@ a.crumb:hover{text-decoration:underline}
   color:var(--ink);font:inherit;border-radius:7px;cursor:pointer;text-decoration:none;
 }
 .menu-item:hover{background:#f2f4f7}
+.menu-version{
+  color:var(--muted);font-size:.78rem;padding:.4rem .6rem .2rem;
+  border-top:1px solid var(--line);margin-top:2px;
+}
 
 /* Dialoge (Passwort / Token) */
 .dialog{

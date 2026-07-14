@@ -11,7 +11,7 @@ const path = require("path");
 const express = require("express");
 const session = require("express-session");
 
-const { SESSION_SECRET, APP_NAME, BASE } = require("./config");
+const { SESSION_SECRET, APP_NAME, BASE, VERSION } = require("./config");
 const { encPath } = require("./storage");
 
 const app = express();
@@ -31,6 +31,8 @@ app.use(`${BASE}/static`, express.static(path.join(__dirname, "public"), {
 app.locals.v = Date.now().toString(36);
 // Anzeigename der Instanz (INSTANCE_NAME aus .env), Default "Relay"
 app.locals.appName = APP_NAME;
+// Version aus package.json — sichtbar auf Login-Seite und im Menue (Fehlersuche)
+app.locals.version = VERSION;
 // Pfad-Encoding fuer Links in den Templates (Dateien in Unterordnern)
 app.locals.encPath = encPath;
 // Pfad-Praefix hinter dem Reverse Proxy (BASE_PATH, z.B. "/relay"); "" = Wurzel.

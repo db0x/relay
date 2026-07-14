@@ -21,6 +21,11 @@ module.exports = {
   FILE_SECRET: process.env.FILE_SECRET,           // signierte /files-Links
   SESSION_SECRET: process.env.SESSION_SECRET,     // signiert Login-Session-Cookies
   APP_NAME: process.env.INSTANCE_NAME || "Relay", // Anzeigename der Instanz in der UI
+  VERSION: require("./package.json").version,     // Relay-Version, in der UI sichtbar
+  // Editor-Theme, das jeder Editor-Start bekommt (uiTheme in der Config;
+  // edit.js setzt zusaetzlich die im Browser gespeicherte Wahl hart darauf).
+  // "theme-white" = "Modern Hell" in der Editor-Oberflaeche.
+  EDITOR_THEME: process.env.EDITOR_THEME || "theme-white",
 
   // Dateiendung -> OnlyOffice-Dokumenttyp
   DOCTYPE: {

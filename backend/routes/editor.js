@@ -10,7 +10,7 @@ const jwt = require("jsonwebtoken");
 const users = require("../users");
 const { accessFor } = require("../access");
 const { secureFilename, encPath, securePath, dirFor, pathFor, walkFiles } = require("../storage");
-const { PUBLIC_DS, HOST_INTERNAL, DS_INTERNAL, JWT_SECRET, FILE_SECRET, DOCTYPE, BASE } = require("../config");
+const { PUBLIC_DS, HOST_INTERNAL, DS_INTERNAL, JWT_SECRET, FILE_SECRET, DOCTYPE, BASE, EDITOR_THEME } = require("../config");
 const { loginRequired } = require("./auth");
 
 const router = express.Router();
@@ -66,7 +66,13 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
       region: "de-DE",
       callbackUrl: `${HOST_INTERNAL}${BASE}/callback/${encodeURIComponent(uid)}/${encPath(fid)}`,
       user: { id: uid, name: req.session.name }, // eingeloggter Nutzer -> echte Namen beim Co-Editing
-      customization: { forcesave: true, autosave: true },
+      // uiTheme/tabStyle sind nur Startwerte (eine im Browser gespeicherte
+      // Wahl gewinnt) — edit.js ueberschreibt den Speicher deshalb bei jedem Start
+      customization: {
+        forcesave: true, autosave: true,
+        uiTheme: EDITOR_THEME,
+        features: { tabStyle: "fill" },
+      },
     },
   };
   config.token = jwt.sign(config, JWT_SECRET, { algorithm: "HS256", noTimestamp: true });
@@ -75,6 +81,10 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   res.render("edit", {
     ds_api: `${PUBLIC_DS}/web-apps/apps/api/documents/api.js`,
     config: JSON.stringify(config),
+    // fuer edit.js: Editor-Einstellungen liegen im localStorage der DS-Origin —
+    // nur wenn sie mit unserer identisch ist (nginx-Setup), kann er sie setzen
+    dsOrigin: new URL(PUBLIC_DS).origin,
+    theme: EDITOR_THEME,
   });
 });
 

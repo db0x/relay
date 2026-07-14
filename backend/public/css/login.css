@@ -26,4 +26,5 @@ button{
 }
 button:hover{background:var(--brand-dark)}
 .err{color:#dc2626;font-size:.9em}
+.version{color:var(--muted);font-size:.78rem;text-align:center;margin-top:.2em}
 :focus-visible{outline:2px solid var(--brand);outline-offset:2px}

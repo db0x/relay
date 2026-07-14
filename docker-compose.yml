@@ -38,6 +38,7 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}                # signiert Login-Session-Cookies
       - INSTANCE_NAME=${INSTANCE_NAME:-Relay}           # Anzeigename der Instanz in der UI
       - BASE_PATH=${BASE_PATH:-}                        # Unterpfad hinter Reverse Proxy, z.B. /relay
+      - EDITOR_THEME=${EDITOR_THEME:-}                  # Editor-Theme; leer = theme-white ("Modern Hell")
     volumes:
       # Ablageorte auf dem Host per .env steuerbar (Default: im Projektordner).
       # So braucht ein Server-Deployment keine Aenderung an dieser Datei.
