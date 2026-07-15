@@ -29,8 +29,8 @@ router.post("/users/create", adminRequired, (req, res) => {
     req.flash("err", "Ungültiger Nutzername — erlaubt sind Buchstaben, Zahlen, Punkt, _ und -.");
   } else if (users.get(name)) {
     req.flash("err", `Nutzer „${name}“ existiert schon.`);
-  } else if (pw.length < 6) {
-    req.flash("err", "Das Startpasswort braucht mindestens 6 Zeichen.");
+  } else if (pw.length < 8) {
+    req.flash("err", "Das Startpasswort braucht mindestens 8 Zeichen.");
   } else {
     users.addUser(name, display, pw, isAdmin);
     req.flash("ok", `Nutzer „${display}“ angelegt${isAdmin ? " (Admin)" : ""}.`);

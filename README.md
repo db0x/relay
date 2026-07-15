@@ -84,14 +84,14 @@ docker compose exec backend node manage.js lock <name> on|off
 docker compose exec backend node manage.js del <name>
 ```
 
-Every user can change their own password on the home page ("Passwort ändern",
-old + 2× new password). `manage.js passwd` remains the emergency path in case
-someone forgot their password.
+Every user can change their own password and display name on the home page
+(menu → "Mein Konto"; password needs old + 2× new). `manage.js passwd`
+remains the emergency path in case someone forgot their password.
 
 ## Avatars
 
-Every user can upload a profile picture (menu → "Profilbild"; PNG/JPEG/WebP,
-resized server-side to 128×128 via sharp). It shows up next to the user name
+Every user can upload a profile picture (menu → "Mein Konto", pencil button
+on the picture; PNG/JPEG/WebP, resized server-side to 128×128 via sharp). It shows up next to the user name
 on the home page and inside the editor: header, co-editing cursors, comments
 and version history. Storage is one file per user in `state/avatars/`
 (no DB column — file existence is the truth; deleted with the user).
@@ -143,8 +143,8 @@ API token, either as `Authorization: Bearer <token>` or `?token=<token>`.
 Each token only sees its own user folder.
 
 Every user finds their token after login on the **home page** under
-"API-Token" (with copy and "regenerate" buttons). `manage.js token <name>`
-remains the admin path.
+menu → "Mein Konto" (with a "regenerate" button).
+`manage.js token <name>` remains the admin path.
 
 | Method   | Path                       | Purpose                                       |
 |----------|----------------------------|-----------------------------------------------|

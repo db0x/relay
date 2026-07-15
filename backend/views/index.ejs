@@ -17,9 +17,7 @@
           <img src="<%= base %>/static/img/open-menu.svg" alt="" width="16" height="16">
         </button>
         <div class="menu-panel" hidden>
-          <button type="button" class="menu-item" data-dialog="dlg-avatar">Profilbild</button>
-          <button type="button" class="menu-item" data-dialog="dlg-pw">Passwort ändern</button>
-          <button type="button" class="menu-item" data-dialog="dlg-tok">API-Token</button>
+          <button type="button" class="menu-item" data-dialog="dlg-account">Mein Konto</button>
           <% if (isAdmin) { %>
           <button type="button" class="menu-item" data-dialog="dlg-users">Nutzerverwaltung</button>
           <% } %>
@@ -51,14 +49,11 @@
       </button>
     </div>
     <span class="tool-sep" aria-hidden="true"></span>
+    <%# ein Knopf: oeffnet die Dateiauswahl, die Auswahl laedt sofort hoch (index.js) %>
     <form class="upload-form" action="<%= base %>/upload" method="post" enctype="multipart/form-data">
       <input type="hidden" name="dir" value="<%= curDir %>">
-      <label class="btn btn-secondary file-label">
-        <img class="btn-icon" src="<%= base %>/static/img/add-file.svg" alt="" width="16" height="16">Datei wählen
-        <input type="file" name="file" hidden>
-      </label>
-      <span class="file-name grow" data-empty="Keine Datei gewählt">Keine Datei gewählt</span>
-      <button class="btn btn-secondary">
+      <input type="file" name="file" accept="<%= uploadAccept %>" hidden>
+      <button type="button" class="btn btn-secondary upload-btn">
         <img class="btn-icon" src="<%= base %>/static/img/upload.svg" alt="" width="16" height="16">Hochladen
       </button>
     </form>
@@ -311,7 +306,7 @@
         <input class="field grow" name="username" placeholder="Nutzername (Login)" required>
         <input class="field grow" name="display" placeholder="Anzeigename">
         <input class="field grow" name="password" type="password"
-               placeholder="Startpasswort (min. 6 Zeichen)" required minlength="6"
+               placeholder="Startpasswort (min. 8 Zeichen)" required minlength="8"
                autocomplete="new-password">
         <label class="check"><input type="checkbox" name="admin" value="1"> Admin</label>
         <button class="btn">Nutzer anlegen</button>
@@ -320,62 +315,74 @@
   </dialog>
   <% } %>
 
-  <dialog id="dlg-avatar" class="dialog">
-    <form method="dialog" class="dialog-close-row">
-      <button class="dialog-x" aria-label="Schließen">×</button>
-    </form>
-    <h2>Profilbild</h2>
-    <% if (hasAvatar) { %>
-    <img class="avatar-preview" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="Aktuelles Profilbild" width="96" height="96">
-    <% } else { %>
-    <div class="avatar-preview avatar-empty">kein Bild</div>
-    <% } %>
-    <form class="stack-form" action="<%= base %>/avatar" method="post" enctype="multipart/form-data">
-      <input class="field" type="file" name="file" accept="image/png,image/jpeg,image/webp" required>
-      <button class="btn">Hochladen</button>
-    </form>
-    <% if (hasAvatar) { %>
-    <form class="stack-form avatar-delete" action="<%= base %>/avatar/delete" method="post"
-          data-confirm="Profilbild entfernen?">
-      <button class="btn btn-secondary">entfernen</button>
-    </form>
-    <% } %>
-    <p class="muted dialog-hint">Wird beim gemeinsamen Bearbeiten, in Kommentaren
-      und der Versionshistorie angezeigt. Das Bild wird auf 128×128 verkleinert.</p>
-  </dialog>
+  <dialog id="dlg-account" class="dialog dialog-wide">
+    <header class="dialog-head">
+      <% if (hasAvatar) { %>
+      <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="22" height="22">
+      <% } else { %>
+      <img src="<%= base %>/static/img/logo.svg" alt="" width="22" height="22">
+      <% } %>
+      <h2>Mein Konto <span class="muted">· <%= user %></span></h2>
+      <form method="dialog">
+        <button class="dialog-x" aria-label="Schließen">×</button>
+      </form>
+    </header>
 
-  <dialog id="dlg-pw" class="dialog">
-    <form method="dialog" class="dialog-close-row">
-      <button class="dialog-x" aria-label="Schließen">×</button>
-    </form>
-    <h2>Passwort ändern</h2>
-    <form class="stack-form" action="<%= base %>/password" method="post">
-      <input class="field" name="old" type="password" placeholder="Altes Passwort"
-             autocomplete="current-password" required>
-      <input class="field" name="new1" type="password" placeholder="Neues Passwort"
-             autocomplete="new-password" required minlength="6">
-      <input class="field" name="new2" type="password" placeholder="Neues Passwort (wiederholen)"
-             autocomplete="new-password" required minlength="6">
-      <button class="btn">Ändern</button>
-    </form>
-  </dialog>
+    <section class="account-section avatar-section">
+      <%# Avatar zentriert; der Stift unten rechts oeffnet die Dateiauswahl,
+          die Auswahl laedt sofort hoch (index.js) %>
+      <form id="avatar-upload" class="avatar-wrap" action="<%= base %>/avatar"
+            method="post" enctype="multipart/form-data">
+        <% if (hasAvatar) { %>
+        <img class="avatar-preview" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="Aktuelles Profilbild" width="96" height="96">
+        <% } else { %>
+        <div class="avatar-preview avatar-empty">kein Bild</div>
+        <% } %>
+        <input type="file" name="file" accept="image/png,image/jpeg,image/webp" hidden>
+        <button type="button" class="avatar-edit" title="Profilbild ändern" aria-label="Profilbild ändern">
+          <img src="<%= base %>/static/img/edit.svg" alt="" width="14" height="14">
+        </button>
+      </form>
+    </section>
 
-  <dialog id="dlg-tok" class="dialog">
-    <form method="dialog" class="dialog-close-row">
-      <button class="dialog-x" aria-label="Schließen">×</button>
-    </form>
-    <h2>API-Token (für Sync / Skripte)</h2>
-    <div class="tokbox">
-      <div class="tokrow">
+    <section class="account-section">
+      <h3>Anzeigename</h3>
+      <form class="stack-form" action="<%= base %>/display-name" method="post">
+        <%# pattern verlangt mind. ein Nicht-Leerzeichen — "   " zaehlt nicht als Name %>
+        <input class="field" name="display" value="<%= user %>" required maxlength="60"
+               pattern=".*\S.*" title="Der Anzeigename darf nicht leer sein."
+               placeholder="Anzeigename" autocomplete="name">
+        <button class="btn btn-sm dialog-submit">Speichern</button>
+      </form>
+    </section>
+
+    <details class="account-section account-fold"<%- pwError ? " open" : "" %>>
+      <summary><h3>Passwort ändern</h3></summary>
+      <form class="stack-form" id="pw-form" action="<%= base %>/password" method="post">
+        <input class="field<%= pwError === "old" ? " field-invalid" : "" %>" name="old"
+               type="password" placeholder="Aktuelles Passwort"
+               autocomplete="current-password" required>
+        <input class="field<%= pwError === "new" ? " field-invalid" : "" %>" name="new1"
+               type="password" placeholder="Neues Passwort (min. 8 Zeichen)"
+               autocomplete="new-password" required minlength="8">
+        <input class="field<%= pwError === "new" ? " field-invalid" : "" %>" name="new2"
+               type="password" placeholder="Neues Passwort (wiederholen)"
+               autocomplete="new-password" required minlength="8">
+        <button class="btn btn-sm dialog-submit">Ändern</button>
+      </form>
+    </details>
+
+    <details class="account-section account-fold">
+      <summary><h3>API-Token <span class="muted">· für Sync / Skripte</span></h3></summary>
+      <div class="tokbox">
         <code id="tok"><%= api_token %></code>
-        <button type="button" class="btn btn-secondary copy">kopieren</button>
+        <div class="tokhint">Wie ein Passwort behandeln — nicht weitergeben.
+          Nutzung: <code>Authorization: Bearer &lt;token&gt;</code> gegen <code>/api/files</code>.</div>
         <form class="reset-form" action="<%= base %>/token/reset" method="post"
               data-confirm="Neues Token erzeugen? Bestehende Sync-Verbindungen mit dem alten Token funktionieren dann nicht mehr.">
-          <button class="btn btn-danger">neu erzeugen</button>
+          <button class="btn btn-danger btn-sm">neu erzeugen</button>
         </form>
       </div>
-      <div class="tokhint">Wie ein Passwort behandeln — nicht weitergeben.
-        Nutzung: <code>Authorization: Bearer &lt;token&gt;</code> gegen <code>/api/files</code>.</div>
-    </div>
+    </details>
   </dialog>
 </div>

@@ -10,7 +10,7 @@ const avatars = require("../avatars");
 const shares = require("../shares");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs } = require("../storage");
-const { BLANKS, BASE } = require("../config");
+const { BLANKS, BASE, DOCTYPE } = require("../config");
 const { loginRequired } = require("./auth");
 
 const router = express.Router();
@@ -155,6 +155,12 @@ router.get("/", loginRequired, (req, res) => {
     user: req.session.name,
     me,
     hasAvatar: avatars.has(me),
+    // Dateiauswahl beim Hochladen auf die Formate begrenzen, die der Editor
+    // oeffnen kann — abgeleitet aus DOCTYPE, bleibt also automatisch synchron
+    uploadAccept: Object.keys(DOCTYPE).map((e) => "." + e).join(","),
+    // einmalig: fehlgeschlagene Passwort-Aenderung -> Feld markieren,
+    // Dialog + Abschnitt wieder oeffnen (index.ejs/index.js)
+    pwError: (() => { const e = req.session.pwError || null; delete req.session.pwError; return e; })(),
     isAdmin: !!row.is_admin,
     allUsers: users.listUsers(),
     api_token: row.api_token,

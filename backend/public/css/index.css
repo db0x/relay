@@ -1,4 +1,6 @@
 :root{
+  /* Hoehe darf zu "auto" animieren (einklappbare Konto-Abschnitte) */
+  interpolate-size:allow-keywords;
   --bg:#eef1f5;
   --card:#ffffff;
   --ink:#1f2937;
@@ -41,14 +43,59 @@ body{
 .uname{color:var(--muted);font-size:.92rem}
 .avatar{border-radius:50%;object-fit:cover;display:block;margin-right:-.5em}
 .avatar-preview{
-  width:96px;height:96px;border-radius:50%;object-fit:cover;
-  display:block;margin:0 auto 1rem;
+  width:96px;height:96px;border-radius:50%;object-fit:cover;display:block;
 }
 .avatar-empty{
   display:flex;align-items:center;justify-content:center;
   background:#f1f3f5;color:var(--muted);font-size:.8rem;
 }
-.avatar-delete{margin-top:.6rem}
+
+/* Konto-Dialog: Profilbild, Anzeigename, Passwort und API-Token als Abschnitte */
+.dialog-wide{width:min(92vw,460px)}
+.account-section{border-top:1px solid var(--line);margin-top:.55rem}
+/* erster Abschnitt direkt nach der Kopfzeile: keine Trennlinie
+   (nicht :first-of-type — section und details sind verschiedene Typen) */
+.dialog-head + .account-section{border-top:0;margin-top:0}
+.account-section h3{margin:.85rem 1.1rem .15rem;font-size:.92rem}
+.account-section h3 .muted{font-weight:400;font-size:.85rem}
+.account-section .stack-form{padding-top:.55rem}
+.avatar-section{padding:1rem 0 .35rem}
+/* einklappbare Abschnitte (Passwort, API-Token): native <details> */
+.account-fold summary{
+  display:flex;align-items:center;gap:.5em;cursor:pointer;list-style:none;
+}
+.account-fold summary::-webkit-details-marker{display:none}
+.account-fold summary h3{flex:1;margin-bottom:.85rem} /* symmetrisch: Zeile wirkt eingeklappt ruhig */
+.account-fold summary::after{
+  content:"❯";color:var(--muted);font-size:.78rem;margin-right:1.1rem;
+  transition:transform .15s ease;
+}
+.account-fold[open] summary::after{transform:rotate(90deg)}
+.account-fold summary:hover h3{color:var(--brand)}
+/* Auf-/Zuklappen weich wie die Dialoge: Inhalt blendet ein und gleitet.
+   ::details-content + interpolate-size (unten bei :root) sind progressive
+   enhancement — aeltere Browser klappen einfach hart um. allow-discrete
+   haelt content-visibility waehrend der Transition aktiv, analog zu
+   display/overlay beim Dialog. */
+.account-fold::details-content{
+  opacity:0;transform:translateY(-6px);height:0;overflow:clip;
+  transition:opacity .18s ease,transform .18s ease,height .18s ease,
+    content-visibility .18s ease allow-discrete;
+}
+.account-fold[open]::details-content{opacity:1;transform:none;height:auto}
+@media (prefers-reduced-motion:reduce){
+  .account-fold::details-content{transition:none}
+}
+/* Avatar zentriert, der Aendern-Stift liegt als runder Knopf auf der Ecke */
+.avatar-wrap{position:relative;width:96px;margin:0 auto}
+.avatar-edit{
+  position:absolute;right:-6px;bottom:-2px;width:30px;height:30px;padding:0;
+  border:1px solid var(--line);border-radius:50%;background:#fff;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 3px rgba(16,24,40,.18);
+}
+.avatar-edit:hover{background:#f2f4f7}
+.avatar-edit img{display:block}
 
 /* Buttons */
 .btn{
@@ -76,9 +123,11 @@ body{
   font:inherit;background:#fff;color:var(--ink);
 }
 .field:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+/* fehlerhaftes Feld (falsches/nicht uebereinstimmendes Passwort) */
+.field-invalid,.field-invalid:focus{
+  border-color:var(--danger);box-shadow:0 0 0 3px rgba(220,38,38,.12);
+}
 .grow{flex:1;min-width:140px}
-.file-label{cursor:pointer}
-.file-name{color:var(--muted);font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* Werkzeugleiste (Neu / Hochladen / Ordner) */
 .toolbar{
@@ -235,14 +284,13 @@ a.crumb:hover{text-decoration:underline}
 .stack-form{display:flex;flex-direction:column;gap:.6em;padding:.9rem}
 .dialog-submit{align-self:flex-end}
 .dialog-hint{padding:.9rem}
-.tokbox{padding:.9rem}
-.tokrow{display:flex;gap:.6em;align-items:center;flex-wrap:wrap}
-.tokrow code{
-  flex:1;min-width:220px;padding:.55em;background:#fff;border:1px solid var(--line);
+.tokbox{padding:.55rem .9rem .9rem;display:flex;flex-direction:column;gap:.6em}
+#tok{
+  display:block;padding:.55em;background:#fff;border:1px solid var(--line);
   border-radius:var(--radius-sm);font-size:.85em;word-break:break-all;
 }
-.reset-form{margin:0}
-.tokhint{color:var(--muted);font-size:.8em;margin-top:.7em}
+.reset-form{margin:0;align-self:flex-end}
+.tokhint{color:var(--muted);font-size:.8em}
 .tokhint code{background:#eef1f5;padding:.05em .35em;border-radius:5px}
 
 @media (max-width:560px){

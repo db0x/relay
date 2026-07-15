@@ -52,24 +52,81 @@
     });
   }
 
-  var copyBtn = document.querySelector(".copy");
-  if (copyBtn) {
-    copyBtn.addEventListener("click", function () {
-      var tok = document.getElementById("tok").textContent;
-      navigator.clipboard.writeText(tok);
-      copyBtn.textContent = "kopiert ✓";
-      setTimeout(function () { copyBtn.textContent = "kopieren"; }, 1500);
+  // Passwort-Formular: kam der Redirect mit markiertem Feld zurück (Server-
+  // Validierung), Dialog und Abschnitt wieder öffnen und das Feld fokussieren
+  var invalidField = document.querySelector("#dlg-account .field-invalid");
+  if (invalidField) {
+    var accDlg = document.getElementById("dlg-account");
+    if (accDlg && accDlg.showModal) accDlg.showModal();
+    invalidField.focus();
+  }
+
+  // neue Passwörter live vergleichen: bei Abweichung Feld markieren und
+  // Absenden blockieren (setCustomValidity); Tippen löscht die Markierung
+  var pwForm = document.getElementById("pw-form");
+  if (pwForm) {
+    var pwOld = pwForm.querySelector("input[name=old]");
+    var pwNew1 = pwForm.querySelector("input[name=new1]");
+    var pwNew2 = pwForm.querySelector("input[name=new2]");
+    function pwCheck() {
+      var mismatch = pwNew2.value !== "" && pwNew1.value !== pwNew2.value;
+      pwNew1.classList.toggle("field-invalid", mismatch);
+      pwNew2.classList.toggle("field-invalid", mismatch);
+      pwNew2.setCustomValidity(mismatch ? "Die neuen Passwörter stimmen nicht überein." : "");
+    }
+    pwNew1.addEventListener("input", pwCheck);
+    pwNew2.addEventListener("input", pwCheck);
+    pwOld.addEventListener("input", function () { pwOld.classList.remove("field-invalid"); });
+  }
+
+  // Konto-Dialog: beim Schließen ohne Speichern alles zurücksetzen — Felder
+  // auf Ausgangswerte (Anzeigename zurück, Passwörter leer), Fehlermarkierungen
+  // und Absende-Sperren weg, Abschnitte wieder eingeklappt
+  var accountDlg = document.getElementById("dlg-account");
+  if (accountDlg) {
+    accountDlg.addEventListener("close", function () {
+      accountDlg.querySelectorAll("form").forEach(function (f) { f.reset(); });
+      accountDlg.querySelectorAll(".field-invalid").forEach(function (el) {
+        el.classList.remove("field-invalid");
+        el.setCustomValidity("");
+      });
+      accountDlg.querySelectorAll("details").forEach(function (d) { d.open = false; });
     });
   }
 
-  // gewählten Dateinamen neben dem "Datei wählen"-Button anzeigen
-  var fileInput = document.querySelector(".file-label input[type=file]");
-  var fileName = document.querySelector(".file-name");
-  if (fileInput && fileName) {
-    fileInput.addEventListener("change", function () {
-      fileName.textContent = fileInput.files.length
-        ? fileInput.files[0].name
-        : fileName.dataset.empty;
+  // Anzeigename: schon beim Tippen rot markieren, wenn er (effektiv) leer ist,
+  // und das Absenden blockieren — passend zu required + pattern im Formular
+  var displayInput = document.querySelector("#dlg-account input[name=display]");
+  if (displayInput) {
+    displayInput.addEventListener("input", function () {
+      var empty = displayInput.value.trim() === "";
+      displayInput.classList.toggle("field-invalid", empty);
+      displayInput.setCustomValidity(empty ? "Der Anzeigename darf nicht leer sein." : "");
+    });
+  }
+
+  // Profilbild: der Stift auf dem Avatar öffnet die Dateiauswahl,
+  // eine Auswahl lädt direkt hoch (kein eigener Hochladen-Knopf)
+  var avatarForm = document.getElementById("avatar-upload");
+  if (avatarForm) {
+    var avatarInput = avatarForm.querySelector("input[type=file]");
+    avatarForm.querySelector(".avatar-edit").addEventListener("click", function () {
+      avatarInput.click();
+    });
+    avatarInput.addEventListener("change", function () {
+      if (avatarInput.files.length) avatarForm.submit();
+    });
+  }
+
+  // Hochladen: ein Knopf öffnet die Dateiauswahl, die Auswahl lädt direkt hoch
+  var uploadForm = document.querySelector(".upload-form");
+  if (uploadForm) {
+    var uploadInput = uploadForm.querySelector("input[type=file]");
+    uploadForm.querySelector(".upload-btn").addEventListener("click", function () {
+      uploadInput.click();
+    });
+    uploadInput.addEventListener("change", function () {
+      if (uploadInput.files.length) uploadForm.submit();
     });
   }
 

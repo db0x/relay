@@ -36,7 +36,7 @@ router.post("/login", (req, res) => {
     req.session.name = row.display_name;
     // Bootstrap-Admin erinnert sich selbst ans Passwort-Aendern
     if (row.is_admin && (req.body.password || "") === "admin")
-      req.flash("err", "Es gilt noch das Standard-Passwort „admin“ — bitte gleich ändern (Menü → Passwort ändern).");
+      req.flash("err", "Es gilt noch das Standard-Passwort „admin“ — bitte gleich ändern (Menü → Mein Konto).");
     let nxt = req.body.next || "";
     // nur interne Pfade, sonst waere das ein Open Redirect
     if (!nxt.startsWith("/") || nxt.startsWith("//")) nxt = `${BASE}/`;
@@ -53,15 +53,32 @@ router.get("/logout", (req, res) => {
 
 router.post("/password", loginRequired, (req, res) => {
   const { old, new1, new2 } = req.body;
+  // pwError merkt sich einmalig das fehlerhafte Feld ("old" | "new"):
+  // die Startseite markiert es rot und oeffnet den Konto-Dialog wieder
+  const fail = (field, msg) => {
+    req.session.pwError = field;
+    req.flash("err", msg);
+    res.redirect(`${BASE}/`);
+  };
   if (!users.verify(req.session.user, old || "")) {
-    return setTimeout(() => { // bremst Passwort-Raten
-      req.flash("err", "Altes Passwort falsch.");
-      res.redirect(`${BASE}/`);
-    }, 400);
+    return setTimeout(() => fail("old", "Das aktuelle Passwort ist falsch."), 400); // bremst Passwort-Raten
   }
-  if (new1 !== new2) req.flash("err", "Die neuen Passwörter stimmen nicht überein.");
-  else if ((new1 || "").length < 6) req.flash("err", "Das neue Passwort braucht mindestens 6 Zeichen.");
-  else { users.setPassword(req.session.user, new1); req.flash("ok", "Passwort geändert."); }
+  if (new1 !== new2) return fail("new", "Die neuen Passwörter stimmen nicht überein.");
+  if ((new1 || "").length < 8) return fail("new", "Das neue Passwort braucht mindestens 8 Zeichen.");
+  users.setPassword(req.session.user, new1);
+  req.flash("ok", "Passwort geändert.");
+  res.redirect(`${BASE}/`);
+});
+
+router.post("/display-name", loginRequired, (req, res) => {
+  const name = (req.body.display || "").trim().slice(0, 60);
+  if (!name) {
+    req.flash("err", "Der Anzeigename darf nicht leer sein.");
+  } else {
+    users.setDisplayName(req.session.user, name);
+    req.session.name = name; // Session sofort nachziehen, nicht erst beim naechsten Login
+    req.flash("ok", "Anzeigename geändert.");
+  }
   res.redirect(`${BASE}/`);
 });
 
