@@ -83,7 +83,9 @@ router.get("/", loginRequired, (req, res) => {
   // eigene Dateien im aktuellen Ordner (mit ihren Freigaben) ...
   const own = entries.filter((e) => e.isFile()).map((e) => {
     const relpath = cur ? `${cur}/${e.name}` : e.name;
-    const sh = shares.listForFile(me, relpath);
+    // hasAvatar je Empfaenger: der Freigabe-Tooltip zeigt Avatar + Name + Recht
+    const sh = shares.listForFile(me, relpath)
+      .map((s) => ({ ...s, hasAvatar: avatars.has(s.target) }));
     return {
       ...meta(e.name, path.join(curAbs, e.name)),
       relpath, isDir: false,

@@ -118,6 +118,19 @@
     });
   }
 
+  // Tooltips (data-tip + Freigabe-Tooltip) sind position:fixed, damit sie im
+  // scrollbaren Tabellen-Wrapper keine Scrollbalken erzeugen — die Zielposition
+  // (mittig unter dem Element) wird hier beim Hover/Fokus als CSS-Variablen gesetzt
+  function placeTip(el) {
+    var r = el.getBoundingClientRect();
+    el.style.setProperty("--tip-x", (r.left + r.width / 2) + "px");
+    el.style.setProperty("--tip-y", (r.bottom + 6) + "px");
+  }
+  document.querySelectorAll("[data-tip], .share-badge").forEach(function (el) {
+    el.addEventListener("mouseenter", function () { placeTip(el); });
+    el.addEventListener("focus", function () { placeTip(el); });
+  });
+
   // Hochladen: ein Knopf öffnet die Dateiauswahl, die Auswahl lädt direkt hoch
   var uploadForm = document.querySelector(".upload-form");
   if (uploadForm) {

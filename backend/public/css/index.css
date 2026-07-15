@@ -134,10 +134,21 @@ body{
   display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:22px;
   background:#f7f8fa;border:1px solid var(--line);border-radius:var(--radius-sm);padding:.7rem;
 }
-.create-group{display:flex;gap:.4rem}
-.create-btn{width:40px;height:40px}
+.create-group{display:flex;gap:.5rem}
+/* Erstellen: pure Icons statt Buttons — beim Hover hebt sich das gewaehlte
+   Icon ab (leichter Zoom + Untergrund), damit die Auswahl sichtbar ist */
+.create-btn{
+  width:56px;height:56px;padding:0;border:0;background:none;cursor:pointer;
+  display:grid;place-items:center;border-radius:12px;
+  transition:transform .12s ease,background .12s ease;
+}
+.create-btn:hover,.create-btn:focus-visible{
+  transform:scale(1.12);background:var(--line-soft);
+}
+.create-btn:active{transform:scale(1.04)}
 .tool-sep{width:1px;align-self:stretch;background:var(--line);margin:0 .35rem}
-.upload-form{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;flex:1;min-width:0}
+/* rechtsbuendig neben "Neuer Ordner": margin-left:auto schiebt beide nach rechts */
+.upload-form{display:flex;align-items:center;margin-left:auto}
 
 /* Meldungen */
 .flash{padding:.6em .85em;border-radius:var(--radius-sm);margin:0 0 14px;font-size:.9em}
@@ -184,6 +195,53 @@ a.crumb:hover{text-decoration:underline}
   background:#e8f0fe;color:#1a4fa0;white-space:nowrap;
 }
 .badge-soft{background:#f1f3f5;color:var(--muted)}
+
+/* Freigabe-Badge: Tooltip mit den Empfaengern (Avatar, Name, Recht).
+   position:fixed (Koordinaten setzt index.js beim Hover als --tip-x/y):
+   so zaehlt der Tooltip nie zum Scroll-Layout des Tabellen-Wrappers —
+   absolute Positionierung erzeugte dort Scrollbalken. */
+.share-badge{cursor:default}
+.share-tip{
+  position:fixed;left:var(--tip-x,-9999px);top:var(--tip-y,0);
+  transform:translateX(-50%);z-index:30;
+  display:flex;flex-direction:column;gap:.4rem;min-width:210px;
+  padding:.5rem .6rem;background:#fff;border:1px solid var(--line);
+  border-radius:var(--radius-sm);box-shadow:0 8px 28px rgba(16,24,40,.14);
+  color:var(--ink);font-size:.85rem;font-weight:400;white-space:nowrap;
+  text-transform:none;letter-spacing:normal;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .12s ease,visibility .12s ease;
+}
+.share-badge:hover .share-tip,.share-badge:focus .share-tip{opacity:1;visibility:visible}
+.share-tip-row{display:flex;align-items:center;gap:.55em}
+.share-tip-row img,.share-tip-fallback{
+  width:22px;height:22px;border-radius:50%;object-fit:cover;flex:0 0 auto;
+}
+.share-tip-fallback{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--brand);color:#fff;font-size:.72rem;font-weight:600;
+}
+.share-tip-name{flex:1}
+.share-tip-perm{color:var(--muted);font-size:.78rem;margin-left:.6em}
+
+/* eigene Tooltips fuer alle Icon-Bedienelemente: data-tip statt title,
+   gleicher Look wie .share-tip. Kleine Anzeige-Verzoegerung beim Hover
+   (wie native Tooltips), Ausblenden sofort. */
+[data-tip]::after{
+  content:attr(data-tip);position:fixed;left:var(--tip-x,-9999px);top:var(--tip-y,0);
+  transform:translateX(-50%);z-index:40;white-space:nowrap;
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);
+  box-shadow:0 8px 28px rgba(16,24,40,.14);padding:.3rem .55rem;
+  color:var(--ink);font-size:.78rem;font-weight:400;line-height:1.3;
+  text-transform:none;letter-spacing:normal;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .12s ease,visibility .12s ease;
+}
+[data-tip]:hover::after,[data-tip]:focus-visible::after{
+  opacity:1;visibility:visible;transition-delay:.35s;
+}
+/* offenes Kebab-Menue: Tooltip wuerde ueber dem Panel haengen -> aus */
+.menu-btn[aria-expanded="true"]::after{opacity:0;visibility:hidden}
 
 /* Freigabe-Dialog */
 .sharebox{padding:.9rem}

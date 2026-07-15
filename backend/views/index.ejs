@@ -8,12 +8,12 @@
     </div>
     <div class="user">
       <% if (hasAvatar) { %>
-      <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="26" height="26">
+      <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="32" height="32">
       <% } %>
       <span class="uname"><%= user %></span>
       <div class="menu">
         <button type="button" class="iconbtn menu-btn" aria-haspopup="true"
-                aria-expanded="false" aria-label="Menü" title="Menü">
+                aria-expanded="false" aria-label="Menü" data-tip="Menü">
           <img src="<%= base %>/static/img/open-menu.svg" alt="" width="16" height="16">
         </button>
         <div class="menu-panel" hidden>
@@ -35,17 +35,17 @@
 
   <section class="toolbar">
     <div class="create-group" role="group" aria-label="Neue Datei erstellen">
-      <button type="button" class="iconbtn create-btn" data-create="docx"
-              title="Neues Textdokument" aria-label="Neues Textdokument">
-        <img src="<%= base %>/static/img/docx.svg" alt="" width="24" height="24">
+      <button type="button" class="create-btn" data-create="docx"
+              data-tip="Neues Textdokument" aria-label="Neues Textdokument">
+        <img src="<%= base %>/static/img/docx.svg" alt="" width="48" height="48">
       </button>
-      <button type="button" class="iconbtn create-btn" data-create="xlsx"
-              title="Neue Tabelle" aria-label="Neue Tabelle">
-        <img src="<%= base %>/static/img/xlsx.svg" alt="" width="24" height="24">
+      <button type="button" class="create-btn" data-create="xlsx"
+              data-tip="Neue Tabelle" aria-label="Neue Tabelle">
+        <img src="<%= base %>/static/img/xlsx.svg" alt="" width="48" height="48">
       </button>
-      <button type="button" class="iconbtn create-btn" data-create="pptx"
-              title="Neue Präsentation" aria-label="Neue Präsentation">
-        <img src="<%= base %>/static/img/pptx.svg" alt="" width="24" height="24">
+      <button type="button" class="create-btn" data-create="pptx"
+              data-tip="Neue Präsentation" aria-label="Neue Präsentation">
+        <img src="<%= base %>/static/img/pptx.svg" alt="" width="48" height="48">
       </button>
     </div>
     <span class="tool-sep" aria-hidden="true"></span>
@@ -104,7 +104,21 @@
                 <% if (!f.isOwner) { %>
                 <span class="badge">von <%= f.ownerName %><% if (f.perm === "view") { %> · nur lesen<% } %></span>
                 <% } else if (f.shares.length) { %>
-                <span class="badge badge-soft">geteilt · <%= f.shares.length %></span>
+                <span class="badge badge-soft share-badge" tabindex="0">geteilt · <%= f.shares.length %>
+                  <span class="share-tip" role="tooltip">
+                    <% f.shares.forEach(function(s){ %>
+                    <span class="share-tip-row">
+                      <% if (s.hasAvatar) { %>
+                      <img src="<%= base %>/avatar/<%= encodeURIComponent(s.target) %>" alt="" width="22" height="22">
+                      <% } else { %>
+                      <span class="share-tip-fallback"><%= (s.display_name || s.target).trim().charAt(0).toUpperCase() %></span>
+                      <% } %>
+                      <span class="share-tip-name"><%= s.display_name %></span>
+                      <span class="share-tip-perm"><%= s.perm === "edit" ? "Bearbeiten" : "Nur lesen" %></span>
+                    </span>
+                    <% }); %>
+                  </span>
+                </span>
                 <% } %>
               </span>
             </div>
@@ -117,28 +131,28 @@
               <form class="del-form" action="<%= base %>/rmdir/<%= encPath(f.relpath) %>" method="post"
                     data-confirm="Ordner „<%= f.name %>“ löschen? Das geht nur, wenn er leer ist.">
                 <input type="hidden" name="dir" value="<%= curDir %>">
-                <button class="iconbtn iconbtn-danger" title="Löschen" aria-label="Löschen">
+                <button class="iconbtn iconbtn-danger" data-tip="Löschen" aria-label="Löschen">
                   <img src="<%= base %>/static/img/delete.svg" alt="" width="16" height="16">
                 </button>
               </form>
               <% } else { %>
               <a class="iconbtn" href="<%= base %>/download/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>"
-                 title="Herunterladen" aria-label="Herunterladen">
+                 data-tip="Herunterladen" aria-label="Herunterladen">
                 <img src="<%= base %>/static/img/download.svg" alt="" width="16" height="16">
               </a>
               <% if (f.isOwner) { %>
               <button type="button" class="iconbtn" data-dialog="dlg-move-<%= i %>"
-                      title="Verschieben" aria-label="Verschieben">
+                      data-tip="Verschieben" aria-label="Verschieben">
                 <img src="<%= base %>/static/img/move.svg" alt="" width="16" height="16">
               </button>
               <button type="button" class="iconbtn" data-dialog="dlg-share-<%= i %>"
-                      title="Freigeben" aria-label="Freigeben">
+                      data-tip="Freigeben" aria-label="Freigeben">
                 <img src="<%= base %>/static/img/share.svg" alt="" width="16" height="16">
               </button>
               <form class="del-form" action="<%= base %>/delete/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>" method="post"
                     data-confirm="„<%= f.name %>“ wirklich löschen? Das lässt sich nicht rückgängig machen.">
                 <input type="hidden" name="dir" value="<%= curDir %>">
-                <button class="iconbtn iconbtn-danger" title="Löschen" aria-label="Löschen">
+                <button class="iconbtn iconbtn-danger" data-tip="Löschen" aria-label="Löschen">
                   <img src="<%= base %>/static/img/delete.svg" alt="" width="16" height="16">
                 </button>
               </form>
@@ -339,7 +353,7 @@
         <div class="avatar-preview avatar-empty">kein Bild</div>
         <% } %>
         <input type="file" name="file" accept="image/png,image/jpeg,image/webp" hidden>
-        <button type="button" class="avatar-edit" title="Profilbild ändern" aria-label="Profilbild ändern">
+        <button type="button" class="avatar-edit" data-tip="Profilbild ändern" aria-label="Profilbild ändern">
           <img src="<%= base %>/static/img/edit.svg" alt="" width="14" height="14">
         </button>
       </form>
