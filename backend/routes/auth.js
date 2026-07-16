@@ -70,15 +70,27 @@ router.post("/password", loginRequired, (req, res) => {
   res.redirect(`${BASE}/`);
 });
 
-router.post("/display-name", loginRequired, (req, res) => {
+// Profil: Anzeigename + optionale E-Mail-Adresse, EIN Formular, EIN Speichern.
+// E-Mail: leer = entfernen, sonst muss das Format stimmen. Bewusst
+// pragmatisches Muster (kein Whitespace, ein @, Punkt in der Domain) —
+// dasselbe Regex prueft clientseitig (pattern + live) in index.ejs/index.js.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+router.post("/profile", loginRequired, (req, res) => {
   const name = (req.body.display || "").trim().slice(0, 60);
+  const email = (req.body.email || "").trim().slice(0, 120);
   if (!name) {
     req.flash("err", "Der Anzeigename darf nicht leer sein.");
-  } else {
-    users.setDisplayName(req.session.user, name);
-    req.session.name = name; // Session sofort nachziehen, nicht erst beim naechsten Login
-    req.flash("ok", "Anzeigename geändert.");
+    return res.redirect(`${BASE}/`);
   }
+  if (email && !EMAIL_RE.test(email)) {
+    req.session.emailError = true; // Startseite markiert das Feld (wie pwError)
+    req.flash("err", "Das ist keine gültige E-Mail-Adresse — nichts gespeichert.");
+    return res.redirect(`${BASE}/`);
+  }
+  users.setDisplayName(req.session.user, name);
+  req.session.name = name; // Session sofort nachziehen, nicht erst beim naechsten Login
+  users.setEmail(req.session.user, email || null);
+  req.flash("ok", "Profil gespeichert.");
   res.redirect(`${BASE}/`);
 });
 

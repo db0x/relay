@@ -2,6 +2,8 @@
 const express = require("express");
 
 const users = require("../users");
+const settings = require("../settings");
+const doclang = require("../doclang");
 const { secureFilename } = require("../storage");
 const { BASE } = require("../config");
 
@@ -18,6 +20,23 @@ function adminRequired(req, res, next) {
   }
   next();
 }
+
+// Einstellungen: welche Sprachen der "Neue Datei"-Dialog anbietet.
+// Das Formular schickt die SICHTBAREN Codes; gespeichert werden die
+// versteckten — so sind spaeter dazukommende Sprachen automatisch sichtbar.
+router.post("/settings/langs", adminRequired, (req, res) => {
+  let visible = req.body.visible || [];
+  if (!Array.isArray(visible)) visible = [visible];
+  const hidden = doclang.LANGS
+    .map((l) => l.code)
+    // der Default (Deutsch) ist nicht abwaehlbar — es braucht immer eine Wahl
+    .filter((c) => c !== doclang.DEFAULT && !visible.includes(c));
+  settings.set("hidden_langs", hidden);
+  req.flash("ok", hidden.length
+    ? `Sprachauswahl gespeichert — ${hidden.length} Sprache(n) ausgeblendet.`
+    : "Sprachauswahl gespeichert — alle Sprachen sichtbar.");
+  res.redirect(`${BASE}/`);
+});
 
 router.post("/users/create", adminRequired, (req, res) => {
   const name = (req.body.username || "").trim();

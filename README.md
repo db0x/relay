@@ -84,9 +84,11 @@ docker compose exec backend node manage.js lock <name> on|off
 docker compose exec backend node manage.js del <name>
 ```
 
-Every user can change their own password and display name on the home page
-(menu → "Mein Konto"; password needs old + 2× new). `manage.js passwd`
-remains the emergency path in case someone forgot their password.
+Every user can change their own password, display name and an **optional
+e-mail address** on the home page (menu → "Mein Konto"; password needs old +
+2× new; the e-mail is format-checked client- and server-side, leaving it
+empty removes it). `manage.js passwd` remains the emergency path in case
+someone forgot their password.
 
 ## Avatars
 
@@ -99,6 +101,16 @@ The editor loads the images via **HMAC-signed URLs** (like the `/files`
 links), because the editor iframe may run on a different origin where
 session cookies are not sent; the other users' avatars are answered from
 the embedded user list via the `onRequestUsers` API event.
+
+## Document language for new files
+
+The "New file" dialog offers a language picker (default: German) that sets
+the **document language** of the fresh file — spellcheck works right away.
+The list covers the DocumentServer's dictionary languages; the language is
+patched into the copied blank template (docx/pptx) at creation time.
+**Admins** can hide languages from the picker via menu → "Einstellungen"
+(stored in the `settings` table in `users.db`); the German default cannot
+be hidden and unknown/hidden codes are rejected server-side.
 
 ## Folders
 

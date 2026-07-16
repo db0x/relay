@@ -73,6 +73,13 @@ function setDisplayName(username, displayName) {
   if (r.changes === 0) throw new Error(`Unbekannter Nutzer: ${username}`);
 }
 
+// optionale E-Mail-Adresse; null loescht sie wieder
+function setEmail(username, email) {
+  const r = db().prepare("UPDATE users SET email=? WHERE username=?")
+    .run(email, username);
+  if (r.changes === 0) throw new Error(`Unbekannter Nutzer: ${username}`);
+}
+
 function del(username) {
   const r = db().prepare("DELETE FROM users WHERE username=?").run(username);
   if (r.changes === 0) throw new Error(`Unbekannter Nutzer: ${username}`);
@@ -96,5 +103,5 @@ if (db().prepare("SELECT COUNT(*) AS c FROM users").get().c === 0) {
 
 module.exports = {
   addUser, setAdmin, setLocked, verify, get, getByToken, resetToken, setPassword,
-  setDisplayName, del, listUsers,
+  setDisplayName, setEmail, del, listUsers,
 };

@@ -20,6 +20,7 @@
           <button type="button" class="menu-item" data-dialog="dlg-account">Mein Konto</button>
           <% if (isAdmin) { %>
           <button type="button" class="menu-item" data-dialog="dlg-users">Nutzerverwaltung</button>
+          <button type="button" class="menu-item" data-dialog="dlg-settings">Einstellungen</button>
           <% } %>
           <a class="menu-item" href="<%= base %>/logout">Abmelden</a>
           <div class="menu-version">Relay v<%= version %></div>
@@ -170,12 +171,16 @@
 
   <% files.forEach(function(f, i){ if (!f.isOwner || f.isDir) return; %>
   <dialog id="dlg-share-<%= i %>" class="dialog">
-    <form method="dialog" class="dialog-close-row">
-      <button class="dialog-x" aria-label="Schließen">×</button>
-    </form>
-    <h2>„<%= f.name %>“ freigeben</h2>
+    <header class="dialog-head">
+      <img src="<%= base %>/static/img/share.svg" alt="" width="22" height="22">
+      <h2>„<%= f.name %>“ freigeben</h2>
+      <form method="dialog">
+        <button class="dialog-x" aria-label="Schließen">×</button>
+      </form>
+    </header>
     <div class="sharebox">
       <% if (f.shares.length) { %>
+      <span class="dialog-label">Bereits freigegeben für</span>
       <ul class="share-list">
         <% f.shares.forEach(function(s){ %>
         <li>
@@ -196,18 +201,22 @@
       <% } %>
 
       <% if (f.availableUsers.length) { %>
-      <form class="share-form" action="<%= base %>/share/<%= encPath(f.relpath) %>" method="post">
+      <%# Aktions-Button (dialog-action, nicht dialog-submit): die Vorauswahl
+          ist bereits gueltig, der Button darf nie ausgegraut sein %>
+      <form class="stack-form share-add" action="<%= base %>/share/<%= encPath(f.relpath) %>" method="post">
         <input type="hidden" name="dir" value="<%= curDir %>">
-        <select class="field grow" name="target">
+        <label class="dialog-label" for="share-target-<%= i %>">Freigeben für</label>
+        <select class="field" name="target" id="share-target-<%= i %>">
           <% f.availableUsers.forEach(function(u){ %>
           <option value="<%= u.username %>"><%= u.display_name %></option>
           <% }); %>
         </select>
-        <select class="field" name="perm">
+        <label class="dialog-label" for="share-perm-<%= i %>">Berechtigung</label>
+        <select class="field" name="perm" id="share-perm-<%= i %>">
           <option value="edit">Bearbeiten</option>
           <option value="view">Nur lesen</option>
         </select>
-        <button class="btn">Freigeben</button>
+        <button class="btn btn-sm dialog-action">Freigeben</button>
       </form>
       <% } else { %>
       <p class="muted">Alle anderen Nutzer haben bereits Zugriff.</p>
@@ -216,17 +225,21 @@
   </dialog>
 
   <dialog id="dlg-move-<%= i %>" class="dialog">
-    <form method="dialog" class="dialog-close-row">
-      <button class="dialog-x" aria-label="Schließen">×</button>
-    </form>
-    <h2>„<%= f.name %>“ verschieben</h2>
+    <header class="dialog-head">
+      <img src="<%= base %>/static/img/move.svg" alt="" width="22" height="22">
+      <h2>„<%= f.name %>“ verschieben</h2>
+      <form method="dialog">
+        <button class="dialog-x" aria-label="Schließen">×</button>
+      </form>
+    </header>
     <% var moveTargets = allDirs.filter(function(d){ return d !== curDir; }); %>
     <% if (curDir === "" && !moveTargets.length) { %>
     <p class="muted dialog-hint">Es gibt noch keine Ordner — erst über „Neuer Ordner“ einen anlegen.</p>
     <% } else { %>
     <form class="stack-form" action="<%= base %>/move/<%= encPath(f.relpath) %>" method="post">
       <input type="hidden" name="dir" value="<%= curDir %>">
-      <select class="field" name="to">
+      <label class="dialog-label" for="move-to-<%= i %>">Zielordner</label>
+      <select class="field" name="to" id="move-to-<%= i %>">
         <% if (curDir !== "") { %>
         <option value="">Meine Dateien (oberste Ebene)</option>
         <% } %>
@@ -234,7 +247,7 @@
         <option value="<%= d %>"><%= d %></option>
         <% }); %>
       </select>
-      <button class="btn">Verschieben</button>
+      <button class="btn btn-sm dialog-action">Verschieben</button>
     </form>
     <% } %>
   </dialog>
@@ -251,8 +264,16 @@
     <form class="stack-form" action="<%= base %>/create" method="post">
       <input type="hidden" name="dir" value="<%= curDir %>">
       <input type="hidden" name="ext" id="dlg-create-ext" value="docx">
+      <label class="dialog-label" for="dlg-create-name" id="dlg-create-name-label">Name der Datei</label>
       <input class="field" name="name" id="dlg-create-name"
              placeholder="Name der neuen Datei" required autocomplete="off">
+      <label class="dialog-label" for="dlg-create-lang">Sprache des Dokuments</label>
+      <select class="field" name="lang" id="dlg-create-lang"
+              data-default="<%= docLangDefault %>">
+        <% docLangs.forEach(function(l){ %>
+        <option value="<%= l.code %>"<%= l.code === docLangDefault ? " selected" : "" %>><%= l.label %></option>
+        <% }); %>
+      </select>
       <button class="btn btn-sm dialog-submit">Erstellen</button>
     </form>
   </dialog>
@@ -329,6 +350,50 @@
   </dialog>
   <% } %>
 
+  <%# gemeinsamer Bestaetigungs-Dialog fuer alle form[data-confirm] (index.js) %>
+  <dialog id="dlg-confirm" class="dialog">
+    <header class="dialog-head">
+      <h2>Bitte bestätigen</h2>
+      <form method="dialog">
+        <button class="dialog-x" aria-label="Abbrechen">×</button>
+      </form>
+    </header>
+    <p class="confirm-text" id="dlg-confirm-text"></p>
+    <div class="confirm-btns">
+      <button type="button" class="btn btn-secondary btn-sm" id="dlg-confirm-cancel" autofocus>Abbrechen</button>
+      <button type="button" class="btn btn-danger btn-sm" id="dlg-confirm-ok">Bestätigen</button>
+    </div>
+  </dialog>
+
+  <% if (isAdmin) { %>
+  <dialog id="dlg-settings" class="dialog dialog-xwide">
+    <header class="dialog-head">
+      <img src="<%= base %>/static/img/edit.svg" alt="" width="22" height="22">
+      <h2>Einstellungen</h2>
+      <form method="dialog">
+        <button class="dialog-x" aria-label="Schließen">×</button>
+      </form>
+    </header>
+    <section class="account-section">
+      <h3>Sprachen im „Neue Datei“-Dialog</h3>
+      <p class="muted dialog-hint">Nur angehakte Sprachen erscheinen in der Auswahl.
+        Deutsch (Deutschland) ist die Vorgabe und lässt sich nicht ausblenden.</p>
+      <form class="stack-form" action="<%= base %>/settings/langs" method="post">
+        <div class="lang-list">
+          <% settingsLangs.forEach(function(l){ %>
+          <label class="check">
+            <input type="checkbox" name="visible" value="<%= l.code %>"
+                   <%= l.hidden ? "" : "checked" %> <%= l.code === docLangDefault ? "disabled" : "" %>>
+            <%= l.label %>
+          </label>
+          <% }); %>
+        </div>
+        <button class="btn btn-sm dialog-submit">Speichern</button>
+      </form>
+    </section>
+  </dialog>
+  <% } %>
+
   <dialog id="dlg-account" class="dialog dialog-wide">
     <header class="dialog-head">
       <% if (hasAvatar) { %>
@@ -360,12 +425,20 @@
     </section>
 
     <section class="account-section">
-      <h3>Anzeigename</h3>
-      <form class="stack-form" action="<%= base %>/display-name" method="post">
+      <%# EIN Formular fuer die Profilfelder — EIN Speichern-Button %>
+      <form class="stack-form" action="<%= base %>/profile" method="post">
+        <label class="dialog-label" for="acc-display">Anzeigename</label>
         <%# pattern verlangt mind. ein Nicht-Leerzeichen — "   " zaehlt nicht als Name %>
-        <input class="field" name="display" value="<%= user %>" required maxlength="60"
+        <input class="field" name="display" id="acc-display" value="<%= user %>" required maxlength="60"
                pattern=".*\S.*" title="Der Anzeigename darf nicht leer sein."
                placeholder="Anzeigename" autocomplete="name">
+        <label class="dialog-label" for="acc-email">E-Mail-Adresse · optional</label>
+        <%# leer erlaubt (entfernt die Adresse); wenn gefuellt, muss das Format
+            stimmen — gleiches Regex wie serverseitig in routes/auth.js %>
+        <input class="field<%= emailError ? " field-invalid" : "" %>" name="email" id="acc-email" type="email"
+               value="<%= email %>" placeholder="name@beispiel.de" maxlength="120"
+               autocomplete="email" pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+               title="Bitte eine gültige E-Mail-Adresse eingeben (oder das Feld leeren).">
         <button class="btn btn-sm dialog-submit">Speichern</button>
       </form>
     </section>

@@ -7,6 +7,8 @@ const multer = require("multer");
 
 const users = require("../users");
 const avatars = require("../avatars");
+const doclang = require("../doclang");
+const settings = require("../settings");
 const shares = require("../shares");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs } = require("../storage");
@@ -48,10 +50,14 @@ function redirectDir(req, res) {
 // ?p=<unterordner> navigiert in den eigenen Unterordner; freigegebene Dateien
 // anderer Nutzer erscheinen nur auf der obersten Ebene.
 router.get("/", loginRequired, (req, res) => {
+  // Zurueck-Navigation soll die Liste frisch vom Server holen, nicht aus dem
+  // HTTP-Cache — sonst fehlen gerade erstellte/geloeschte Dateien
+  res.set("Cache-Control", "no-store");
   const me = req.session.user;
   const row = users.get(me);
   const userDir = dirFor(me);
   const otherUsers = users.listUsers().filter((u) => u.username !== me);
+  const hiddenLangs = settings.get("hidden_langs", []);
 
   const cur = securePath(req.query.p || "");
   const curAbs = cur ? path.join(userDir, cur) : userDir;
@@ -160,9 +166,19 @@ router.get("/", loginRequired, (req, res) => {
     // Dateiauswahl beim Hochladen auf die Formate begrenzen, die der Editor
     // oeffnen kann — abgeleitet aus DOCTYPE, bleibt also automatisch synchron
     uploadAccept: Object.keys(DOCTYPE).map((e) => "." + e).join(","),
+    // Sprachauswahl im "Neue Datei"-Dialog: Woerterbuch-Sprachen des DS,
+    // minus die vom Admin ausgeblendeten (Einstellungen-Dialog)
+    docLangs: doclang.LANGS.filter((l) => !hiddenLangs.includes(l.code)),
+    docLangDefault: doclang.DEFAULT,
+    // fuer den Einstellungen-Dialog (nur Admins): komplette Liste + Status
+    settingsLangs: row.is_admin
+      ? doclang.LANGS.map((l) => ({ ...l, hidden: hiddenLangs.includes(l.code) }))
+      : [],
     // einmalig: fehlgeschlagene Passwort-Aenderung -> Feld markieren,
     // Dialog + Abschnitt wieder oeffnen (index.ejs/index.js)
     pwError: (() => { const e = req.session.pwError || null; delete req.session.pwError; return e; })(),
+    email: row.email || "",
+    emailError: (() => { const e = !!req.session.emailError; delete req.session.emailError; return e; })(),
     isAdmin: !!row.is_admin,
     allUsers: users.listUsers(),
     api_token: row.api_token,
@@ -220,6 +236,11 @@ router.post("/create", loginRequired, (req, res) => {
     return redirectDir(req, res);
   }
   fs.copyFileSync(BLANKS[ext], p);
+  // gewaehlte Dokumentsprache in die Kopie schreiben (Blanks sind de-DE);
+  // unbekannte Codes ignoriert doclang.apply — dann bleibt es bei Deutsch.
+  // Vom Admin ausgeblendete Sprachen zaehlen serverseitig ebenfalls nicht.
+  const lang = req.body.lang || "";
+  doclang.apply(p, ext, settings.get("hidden_langs", []).includes(lang) ? "" : lang);
   res.redirect(`${BASE}/edit/${encodeURIComponent(req.session.user)}/${encPath(fid)}`);
 });
 

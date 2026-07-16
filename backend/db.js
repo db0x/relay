@@ -34,6 +34,12 @@ function db() {
       PRIMARY KEY (owner, filename, target)
     );
     CREATE INDEX IF NOT EXISTS shares_by_target ON shares(target);
+
+    -- App-weite Einstellungen (Admin-Dialog), Werte JSON-kodiert (settings.js)
+    CREATE TABLE IF NOT EXISTS settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
   // Migration fuer Bestands-Datenbanken: is_admin und locked kamen spaeter dazu
   const cols = _db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
@@ -41,6 +47,8 @@ function db() {
     _db.exec("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0");
   if (!cols.includes("locked"))
     _db.exec("ALTER TABLE users ADD COLUMN locked INTEGER NOT NULL DEFAULT 0");
+  if (!cols.includes("email"))
+    _db.exec("ALTER TABLE users ADD COLUMN email TEXT"); // optional, NULL = nicht gepflegt
   return _db;
 }
 

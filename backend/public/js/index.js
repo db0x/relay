@@ -1,6 +1,13 @@
 // Verhalten der Startseite: Token kopieren + Rückfrage beim Neu-Erzeugen.
 // Läuft per defer erst nach dem Parsen des DOM.
 (function () {
+  // Zurueck-Navigation aus dem Editor: der Browser stellt die Seite sonst aus
+  // dem bfcache wieder her — eingefroren mit offenem Dialog und veralteter
+  // Dateiliste. Bei einer bfcache-Wiederherstellung deshalb frisch laden.
+  window.addEventListener("pageshow", function (e) {
+    if (e.persisted) location.reload();
+  });
+
   // Kebab-Menü neben dem Nutzernamen auf-/zuklappen
   var menuBtn = document.querySelector(".menu-btn");
   var menuPanel = document.querySelector(".menu-panel");
@@ -37,15 +44,27 @@
       xlsx: "Neue Tabelle",
       pptx: "Neue Präsentation",
     };
+    var createNameLabels = {
+      docx: "Name des Textdokuments",
+      xlsx: "Name der Tabelle",
+      pptx: "Name der Präsentation",
+    };
     document.querySelectorAll("[data-create]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var ext = btn.dataset.create;
         document.getElementById("dlg-create-title").textContent = createTitles[ext] || "Neue Datei";
+        document.getElementById("dlg-create-name-label").textContent =
+          createNameLabels[ext] || "Name der Datei";
         document.getElementById("dlg-create-ext").value = ext;
         var icon = document.getElementById("dlg-create-icon");
         icon.src = icon.src.replace(/[^/]+$/, ext + ".svg");
         var nameInput = document.getElementById("dlg-create-name");
         nameInput.value = "";
+        // Sprache startet bei jedem Oeffnen wieder auf dem Default (Deutsch)
+        var langSelect = document.getElementById("dlg-create-lang");
+        if (langSelect) langSelect.value = langSelect.dataset.default;
+        // Werte wurden programmatisch gesetzt -> Button-Zustand neu bewerten
+        nameInput.dispatchEvent(new Event("input", { bubbles: true }));
         createDlg.showModal();
         nameInput.focus();
       });
@@ -105,6 +124,18 @@
     });
   }
 
+  // E-Mail-Adresse: leer ist erlaubt (entfernt sie), sonst live gegen das
+  // gleiche Regex wie der Server prüfen und bei Verstoß rot markieren
+  var emailInput = document.querySelector("#dlg-account input[name=email]");
+  if (emailInput) {
+    emailInput.addEventListener("input", function () {
+      var v = emailInput.value.trim();
+      var bad = v !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+      emailInput.classList.toggle("field-invalid", bad);
+      emailInput.setCustomValidity(bad ? "Bitte eine gültige E-Mail-Adresse eingeben." : "");
+    });
+  }
+
   // Profilbild: der Stift auf dem Avatar öffnet die Dateiauswahl,
   // eine Auswahl lädt direkt hoch (kein eigener Hochladen-Knopf)
   var avatarForm = document.getElementById("avatar-upload");
@@ -143,10 +174,61 @@
     });
   }
 
-  // Rückfrage für alle Formulare mit data-confirm (Token neu erzeugen, Löschen)
+  // Speichern/Anlegen/Erstellen/Ändern nur aktiv, wenn sich gegenüber dem
+  // Ausgangszustand etwas geändert hat UND alle Validierungen erfüllt sind.
+  // Beobachtet: alle Formulare mit .dialog-submit-Button plus die Nutzeranlage.
+  // Der Ausgangszustand ist der serialisierte FormData-Stand beim Laden;
+  // form.reset() (Dialog schließen) meldet sich über das reset-Event zurück.
+  var watchedForms = [];
+  document.querySelectorAll(".dialog-submit").forEach(function (btn) {
+    var f = btn.closest("form");
+    if (f) watchedForms.push([f, btn]);
+  });
+  var userCreate = document.querySelector("form.user-create");
+  if (userCreate) watchedForms.push([userCreate, userCreate.querySelector("button")]);
+  watchedForms.forEach(function (pair) {
+    var form = pair[0], btn = pair[1];
+    var initial = new URLSearchParams(new FormData(form)).toString();
+    function refresh() {
+      var now = new URLSearchParams(new FormData(form)).toString();
+      btn.disabled = now === initial || !form.checkValidity();
+    }
+    form.addEventListener("input", refresh);
+    form.addEventListener("change", refresh);
+    // reset-Event feuert VOR dem Zuruecksetzen der Werte -> einen Tick warten
+    form.addEventListener("reset", function () { setTimeout(refresh, 0); });
+    refresh();
+  });
+
+  // Rückfrage für alle Formulare mit data-confirm (Token neu erzeugen, Löschen,
+  // Freigabe entziehen, sperren ...) — eigener Dialog im App-Design statt
+  // window.confirm. "Bestätigen" schickt das gemerkte Formular ab; Abbrechen,
+  // × und Escape schließen nur den Dialog.
+  var confirmDlg = document.getElementById("dlg-confirm");
+  var confirmPending = null;
   document.querySelectorAll("form[data-confirm]").forEach(function (form) {
     form.addEventListener("submit", function (e) {
-      if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+      if (!confirmDlg) { // Sicherheitsnetz, falls der Dialog mal fehlt
+        if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+        return;
+      }
+      e.preventDefault();
+      confirmPending = form;
+      document.getElementById("dlg-confirm-text").textContent = form.dataset.confirm;
+      confirmDlg.showModal();
     });
   });
+  if (confirmDlg) {
+    document.getElementById("dlg-confirm-cancel").addEventListener("click", function () {
+      confirmDlg.close();
+    });
+    document.getElementById("dlg-confirm-ok").addEventListener("click", function () {
+      confirmDlg.close();
+      // submit() statt requestSubmit(): loest das submit-Event (und damit
+      // diese Rueckfrage) nicht erneut aus
+      if (confirmPending) confirmPending.submit();
+      confirmPending = null;
+    });
+    confirmDlg.addEventListener("close", function () { confirmPending = null; });
+  }
 })();
