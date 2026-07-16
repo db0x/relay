@@ -294,57 +294,86 @@
   </dialog>
 
   <% if (isAdmin) { %>
-  <dialog id="dlg-users" class="dialog">
-    <form method="dialog" class="dialog-close-row">
-      <button class="dialog-x" aria-label="Schließen">×</button>
-    </form>
-    <h2>Nutzerverwaltung</h2>
-    <div class="sharebox">
-      <ul class="share-list">
-        <% allUsers.forEach(function(u){ %>
-        <li>
-          <span><%= u.display_name %>
-            <span class="muted">· <%= u.username %></span>
-            <% if (u.is_admin) { %><span class="badge">Admin</span><% } %>
-            <% if (u.locked) { %><span class="badge badge-lock">gesperrt</span><% } %>
-          </span>
-          <% if (u.username !== me) { %>
-          <span class="user-actions">
-            <%# gesperrte Nutzer koennen keine Admins werden — Knopf ausblenden %>
-            <% if (u.is_admin || !u.locked) { %>
-            <form class="unshare-form" action="<%= base %>/users/admin" method="post"
-                  <% if (u.is_admin) { %>data-confirm="<%= u.display_name %> die Admin-Rechte entziehen?"<% } %>>
-              <input type="hidden" name="target" value="<%= u.username %>">
-              <input type="hidden" name="value" value="<%= u.is_admin ? 0 : 1 %>">
-              <button class="btn btn-secondary btn-sm">
-                <%= u.is_admin ? "Admin entziehen" : "zum Admin machen" %>
-              </button>
-            </form>
-            <% } %>
-            <%# Admins koennen nicht gesperrt werden — Knopf ausblenden %>
-            <% if (u.locked || !u.is_admin) { %>
-            <form class="unshare-form" action="<%= base %>/users/lock" method="post"
-                  <% if (!u.locked) { %>data-confirm="<%= u.display_name %> sperren? Login, Sitzungen und API-Token sind dann blockiert."<% } %>>
-              <input type="hidden" name="target" value="<%= u.username %>">
-              <input type="hidden" name="value" value="<%= u.locked ? 0 : 1 %>">
-              <button class="btn btn-secondary btn-sm<%= u.locked ? '' : ' btn-sm-danger' %>">
-                <%= u.locked ? "entsperren" : "sperren" %>
-              </button>
-            </form>
-            <% } %>
-          </span>
-          <% } %>
-        </li>
-        <% }); %>
-      </ul>
-      <form class="share-form user-create" action="<%= base %>/users/create" method="post" autocomplete="off">
-        <input class="field grow" name="username" placeholder="Nutzername (Login)" required>
-        <input class="field grow" name="display" placeholder="Anzeigename">
-        <input class="field grow" name="password" type="password"
-               placeholder="Startpasswort (min. 8 Zeichen)" required minlength="8"
-               autocomplete="new-password">
-        <label class="check"><input type="checkbox" name="admin" value="1"> Admin</label>
-        <button class="btn">Nutzer anlegen</button>
+  <dialog id="dlg-users" class="dialog dialog-xwide">
+    <header class="dialog-head">
+      <img src="<%= base %>/static/img/logo.svg" alt="" width="22" height="22">
+      <h2>Nutzerverwaltung</h2>
+      <form method="dialog">
+        <button class="dialog-x" aria-label="Schließen">×</button>
+      </form>
+    </header>
+    <div class="users-wrap">
+      <table class="users-table">
+        <thead>
+          <tr><th>Nutzer</th><th class="num">Speicher</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+          <% allUsers.forEach(function(u){ %>
+          <tr>
+            <td>
+              <div class="user-cell">
+                <% if (u.hasAvatar) { %>
+                <img class="user-pic" src="<%= base %>/avatar/<%= encodeURIComponent(u.username) %>" alt="" width="28" height="28">
+                <% } else { %>
+                <span class="user-pic user-pic-fallback"><%= (u.display_name || u.username).trim().charAt(0).toUpperCase() %></span>
+                <% } %>
+                <span class="user-names">
+                  <span><%= u.display_name %></span>
+                  <span class="muted"><%= u.username %></span>
+                </span>
+              </div>
+            </td>
+            <td class="num muted"><%= u.size %></td>
+            <td>
+              <% if (u.is_admin) { %><span class="badge">Admin</span><% } %>
+              <% if (u.locked) { %><span class="badge badge-lock">gesperrt</span><% } %>
+            </td>
+            <td class="users-actions">
+              <% if (u.username !== me) { %>
+              <%# gesperrte Nutzer koennen keine Admins werden — Knopf ausblenden %>
+              <% if (u.is_admin || !u.locked) { %>
+              <form class="unshare-form" action="<%= base %>/users/admin" method="post"
+                    <% if (u.is_admin) { %>data-confirm="<%= u.display_name %> die Admin-Rechte entziehen?"<% } %>>
+                <input type="hidden" name="target" value="<%= u.username %>">
+                <input type="hidden" name="value" value="<%= u.is_admin ? 0 : 1 %>">
+                <button class="btn btn-secondary btn-sm">
+                  <%= u.is_admin ? "Admin entziehen" : "zum Admin machen" %>
+                </button>
+              </form>
+              <% } %>
+              <%# Admins koennen nicht gesperrt werden — Knopf ausblenden %>
+              <% if (u.locked || !u.is_admin) { %>
+              <form class="unshare-form" action="<%= base %>/users/lock" method="post"
+                    <% if (!u.locked) { %>data-confirm="<%= u.display_name %> sperren? Login, Sitzungen und API-Token sind dann blockiert."<% } %>>
+                <input type="hidden" name="target" value="<%= u.username %>">
+                <input type="hidden" name="value" value="<%= u.locked ? 0 : 1 %>">
+                <button class="btn btn-secondary btn-sm<%= u.locked ? '' : ' btn-sm-danger' %>">
+                  <%= u.locked ? "entsperren" : "sperren" %>
+                </button>
+              </form>
+              <% } %>
+              <% } %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+
+      <form class="stack-form user-create" action="<%= base %>/users/create" method="post" autocomplete="off">
+        <span class="dialog-label">Neuen Nutzer anlegen</span>
+        <div class="user-create-row">
+          <input class="field grow" name="username" placeholder="Nutzername (Login)" required
+                 aria-label="Nutzername (Login)">
+          <input class="field grow" name="display" placeholder="Anzeigename (optional)"
+                 aria-label="Anzeigename (optional)">
+          <input class="field grow" name="password" type="password"
+                 placeholder="Startpasswort (min. 8 Zeichen)" required minlength="8"
+                 autocomplete="new-password" aria-label="Startpasswort">
+        </div>
+        <div class="user-create-foot">
+          <label class="check"><input type="checkbox" name="admin" value="1"> Admin</label>
+          <button class="btn btn-sm">Nutzer anlegen</button>
+        </div>
       </form>
     </div>
   </dialog>

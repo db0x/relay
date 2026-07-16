@@ -11,7 +11,7 @@ const doclang = require("../doclang");
 const settings = require("../settings");
 const shares = require("../shares");
 const { accessFor } = require("../access");
-const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs } = require("../storage");
+const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
 const { BLANKS, BASE, DOCTYPE } = require("../config");
 const { loginRequired } = require("./auth");
 
@@ -180,7 +180,14 @@ router.get("/", loginRequired, (req, res) => {
     email: row.email || "",
     emailError: (() => { const e = !!req.session.emailError; delete req.session.emailError; return e; })(),
     isAdmin: !!row.is_admin,
-    allUsers: users.listUsers(),
+    // Nutzerverwaltung (nur Admins): Avatar-Flag und belegter Speicherplatz je
+    // Nutzer — Familienmassstab, das rekursive Aufsummieren ist billig genug
+    allUsers: !row.is_admin ? [] : users.listUsers().map((u) => {
+      const dir = dirFor(u.username);
+      const bytes = walkFiles(dir)
+        .reduce((sum, rel) => sum + fs.statSync(path.join(dir, rel)).size, 0);
+      return { ...u, hasAvatar: avatars.has(u.username), size: formatSize(bytes) };
+    }),
     api_token: row.api_token,
   });
 });

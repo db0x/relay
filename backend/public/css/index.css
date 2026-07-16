@@ -268,7 +268,30 @@ a.crumb:hover{text-decoration:underline}
    dessen enabled/disabled-Ueberwachung (Vorauswahl ist immer gueltig) */
 .dialog-action{align-self:flex-end}
 .unshare-form{margin:0}
-.user-create .field{flex:1 1 100%}
+
+/* Nutzerverwaltung: tabellarische Liste + Anlage-Formular darunter */
+.users-wrap{padding:.9rem}
+.users-table{width:100%;border-collapse:collapse;font-size:.9rem}
+.users-table th{
+  text-align:left;color:var(--muted);font-weight:500;font-size:.78rem;
+  padding:.25rem .5rem;border-bottom:1px solid var(--line);
+}
+.users-table td{padding:.45rem .5rem;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+.users-table tr:last-child td{border-bottom:0}
+.users-table .num{text-align:right;white-space:nowrap}
+.user-cell{display:flex;align-items:center;gap:.55em}
+.user-pic{width:28px;height:28px;border-radius:50%;object-fit:cover;flex:0 0 auto}
+.user-pic-fallback{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--brand);color:#fff;font-size:.8rem;font-weight:600;
+}
+.user-names{display:flex;flex-direction:column;line-height:1.25}
+.user-names .muted{font-size:.78rem}
+.users-actions{text-align:right;white-space:nowrap}
+.users-actions form{display:inline-block;margin:0 0 0 .3rem}
+.users-wrap .user-create{border-top:1px solid var(--line);margin-top:.9rem;padding:.9rem 0 0}
+.user-create-row{display:flex;gap:.5rem;flex-wrap:wrap}
+.user-create-foot{display:flex;align-items:center;justify-content:space-between}
 .check{display:flex;align-items:center;gap:.4em;font-size:.9rem;cursor:pointer}
 .user-actions{display:flex;gap:.35rem;flex:0 0 auto}
 .badge-lock{background:#fdecec;color:#991b1b}
