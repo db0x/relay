@@ -9,6 +9,7 @@ services:
       - JWT_HEADER=Authorization
       # gemeinsames Cache-Secret fuer nginx (ds.conf) und DocService (storage.fs)
       - SECURE_LINK_SECRET=${SECURE_LINK_SECRET}
+      - MAX_FILE_MB=${MAX_FILE_MB:-}                    # harte Datei-Obergrenze; leer = 512 (relay-entry.sh)
     volumes:
       # Persistenz ueber Neustarts (DB, Cache, Lizenz/Daten)
       - ds_data:/var/www/onlyoffice/Data
@@ -40,6 +41,7 @@ services:
       - BASE_PATH=${BASE_PATH:-}                        # Unterpfad hinter Reverse Proxy, z.B. /relay
       - EDITOR_THEME=${EDITOR_THEME:-}                  # Editor-Theme; leer = theme-white ("Modern Hell")
       - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-}                # Browser-Upload-Limit; leer = 128
+      - MAX_FILE_MB=${MAX_FILE_MB:-}                    # harte Datei-Obergrenze (API); leer = 512
     volumes:
       # Ablageorte auf dem Host per .env steuerbar (Default: im Projektordner).
       # So braucht ein Server-Deployment keine Aenderung an dieser Datei.

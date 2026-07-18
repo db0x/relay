@@ -233,10 +233,12 @@ volumes `ds_db`, `ds_lib`, `ds_data` and survives restarts.
   stays off.
 - `request-filtering-agent.allowPrivateIPAddress=true`: otherwise OnlyOffice
   blocks downloads via the private Docker IPs (SSRF protection).
-- `FileConverter.converter.maxDownloadBytes = 512 MB` in `local.json`: the
-  DocumentServer default (100 MB) refuses to **open** larger files with a
-  "file size exceeds server limit" error. 512 MB matches the file API's
-  upload cap.
+- `FileConverter.converter.maxDownloadBytes`: the DocumentServer default
+  (100 MB) refuses to **open** larger files. `relay-entry.sh` (wrapper
+  entrypoint of the DS image) writes `MAX_FILE_MB` (default 512) into
+  `local.json` at container start — the same value caps the file API, so
+  everything Relay can store can also be opened. The `FileConverter`
+  skeleton must stay in `local.json` (`json` creates no missing objects).
 - The `document.key` is based on the file's mtime: multiple open tabs share
   the same editor session; after a save, a new version begins.
 - `/edit/<file>` (without owner) is a compatibility route for Voltage:

@@ -20,7 +20,8 @@ server {
     listen 80;
     server_name moria;              # hostname of the server on the LAN
 
-    # must match the file API's 512mb limit, or nginx cuts off large uploads
+    # must be >= MAX_FILE_MB from .env (default 512), or nginx cuts off
+    # large uploads before Relay ever sees them (413)
     client_max_body_size 512m;
 
     # --- Relay UI + API ---------------------------------------------------

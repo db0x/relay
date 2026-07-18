@@ -8,6 +8,10 @@ let base = process.env.BASE_PATH || "";
 if (base && !base.startsWith("/")) base = "/" + base;
 base = base.replace(/\/+$/, "");
 
+// harte Datei-Obergrenze (MB): gilt fuer die Datei-API und wird beim
+// DS-Start als maxDownloadBytes gesetzt; MAX_UPLOAD_MB wird daran gekappt
+const maxFileMb = Math.max(1, parseInt(process.env.MAX_FILE_MB, 10) || 512);
+
 module.exports = {
   BASE: base,
   DOCS: "/data/documents",                        // Wurzel der Nutzer-Dateien
@@ -21,9 +25,12 @@ module.exports = {
   FILE_SECRET: process.env.FILE_SECRET,           // signierte /files-Links
   SESSION_SECRET: process.env.SESSION_SECRET,     // signiert Login-Session-Cookies
   APP_NAME: process.env.INSTANCE_NAME || "Relay", // Anzeigename der Instanz in der UI
+  // harte Obergrenze fuer Dateien insgesamt (Datei-API-Upload; der
+  // DocumentServer bekommt denselben Wert als maxDownloadBytes — relay-entry.sh)
+  MAX_FILE_MB: maxFileMb,
   // maximale Groesse fuer Browser-Uploads in MB (Client prueft VOR dem Upload,
-  // der Server setzt es durch). Die Datei-API (Sync/Voltage) bleibt bei 512 MB.
-  MAX_UPLOAD_MB: Math.max(1, parseInt(process.env.MAX_UPLOAD_MB, 10) || 128),
+  // der Server setzt es durch); nie groesser als die harte Obergrenze
+  MAX_UPLOAD_MB: Math.min(Math.max(1, parseInt(process.env.MAX_UPLOAD_MB, 10) || 128), maxFileMb),
   VERSION: require("./package.json").version,     // Relay-Version, in der UI sichtbar
   // Editor-Theme, das jeder Editor-Start bekommt (uiTheme in der Config;
   // edit.js setzt zusaetzlich die im Browser gespeicherte Wahl hart darauf).

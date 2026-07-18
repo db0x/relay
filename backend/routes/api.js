@@ -10,7 +10,7 @@ const jwt = require("jsonwebtoken");
 
 const users = require("../users");
 const { securePath, dirFor, pathFor, walkFiles } = require("../storage");
-const { DS_INTERNAL, JWT_SECRET } = require("../config");
+const { DS_INTERNAL, JWT_SECRET, MAX_FILE_MB } = require("../config");
 const { activeEditorKey } = require("./editor");
 
 const router = express.Router();
@@ -48,7 +48,7 @@ router.post("/api/files/*/forcesave", apiAuth, handleForcesave);
 // Inhalt kommt als roher Request-Body (rclone/curl -T) oder als multipart-Feld "file"
 const apiUpload = multer({ storage: multer.memoryStorage() });
 // type:()=>true -> Body immer roh einlesen, auch ohne Content-Type (curl -T, rclone)
-router.put("/api/files/*", apiAuth, express.raw({ type: () => true, limit: "512mb" }),
+router.put("/api/files/*", apiAuth, express.raw({ type: () => true, limit: `${MAX_FILE_MB}mb` }),
   handleApiUpload);
 router.post("/api/files/*", apiAuth, apiUpload.single("file"), handleApiUpload);
 
