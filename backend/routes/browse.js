@@ -12,7 +12,7 @@ const settings = require("../settings");
 const shares = require("../shares");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
-const { BLANKS, BASE, DOCTYPE } = require("../config");
+const { BLANKS, BASE, DOCTYPE, MAX_UPLOAD_MB } = require("../config");
 const { loginRequired } = require("./auth");
 
 const router = express.Router();
@@ -167,6 +167,7 @@ router.get("/", loginRequired, (req, res) => {
     // Dateiauswahl beim Hochladen auf die Formate begrenzen, die der Editor
     // oeffnen kann — abgeleitet aus DOCTYPE, bleibt also automatisch synchron
     uploadAccept: Object.keys(DOCTYPE).map((e) => "." + e).join(","),
+    maxUploadMb: MAX_UPLOAD_MB,
     // Sprachauswahl im "Neue Datei"-Dialog: Woerterbuch-Sprachen des DS,
     // minus die vom Admin ausgeblendeten (Einstellungen-Dialog)
     docLangs: doclang.LANGS.filter((l) => !hiddenLangs.includes(l.code)),
@@ -310,15 +311,26 @@ router.post("/move/*", loginRequired, (req, res) => {
   redirectDir(req, res);
 });
 
-const upload = multer({ storage: multer.memoryStorage() });
-router.post("/upload", loginRequired, upload.single("file"), (req, res) => {
-  const cur = securePath(req.body.dir || "");
-  if (cur !== null && req.file && req.file.originalname) {
-    const base = secureFilename(req.file.originalname);
-    if (base) fs.writeFileSync(pathFor(req.session.user, cur ? `${cur}/${base}` : base),
-      req.file.buffer);
-  }
-  redirectDir(req, res);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
+});
+router.post("/upload", loginRequired, (req, res) => {
+  // multer manuell aufrufen: eine zu grosse Datei (am Client vorbeigemogelt)
+  // soll ein sauberer Flash sein, kein nackter 500er
+  upload.single("file")(req, res, (err) => {
+    if (err) {
+      req.flash("err", `Die Datei ist zu groß — erlaubt sind maximal ${MAX_UPLOAD_MB} MB.`);
+      return redirectDir(req, res);
+    }
+    const cur = securePath(req.body.dir || "");
+    if (cur !== null && req.file && req.file.originalname) {
+      const base = secureFilename(req.file.originalname);
+      if (base) fs.writeFileSync(pathFor(req.session.user, cur ? `${cur}/${base}` : base),
+        req.file.buffer);
+    }
+    redirectDir(req, res);
+  });
 });
 
 // Besitzer und Nur-Lesende duerfen herunterladen

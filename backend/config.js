@@ -21,6 +21,9 @@ module.exports = {
   FILE_SECRET: process.env.FILE_SECRET,           // signierte /files-Links
   SESSION_SECRET: process.env.SESSION_SECRET,     // signiert Login-Session-Cookies
   APP_NAME: process.env.INSTANCE_NAME || "Relay", // Anzeigename der Instanz in der UI
+  // maximale Groesse fuer Browser-Uploads in MB (Client prueft VOR dem Upload,
+  // der Server setzt es durch). Die Datei-API (Sync/Voltage) bleibt bei 512 MB.
+  MAX_UPLOAD_MB: Math.max(1, parseInt(process.env.MAX_UPLOAD_MB, 10) || 128),
   VERSION: require("./package.json").version,     // Relay-Version, in der UI sichtbar
   // Editor-Theme, das jeder Editor-Start bekommt (uiTheme in der Config;
   // edit.js setzt zusaetzlich die im Browser gespeicherte Wahl hart darauf).

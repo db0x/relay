@@ -146,13 +146,27 @@ body{
   display:grid;place-items:center;border-radius:12px;
   transition:background .12s ease;
 }
-/* WICHTIG: skaliert wird das Icon-Bild, NICHT der Button — ein transform auf
-   dem Button macht ihn zum Bezugsrahmen fuer position:fixed und wuerde den
+/* WICHTIG: der Zoom liegt auf dem .create-zoom-Wrapper (Icon + Plus-Overlay
+   als EINE Einheit), NICHT auf dem Button — ein transform auf dem Button
+   machte ihn zum Bezugsrahmen fuer position:fixed und wuerde den
    data-tip-Tooltip aus dem Viewport-Raster verschieben */
-.create-btn img{transition:transform .12s ease}
+.create-zoom{
+  position:relative;display:grid;place-items:center;
+  transition:transform .12s ease;
+}
+.create-btn:hover .create-zoom,.create-btn:focus-visible .create-zoom{transform:scale(1.12)}
+.create-btn:active .create-zoom{transform:scale(1.04)}
+/* Plus-Overlay unten rechts, im Stil des Avatar-Stifts — auf dem Wrapper,
+   damit es den Hover-Zoom mitmacht */
+.create-zoom::after{
+  content:"";position:absolute;right:-4px;bottom:-2px;width:20px;height:20px;
+  border-radius:50%;border:1px solid var(--line);
+  background:#fff url(../img/add.svg) center/13px 13px no-repeat;
+  box-shadow:0 1px 3px rgba(16,24,40,.18);pointer-events:none;
+}
+.create-btn:hover .create-zoom::after,
+.create-btn:focus-visible .create-zoom::after{background-color:#f2f4f7}
 .create-btn:hover,.create-btn:focus-visible{background:var(--line-soft)}
-.create-btn:hover img,.create-btn:focus-visible img{transform:scale(1.12)}
-.create-btn:active img{transform:scale(1.04)}
 .tool-sep{width:1px;align-self:stretch;background:var(--line);margin:0 .35rem}
 /* rechtsbuendig neben "Neuer Ordner": margin-left:auto schiebt beide nach rechts */
 .upload-form{display:flex;align-items:center;margin-left:auto}
@@ -376,7 +390,10 @@ a.crumb:hover{text-decoration:underline}
    lange Namen duerfen den Dialog nicht horizontal aufschieben; der volle
    Titel kommt als data-tip-Tooltip (index.js, nur wenn abgeschnitten) */
 .dialog-head h2{
-  padding:0;flex:1;font-size:1.02rem;min-width:0;
+  padding:1px 0 0;flex:1;font-size:1.02rem;min-width:0;
+  /* line-height = Icon-Hoehe + 1px-Nudge: Titel sitzt sonst optisch einen
+     Hauch zu hoch neben den 22px-Icons */
+  line-height:22px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .dialog-head form{margin:0;display:flex}
@@ -395,6 +412,12 @@ a.crumb:hover{text-decoration:underline}
 
 /* Speichern/Anlegen-Buttons: ausgegraut, solange nichts (Gueltiges) zu tun ist */
 .btn:disabled{opacity:.45;cursor:default;pointer-events:none}
+
+/* roter Dialog-Kopf fuer "geht nicht"-Hinweise (Datei zu gross u.ae.) */
+.dialog-head-danger{background:#fdecec;border-bottom-color:#f6c9c6}
+.dialog-head-danger h2{color:#991b1b}
+.dialog-head-danger .dialog-x{color:#b45c56}
+.dialog-head-danger .dialog-x:hover{background:#f9dbd9;color:#991b1b}
 
 /* Bestaetigungs-Dialog (ersetzt window.confirm); overflow-wrap: auch
    ellenlange Dateinamen im Fragetext brechen um statt ueberzulaufen */

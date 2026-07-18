@@ -38,20 +38,21 @@
     <div class="create-group" role="group" aria-label="Neue Datei erstellen">
       <button type="button" class="create-btn" data-create="docx"
               data-tip="Neues Textdokument" aria-label="Neues Textdokument">
-        <img src="<%= base %>/static/img/docx.svg" alt="" width="48" height="48">
+        <span class="create-zoom"><img src="<%= base %>/static/img/docx.svg" alt="" width="48" height="48"></span>
       </button>
       <button type="button" class="create-btn" data-create="xlsx"
               data-tip="Neue Tabelle" aria-label="Neue Tabelle">
-        <img src="<%= base %>/static/img/xlsx.svg" alt="" width="48" height="48">
+        <span class="create-zoom"><img src="<%= base %>/static/img/xlsx.svg" alt="" width="48" height="48"></span>
       </button>
       <button type="button" class="create-btn" data-create="pptx"
               data-tip="Neue Präsentation" aria-label="Neue Präsentation">
-        <img src="<%= base %>/static/img/pptx.svg" alt="" width="48" height="48">
+        <span class="create-zoom"><img src="<%= base %>/static/img/pptx.svg" alt="" width="48" height="48"></span>
       </button>
     </div>
     <span class="tool-sep" aria-hidden="true"></span>
     <%# ein Knopf: oeffnet die Dateiauswahl, die Auswahl laedt sofort hoch (index.js) %>
-    <form class="upload-form" action="<%= base %>/upload" method="post" enctype="multipart/form-data">
+    <form class="upload-form" action="<%= base %>/upload" method="post" enctype="multipart/form-data"
+          data-max-mb="<%= maxUploadMb %>">
       <input type="hidden" name="dir" value="<%= curDir %>">
       <input type="file" name="file" accept="<%= uploadAccept %>" hidden>
       <button type="button" class="btn btn-secondary upload-btn">
@@ -388,6 +389,23 @@
     </div>
   </dialog>
   <% } %>
+
+  <%# Hinweis-Dialog (eine OK-Taste), z.B. "Datei zu gross" — befuellt von index.js %>
+  <dialog id="dlg-notice" class="dialog">
+    <header class="dialog-head" id="dlg-notice-head">
+      <img id="dlg-notice-icon" src="" alt="" width="22" height="22" hidden>
+      <h2 id="dlg-notice-title">Hinweis</h2>
+      <form method="dialog">
+        <button class="dialog-x" aria-label="Schließen">×</button>
+      </form>
+    </header>
+    <p class="confirm-text" id="dlg-notice-text"></p>
+    <div class="confirm-btns">
+      <form method="dialog">
+        <button class="btn btn-sm">Verstanden</button>
+      </form>
+    </div>
+  </dialog>
 
   <%# gemeinsamer Bestaetigungs-Dialog fuer alle form[data-confirm] (index.js) %>
   <dialog id="dlg-confirm" class="dialog">
