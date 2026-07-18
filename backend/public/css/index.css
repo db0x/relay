@@ -187,6 +187,9 @@ a.crumb:hover{text-decoration:underline}
 .files tbody tr:last-child td{border-bottom:0}
 .files tbody tr:hover{background:#f9fafb}
 .col-size,.col-date{white-space:nowrap;color:var(--muted);font-size:.86rem;width:1%}
+/* Namensspalte nimmt den Rest ein, waechst aber NICHT mit langen Namen mit
+   (max-width:0 zwingt zur Ellipsis in .fname statt zur horizontalen Scrollbar) */
+.col-name{width:100%;max-width:0}
 .col-actions{width:1%;white-space:nowrap}
 
 .file-cell{display:flex;align-items:center;gap:.6em;min-width:0}

@@ -34,9 +34,11 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   const uid = req.params.owner, fid = req.params[0];
   const acc = accessFor(req.session.user, uid, fid);
   if (!acc) return res.sendStatus(404);
-  const canEdit = acc === "owner" || acc === "edit";
-  const p = pathFor(uid, fid);
   const ext = fid.split(".").pop().toLowerCase();
+  // PDFs sind reine Ansicht (Viewer): kein Bearbeiten, kein Speichern-Callback —
+  // unabhaengig davon, ob Besitzer oder Freigabe mit Bearbeiten-Recht
+  const canEdit = (acc === "owner" || acc === "edit") && ext !== "pdf";
+  const p = pathFor(uid, fid);
   const mtime = Math.floor(fs.statSync(p).mtimeMs / 1000);
   // signierter Download-Link, damit nur vom Backend ausgegebene URLs ziehen
   const exp = Math.floor(Date.now() / 1000) + 12 * 3600;

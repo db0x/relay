@@ -125,6 +125,13 @@ New files and uploads land in the currently open folder.
 - **Folders cannot be shared** — only individual files are shareable; they
   appear at the recipient's top level with their path shown.
 
+## PDF
+
+PDFs can be uploaded (and shared) like any other file and open in the
+OnlyOffice **PDF viewer** — always read-only (download and print allowed, no
+editing, no save callback), regardless of share permissions. Creating and
+editing remain limited to the office formats.
+
 ## Shares
 
 Every user can share their own files with other users — via the share icon

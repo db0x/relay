@@ -32,6 +32,7 @@ module.exports = {
     docx: "word", doc: "word", odt: "word", rtf: "word", txt: "word",
     xlsx: "cell", xls: "cell", ods: "cell", csv: "cell",
     pptx: "slide", ppt: "slide", odp: "slide",
+    pdf: "pdf", // Ansicht im OnlyOffice-PDF-Viewer; Upload ja, Erstellen nein
   },
 
   // leere Vorlagen (im Image mitgeliefert) fuer "Neue Datei"

@@ -22,6 +22,7 @@ function iconFor(name) {
   const ext = (name.split(".").pop() || "").toLowerCase();
   if (["xlsx", "xls", "ods", "csv"].includes(ext)) return "xlsx";
   if (["pptx", "ppt", "odp"].includes(ext)) return "pptx";
+  if (ext === "pdf") return "pdf";
   return "docx"; // Standard (Textdokumente und Unbekanntes)
 }
 

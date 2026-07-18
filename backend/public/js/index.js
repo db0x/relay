@@ -162,6 +162,19 @@
     el.addEventListener("focus", function () { placeTip(el); });
   });
 
+  // Lange Dateinamen sind per Ellipsis gekuerzt (CSS); der volle Name erscheint
+  // als Tooltip — aber nur, wenn der Name wirklich abgeschnitten ist
+  document.querySelectorAll(".fname").forEach(function (a) {
+    a.addEventListener("mouseenter", function () {
+      if (a.scrollWidth > a.clientWidth) {
+        a.dataset.tip = a.textContent.trim();
+        placeTip(a);
+      } else {
+        delete a.dataset.tip;
+      }
+    });
+  });
+
   // Hochladen: ein Knopf öffnet die Dateiauswahl, die Auswahl lädt direkt hoch
   var uploadForm = document.querySelector(".upload-form");
   if (uploadForm) {
