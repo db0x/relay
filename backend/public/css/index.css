@@ -267,8 +267,26 @@ a.crumb:hover{text-decoration:underline}
 [data-tip]:hover::after,[data-tip]:focus-visible::after{
   opacity:1;visibility:visible;transition-delay:.35s;
 }
-/* offenes Kebab-Menue: Tooltip wuerde ueber dem Panel haengen -> aus */
-.menu-btn[aria-expanded="true"]::after{opacity:0;visibility:hidden}
+/* offenes Menue (Topbar oder Zeile): Tooltip wuerde ueber dem Panel haengen -> aus */
+.menu-btn[aria-expanded="true"]::after,
+.row-menu-btn[aria-expanded="true"]::after{opacity:0;visibility:hidden}
+
+/* Zeilen-Kontextmenue: ein Kebab pro Zeile; Panel fixed statt absolute,
+   sonst erzeugt es im Tabellen-Wrapper Scrollbalken (Position via index.js).
+   Doppelklassen-Selektoren: muessen die spaeter definierten Basisregeln
+   (.menu-panel right:0, .menu-item display:block) sicher schlagen. */
+.row-menu{display:flex;justify-content:flex-end}
+.menu-panel.row-menu-panel{
+  position:fixed;inset:auto;z-index:35;
+  min-width:180px;width:max-content;
+}
+.row-menu-panel .del-form{margin:0}
+.menu-item.menu-item-ico{
+  display:flex;align-items:center;gap:.55em;white-space:nowrap;
+}
+.menu-item-ico img{display:block;flex:0 0 auto}
+.menu-item.menu-item-danger{color:var(--danger)}
+.menu-item.menu-item-danger:hover{background:#fdecec}
 
 /* Freigabe-Dialog */
 .sharebox{padding:.9rem}
@@ -367,6 +385,10 @@ a.crumb:hover{text-decoration:underline}
     overlay .18s ease allow-discrete,display .18s ease allow-discrete;
 }
 .dialog{transform:translateY(10px) scale(.97)}
+/* UA-Default ist overflow:auto — waehrend der Oeffnen-/Schliess-Transition
+   blitzen dadurch Scrollbalken auf. Inhalte scrollen bei Bedarf in ihren
+   eigenen Bereichen (z.B. .lang-list), nie am Dialog selbst. */
+.dialog{overflow:hidden}
 .dialog[open]{opacity:1;transform:none}
 .dialog[open]::backdrop{opacity:1;background:rgba(16,24,40,.4)}
 @starting-style{

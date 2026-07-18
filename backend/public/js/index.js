@@ -8,31 +8,55 @@
     if (e.persisted) location.reload();
   });
 
-  // Kebab-Menü neben dem Nutzernamen auf-/zuklappen
-  var menuBtn = document.querySelector(".menu-btn");
-  var menuPanel = document.querySelector(".menu-panel");
-  function closeMenu() {
-    if (menuPanel) menuPanel.hidden = true;
-    if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
-  }
-  if (menuBtn && menuPanel) {
-    menuBtn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      var willOpen = menuPanel.hidden;
-      menuPanel.hidden = !willOpen;
-      menuBtn.setAttribute("aria-expanded", String(willOpen));
+  // Menüs: Topbar-Kebab + ein Kontextmenü pro Dateizeile — es ist immer
+  // höchstens eins offen. Die Zeilen-Panels sind position:fixed (im
+  // scrollenden Tabellen-Wrapper erzeugte absolute Positionierung
+  // Scrollbalken) und werden beim Öffnen am Knopf ausgerichtet;
+  // bei Platzmangel unten klappen sie nach oben.
+  function closeMenus() {
+    document.querySelectorAll(".menu-panel").forEach(function (p) { p.hidden = true; });
+    document.querySelectorAll(".menu-btn, .row-menu-btn").forEach(function (b) {
+      b.setAttribute("aria-expanded", "false");
     });
-    menuPanel.addEventListener("click", function (e) { e.stopPropagation(); });
-    document.addEventListener("click", closeMenu);
-    document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeMenu(); });
   }
+  document.querySelectorAll(".menu-btn, .row-menu-btn").forEach(function (btn) {
+    var panel = btn.parentElement.querySelector(".menu-panel");
+    if (!panel) return;
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var willOpen = panel.hidden;
+      closeMenus();
+      if (!willOpen) return;
+      panel.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+      if (panel.classList.contains("row-menu-panel")) {
+        var r = btn.getBoundingClientRect();
+        var top = r.bottom + 6;
+        if (top + panel.offsetHeight > window.innerHeight - 8)
+          top = Math.max(8, r.top - panel.offsetHeight - 6);
+        panel.style.top = top + "px";
+        panel.style.left = Math.max(8, r.right - panel.offsetWidth) + "px";
+        panel.style.right = "auto"; // Basisregel .menu-panel setzt right:0
+      }
+    });
+    panel.addEventListener("click", function (e) { e.stopPropagation(); });
+  });
+  document.addEventListener("click", closeMenus);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeMenus(); });
+  // Scrollen (auch im Tabellen-Wrapper, daher capture) wuerde fixe Panels
+  // von ihrer Zeile trennen -> einfach schliessen
+  window.addEventListener("scroll", closeMenus, true);
+  // Klick auf einen Menüpunkt (Download-Link, Löschen ...) schließt das Menü
+  document.querySelectorAll(".row-menu-panel .menu-item").forEach(function (item) {
+    item.addEventListener("click", closeMenus);
+  });
 
   // Menüpunkte mit data-dialog öffnen den passenden <dialog>
   document.querySelectorAll("[data-dialog]").forEach(function (item) {
     item.addEventListener("click", function () {
       var dlg = document.getElementById(item.dataset.dialog);
       if (dlg && dlg.showModal) dlg.showModal();
-      closeMenu();
+      closeMenus();
     });
   });
 
@@ -157,9 +181,21 @@
     el.style.setProperty("--tip-x", (r.left + r.width / 2) + "px");
     el.style.setProperty("--tip-y", (r.bottom + 6) + "px");
   }
+  // Koordinaten nach dem Ausblenden wieder entfernen: waehrend der
+  // Dialog-Animationen (transform!) wuerde ein Dialog kurz zum Bezugsrahmen
+  // der fixen Tooltips — gespeicherte Viewport-Koordinaten laegen dann weit
+  // ausserhalb und erzeugten fluechtige Scrollbalken im Dialog.
+  function clearTip(el) {
+    setTimeout(function () { // erst nach dem .12s-Fade, sonst springt er beim Ausblenden
+      el.style.removeProperty("--tip-x");
+      el.style.removeProperty("--tip-y");
+    }, 150);
+  }
   document.querySelectorAll("[data-tip], .share-badge").forEach(function (el) {
     el.addEventListener("mouseenter", function () { placeTip(el); });
     el.addEventListener("focus", function () { placeTip(el); });
+    el.addEventListener("mouseleave", function () { clearTip(el); });
+    el.addEventListener("blur", function () { clearTip(el); });
   });
 
   // Lange Dateinamen (Liste) und Dialog-Titel sind per Ellipsis gekuerzt (CSS);
@@ -173,6 +209,7 @@
         delete el.dataset.tip;
       }
     });
+    el.addEventListener("mouseleave", function () { clearTip(el); });
   });
 
   // Hinweis-Dialog mit einer OK-Taste (App-Design statt window.alert).
