@@ -24,5 +24,10 @@
         "browser": { "string": "", "file": "" }
       }
     }
+  },
+  "FileConverter": {
+    "converter": {
+      "maxDownloadBytes": 536870912
+    }
   }
 }

@@ -233,6 +233,10 @@ volumes `ds_db`, `ds_lib`, `ds_data` and survives restarts.
   stays off.
 - `request-filtering-agent.allowPrivateIPAddress=true`: otherwise OnlyOffice
   blocks downloads via the private Docker IPs (SSRF protection).
+- `FileConverter.converter.maxDownloadBytes = 512 MB` in `local.json`: the
+  DocumentServer default (100 MB) refuses to **open** larger files with a
+  "file size exceeds server limit" error. 512 MB matches the file API's
+  upload cap.
 - The `document.key` is based on the file's mtime: multiple open tabs share
   the same editor session; after a save, a new version begins.
 - `/edit/<file>` (without owner) is a compatibility route for Voltage:
