@@ -1,10 +1,11 @@
-// Nutzerverwaltung (nur Admins): Nutzer anlegen, Admin-Rechte, sperren/entsperren.
+// Nutzerverwaltung (nur Admins): Nutzer anlegen, Admin-Rechte, sperren/entsperren, loeschen.
+const fs = require("fs");
 const express = require("express");
 
 const users = require("../users");
 const settings = require("../settings");
 const doclang = require("../doclang");
-const { secureFilename } = require("../storage");
+const { secureFilename, dirFor } = require("../storage");
 const { BASE } = require("../config");
 
 const router = express.Router();
@@ -92,6 +93,27 @@ router.post("/users/lock", adminRequired, (req, res) => {
     req.flash("ok", lock
       ? `${row.display_name} ist gesperrt — Login, Sitzungen und API-Token sind blockiert.`
       : `${row.display_name} ist wieder entsperrt.`);
+  }
+  res.redirect(`${BASE}/`);
+});
+
+// Nutzer MITSAMT allen Daten loeschen: DB-Zeile, Freigaben (beide Richtungen),
+// Avatar (alles via users.del) und den kompletten Dokumentordner.
+// Schutzregeln analog zu sperren: nicht sich selbst, keine Admins (erst
+// Rechte entziehen) — verhindert das versehentliche Wegputzen eines Admins.
+router.post("/users/delete", adminRequired, (req, res) => {
+  const target = (req.body.target || "").trim();
+  const row = users.get(target);
+  if (!row) {
+    req.flash("err", "Unbekannter Nutzer.");
+  } else if (target === req.session.user) {
+    req.flash("err", "Du kannst dich nicht selbst löschen.");
+  } else if (row.is_admin) {
+    req.flash("err", `${row.display_name} ist Admin — erst die Admin-Rechte entziehen, dann löschen.`);
+  } else {
+    users.del(target);
+    fs.rmSync(dirFor(target), { recursive: true, force: true });
+    req.flash("ok", `${row.display_name} wurde mitsamt allen Dateien gelöscht.`);
   }
   res.redirect(`${BASE}/`);
 });

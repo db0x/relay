@@ -59,7 +59,9 @@ docker compose exec backend node manage.js add thomas "Thomas"
 
 **Admins** can create new users in the UI (menu → "Nutzerverwaltung"),
 optionally with admin rights right away, grant or revoke admin rights for
-other users, and **lock/unlock** users. Locked means: no login, running
+other users, **lock/unlock** users, and **delete** users including all their
+data (files, shares in both directions, avatar, profile — irreversible;
+admins must have their rights revoked first, you cannot delete yourself). Locked means: no login, running
 browser sessions end immediately, and the API token (sync/Voltage) is
 blocked; the user's files and shares remain untouched.
 You cannot revoke your own admin rights and you cannot lock yourself —

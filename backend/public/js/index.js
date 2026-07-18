@@ -162,15 +162,15 @@
     el.addEventListener("focus", function () { placeTip(el); });
   });
 
-  // Lange Dateinamen sind per Ellipsis gekuerzt (CSS); der volle Name erscheint
-  // als Tooltip — aber nur, wenn der Name wirklich abgeschnitten ist
-  document.querySelectorAll(".fname").forEach(function (a) {
-    a.addEventListener("mouseenter", function () {
-      if (a.scrollWidth > a.clientWidth) {
-        a.dataset.tip = a.textContent.trim();
-        placeTip(a);
+  // Lange Dateinamen (Liste) und Dialog-Titel sind per Ellipsis gekuerzt (CSS);
+  // der volle Text erscheint als Tooltip — aber nur, wenn wirklich abgeschnitten
+  document.querySelectorAll(".fname, .dialog-head h2").forEach(function (el) {
+    el.addEventListener("mouseenter", function () {
+      if (el.scrollWidth > el.clientWidth) {
+        el.dataset.tip = el.textContent.trim().replace(/\s+/g, " ");
+        placeTip(el);
       } else {
-        delete a.dataset.tip;
+        delete el.dataset.tip;
       }
     });
   });

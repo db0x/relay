@@ -239,7 +239,10 @@ a.crumb:hover{text-decoration:underline}
    (wie native Tooltips), Ausblenden sofort. */
 [data-tip]::after{
   content:attr(data-tip);position:fixed;left:var(--tip-x,-9999px);top:var(--tip-y,0);
-  transform:translateX(-50%);z-index:40;white-space:nowrap;
+  transform:translateX(-50%);z-index:40;
+  /* kompakt wie nowrap, aber lange Dateinamen brechen ab Maximalbreite um,
+     statt aus dem Viewport zu laufen */
+  width:max-content;max-width:min(88vw,420px);overflow-wrap:anywhere;
   background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);
   box-shadow:0 8px 28px rgba(16,24,40,.14);padding:.3rem .55rem;
   color:var(--ink);font-size:.78rem;font-weight:400;line-height:1.3;
@@ -369,7 +372,13 @@ a.crumb:hover{text-decoration:underline}
   border-radius:14px 14px 0 0;
 }
 .dialog-head img{display:block;flex:0 0 auto}
-.dialog-head h2{padding:0;flex:1;font-size:1.02rem}
+/* Titel (oft mit Dateinamen) bleibt einzeilig und kuerzt per Ellipsis —
+   lange Namen duerfen den Dialog nicht horizontal aufschieben; der volle
+   Titel kommt als data-tip-Tooltip (index.js, nur wenn abgeschnitten) */
+.dialog-head h2{
+  padding:0;flex:1;font-size:1.02rem;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
 .dialog-head form{margin:0;display:flex}
 .dialog-head .dialog-x{margin:0}
 .dialog-close-row{display:flex;justify-content:flex-end;margin:0}
@@ -387,8 +396,9 @@ a.crumb:hover{text-decoration:underline}
 /* Speichern/Anlegen-Buttons: ausgegraut, solange nichts (Gueltiges) zu tun ist */
 .btn:disabled{opacity:.45;cursor:default;pointer-events:none}
 
-/* Bestaetigungs-Dialog (ersetzt window.confirm) */
-.confirm-text{margin:.9rem 1.1rem;line-height:1.45}
+/* Bestaetigungs-Dialog (ersetzt window.confirm); overflow-wrap: auch
+   ellenlange Dateinamen im Fragetext brechen um statt ueberzulaufen */
+.confirm-text{margin:.9rem 1.1rem;line-height:1.45;overflow-wrap:anywhere}
 .confirm-btns{display:flex;gap:.5em;justify-content:flex-end;padding:0 .9rem}
 
 /* Einstellungen: Sprachen-Ankreuzliste, zweispaltig und intern scrollend.

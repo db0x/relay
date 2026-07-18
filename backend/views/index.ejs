@@ -352,6 +352,16 @@
                 </button>
               </form>
               <% } %>
+              <%# loeschen nur fuer Nicht-Admins (erst Rechte entziehen) %>
+              <% if (!u.is_admin) { %>
+              <form class="unshare-form" action="<%= base %>/users/delete" method="post"
+                    data-confirm="<%= u.display_name %> endgültig löschen? ALLE Dateien, Freigaben und das Profil werden unwiderruflich entfernt.">
+                <input type="hidden" name="target" value="<%= u.username %>">
+                <button class="iconbtn iconbtn-danger" data-tip="Nutzer löschen" aria-label="Nutzer löschen">
+                  <img src="<%= base %>/static/img/delete.svg" alt="" width="16" height="16">
+                </button>
+              </form>
+              <% } %>
               <% } %>
             </td>
           </tr>
