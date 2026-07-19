@@ -510,18 +510,24 @@ a.crumb:hover{text-decoration:underline}
   border-top:1px solid var(--line);margin-top:2px;
 }
 
-/* Dialoge (Passwort / Token) */
+/* Dialoge (Passwort / Token) — bewusst nicht-modal (show statt showModal,
+   siehe index.js): kein Top-Layer, damit Wrapper-Apps (z.B. Voltage) ihr
+   Kontextmenue ueber dem Dialog zeichnen koennen. Zentrierung und Stapelung
+   uebernimmt deshalb nicht mehr der Browser: */
 .dialog{
+  position:fixed;inset:0;margin:auto;
+  height:fit-content;max-height:calc(100vh - 2rem);
+  z-index:60; /* index.js stapelt spaeter geoeffnete per Inline-z-index darueber */
   border:1px solid var(--line);border-radius:14px;padding:0 0 1.1rem;
   width:min(92vw,380px);box-shadow:0 16px 48px rgba(16,24,40,.22);
 }
 
-/* Ein-/Ausblenden aller Dialoge: allow-discrete hält display/overlay während
-   der Transition aktiv, @starting-style liefert den Startwert beim Öffnen */
-.dialog,.dialog::backdrop{
+/* Ein-/Ausblenden aller Dialoge: allow-discrete hält display während der
+   Transition aktiv, @starting-style liefert den Startwert beim Öffnen */
+.dialog{
   opacity:0;
   transition:opacity .18s ease,transform .18s ease,
-    overlay .18s ease allow-discrete,display .18s ease allow-discrete;
+    display .18s ease allow-discrete;
 }
 .dialog{transform:translateY(10px) scale(.97)}
 /* UA-Default ist overflow:auto — waehrend der Oeffnen-/Schliess-Transition
@@ -529,13 +535,21 @@ a.crumb:hover{text-decoration:underline}
    eigenen Bereichen (z.B. .lang-list), nie am Dialog selbst. */
 .dialog{overflow:hidden}
 .dialog[open]{opacity:1;transform:none}
-.dialog[open]::backdrop{opacity:1;background:rgba(16,24,40,.4)}
 @starting-style{
   .dialog[open]{opacity:0;transform:translateY(10px) scale(.97)}
-  .dialog[open]::backdrop{opacity:0}
 }
+
+/* gemeinsamer Backdrop (ein Element fuer alle Dialoge, index.js schaltet
+   .open): ::backdrop existiert nur fuer modale Dialoge. pointer-events
+   blockt Klicks auf die Seite dahinter, solange ein Dialog offen ist. */
+.dlg-backdrop{
+  position:fixed;inset:0;z-index:50;background:rgba(16,24,40,.4);
+  opacity:0;pointer-events:none;transition:opacity .18s ease;
+}
+.dlg-backdrop.open{opacity:1;pointer-events:auto}
+
 @media (prefers-reduced-motion:reduce){
-  .dialog,.dialog::backdrop{transition:none}
+  .dialog,.dlg-backdrop{transition:none}
 }
 .dialog h2{margin:0;padding:0 1.1rem;font-size:1.05rem}
 

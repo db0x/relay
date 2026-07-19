@@ -288,6 +288,10 @@
   <%# Hover-Vorschau fuer Notizen in der Dateiliste (index.js befuellt) %>
   <div class="note-tip md-render" id="note-tip" aria-hidden="true"></div>
 
+  <%# gemeinsamer Backdrop aller Dialoge — ::backdrop gibt es nur fuer modale
+      Dialoge, die hier bewusst nicht genutzt werden (siehe index.js) %>
+  <div class="dlg-backdrop" id="dlg-backdrop"></div>
+
   <%# Markdown-Notiz-Editor: modaler Dialog, fuellt 70% der Seite (index.js) %>
   <dialog id="dlg-note" class="dialog dialog-note">
     <header class="dialog-head">

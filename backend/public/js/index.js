@@ -42,7 +42,12 @@
     panel.addEventListener("click", function (e) { e.stopPropagation(); });
   });
   document.addEventListener("click", closeMenus);
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeMenus(); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    closeMenus();
+    // nicht-modale Dialoge kennen kein cancel-Event -> selbst schliessen
+    if (dlgStack.length) dlgStack[dlgStack.length - 1].close();
+  });
   // Scrollen (auch im Tabellen-Wrapper, daher capture) wuerde fixe Panels
   // von ihrer Zeile trennen -> einfach schliessen
   window.addEventListener("scroll", closeMenus, true);
@@ -51,11 +56,33 @@
     item.addEventListener("click", closeMenus);
   });
 
+  // Dialoge oeffnen nicht-modal (show statt showModal): showModal legt sie in
+  // den Top-Layer des Browsers, ueber den eine umgebende Wrapper-App (z.B.
+  // Voltage) per z-index nicht mehr zeichnen kann — ihr Kontextmenue bliebe
+  // unter dem Dialog. Backdrop und Stapelreihenfolge deshalb in Eigenregie.
+  var dlgBackdrop = document.getElementById("dlg-backdrop");
+  var dlgStack = [];
+  function openDlg(dlg) {
+    if (dlgStack.indexOf(dlg) === -1) dlgStack.push(dlg);
+    // spaeter geoeffnete Dialoge liegen oben (DOM-Reihenfolge reicht nicht:
+    // z.B. oeffnet die Token-Rueckfrage ueber dem spaeter notierten Konto-Dialog)
+    dlg.style.zIndex = String(60 + dlgStack.length);
+    if (!dlg.open) dlg.show();
+    if (dlgBackdrop) dlgBackdrop.classList.add("open");
+  }
+  document.querySelectorAll("dialog.dialog").forEach(function (d) {
+    d.addEventListener("close", function () {
+      var i = dlgStack.indexOf(d);
+      if (i !== -1) dlgStack.splice(i, 1);
+      if (!dlgStack.length && dlgBackdrop) dlgBackdrop.classList.remove("open");
+    });
+  });
+
   // Menüpunkte mit data-dialog öffnen den passenden <dialog>
   document.querySelectorAll("[data-dialog]").forEach(function (item) {
     item.addEventListener("click", function () {
       var dlg = document.getElementById(item.dataset.dialog);
-      if (dlg && dlg.showModal) dlg.showModal();
+      if (dlg) openDlg(dlg);
       closeMenus();
     });
   });
@@ -89,7 +116,7 @@
         if (langSelect) langSelect.value = langSelect.dataset.default;
         // Werte wurden programmatisch gesetzt -> Button-Zustand neu bewerten
         nameInput.dispatchEvent(new Event("input", { bubbles: true }));
-        createDlg.showModal();
+        openDlg(createDlg);
         nameInput.focus();
       });
     });
@@ -100,7 +127,7 @@
   var invalidField = document.querySelector("#dlg-account .field-invalid");
   if (invalidField) {
     var accDlg = document.getElementById("dlg-account");
-    if (accDlg && accDlg.showModal) accDlg.showModal();
+    if (accDlg) openDlg(accDlg);
     invalidField.focus();
   }
 
@@ -252,6 +279,22 @@
 
     function noteVal() { return noteCM ? noteCM.getValue() : noteText.value; }
 
+    // Links in gerendertem Markdown: externe (http/https/mailto) mit
+    // target=_blank versehen — Wrapper-Apps (z.B. Voltage) reichen _blank an
+    // den System-Browser durch, normale Navigation bliebe in der App haengen.
+    // Interne/relative Links und Anker wuerden mitten in der App auf
+    // Nirgendwo-Pfade navigieren -> href entfernen, sie werden reiner Text.
+    function externalizeLinks(root) {
+      root.querySelectorAll("a[href]").forEach(function (a) {
+        if (/^(https?:|mailto:)/i.test(a.getAttribute("href"))) {
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+        } else {
+          a.removeAttribute("href");
+        }
+      });
+    }
+
     // Vorschau rendern; wirft der Parser, gilt das Markdown als ungueltig
     // und die Statuszeile zeigt den Fehler (Speichern bleibt moeglich)
     function renderNotePreview() {
@@ -265,6 +308,7 @@
         return;
       }
       notePreview.innerHTML = DOMPurify.sanitize(html);
+      externalizeLinks(notePreview);
       if (window.hljs) {
         notePreview.querySelectorAll("pre code").forEach(function (el) {
           hljs.highlightElement(el);
@@ -326,7 +370,7 @@
       noteSave.disabled = true;
       noteStatus.textContent = "";
       noteBaseline = content;
-      noteDlg.showModal();
+      openDlg(noteDlg);
       if (noteCM) {
         noteCM.refresh(); // war beim Initialisieren unsichtbar -> Masse neu messen
         if (canEdit) noteCM.focus();
@@ -485,6 +529,7 @@
                 .then(function (t) { noteTipCache[key] = t; return t; });
           loaded.then(function (text) {
             noteTip.innerHTML = DOMPurify.sanitize(marked.parse(text));
+            externalizeLinks(noteTip);
             if (window.hljs) {
               noteTip.querySelectorAll("pre code").forEach(function (el) {
                 hljs.highlightElement(el);
@@ -543,7 +588,7 @@
     var icon = document.getElementById("dlg-notice-icon");
     icon.hidden = !opts.icon;
     if (opts.icon) icon.src = opts.icon;
-    dlg.showModal();
+    openDlg(dlg);
   }
 
   // Dateityp-Icon zum Namen (gleiche Gruppen wie iconFor im Backend);
@@ -634,7 +679,7 @@
       e.preventDefault();
       confirmPending = form;
       document.getElementById("dlg-confirm-text").textContent = form.dataset.confirm;
-      confirmDlg.showModal();
+      openDlg(confirmDlg);
     });
   });
   if (confirmDlg) {
