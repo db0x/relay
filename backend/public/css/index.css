@@ -171,6 +171,118 @@ body{
 /* rechtsbuendig neben "Neuer Ordner": margin-left:auto schiebt beide nach rechts */
 .upload-form{display:flex;align-items:center;margin-left:auto}
 
+/* Notiz-Editor: modaler Dialog, fuellt die Seite zu 90% in alle Richtungen.
+   Doppelklasse: die spaeter definierte .dialog-Basisregel (width 380px)
+   wuerde die Breite sonst zuruecksetzen. */
+.dialog.dialog-note{width:56vw;height:56vh;max-width:none;max-height:none}
+/* Nur-Lesen-Notiz: keine Editor-Spalte, nur die gerenderte Ansicht —
+   der Dialog wird dafuer auf Lesebreite verschmaelert */
+.dialog.dialog-note.note-view{width:min(92vw,720px)}
+.note-view .note-editor-pane{display:none}
+.note-view .note-foot{display:none}
+.note-view .note-preview{padding:1rem 1.2rem}
+/* Stift oben rechts auf dem gerenderten Panel (nur im Ansichtsmodus sichtbar);
+   explizites [hidden]: die iconbtn-Basisregel setzt display:grid und wuerde
+   das UA-hidden sonst aushebeln */
+.note-main{position:relative}
+.note-edit-btn{position:absolute;top:.15rem;right:.4rem;z-index:2}
+.note-edit-btn[hidden]{display:none}
+.dialog-note[open]{display:flex;flex-direction:column}
+.note-form{
+  flex:1;min-height:0;display:flex;flex-direction:column;gap:.6rem;
+  padding:.9rem;
+}
+/* zweispaltig: Editor links, Live-Vorschau rechts — je 50% */
+.note-main{flex:1;min-height:0;display:flex;gap:.9rem}
+.note-editor-pane{flex:0 0 50%;min-width:0;display:flex;flex-direction:column}
+/* Markdown-Toolbar ueber dem Editor */
+.note-toolbar{
+  display:flex;align-items:center;gap:2px;flex-wrap:wrap;
+  padding-bottom:.4rem;margin-bottom:.4rem;border-bottom:1px solid var(--line-soft);
+}
+.note-tb{
+  width:28px;height:28px;padding:0;border:0;border-radius:6px;
+  background:none;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.note-tb img{display:block}
+.note-tb:hover{background:var(--line-soft)}
+.note-tb-sep{width:1px;height:18px;background:var(--line);margin:0 .35rem}
+.note-preview{
+  flex:1 1 0;min-width:0;overflow:auto;
+  background:#fff;padding:.4rem 1rem .4rem .2rem;
+}
+/* Splitter zwischen Editor und Vorschau: ziehen aendert die Aufteilung
+   (index.js, persistiert im localStorage); im Nur-Lesen-Modus unsichtbar */
+.note-splitter{
+  flex:0 0 10px;cursor:col-resize;position:relative;border-radius:6px;
+  transition:background .12s ease;touch-action:none;
+}
+.note-splitter::before{
+  content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;
+  transform:translateX(-50%);background:var(--line);border-radius:1px;
+}
+.note-splitter:hover,.note-splitter.dragging{background:var(--line-soft)}
+.note-view .note-splitter{display:none}
+/* Fallback-Textarea (falls CodeMirror nicht laedt) */
+.note-text{
+  flex:1;min-height:0;resize:none;width:100%;
+  padding:.4rem .2rem;border:0;background:#fff;color:var(--ink);
+  font:.92rem/1.55 ui-monospace,"Cascadia Code",Consolas,monospace;
+}
+.note-text:focus{outline:none}
+.note-text[readonly]{background:#f7f8fa;color:var(--muted)}
+/* CodeMirror rahmenlos — der Splitter uebernimmt die optische Trennung */
+.note-editor-pane .CodeMirror{
+  flex:1;height:100%;min-width:0;
+  font:.92rem/1.55 ui-monospace,"Cascadia Code",Consolas,monospace;
+  color:var(--ink);
+}
+.note-foot{display:flex;justify-content:space-between;align-items:center;gap:.9rem}
+.note-status{color:var(--danger);font-size:.85rem;min-height:1.2em}
+/* gerenderte Markdown-Typografie — Dialog-Vorschau UND Hover-Tooltip
+   (em-Groessen: der Tooltip skaliert ueber seine font-size kleiner) */
+.md-render>:first-child{margin-top:0}
+.md-render h1,.md-render h2,.md-render h3{margin:.9em 0 .4em;line-height:1.25}
+.md-render h1{font-size:1.5em}
+.md-render h2{font-size:1.25em}
+.md-render h3{font-size:1.1em}
+.md-render p,.md-render ul,.md-render ol{margin:.5em 0}
+.md-render pre{
+  background:#f6f8fa;border:1px solid var(--line-soft);border-radius:8px;
+  padding:.7em .85em;overflow:auto;
+}
+.md-render code{
+  font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-size:.88em;
+  background:#f1f3f5;padding:.1em .35em;border-radius:5px;
+}
+.md-render pre code{background:none;padding:0}
+.md-render blockquote{
+  margin:.6em 0;padding:.2em .9em;border-left:3px solid var(--line);color:var(--muted);
+}
+.md-render table{border-collapse:collapse;margin:.6em 0}
+.md-render th,.md-render td{border:1px solid var(--line);padding:.3em .6em}
+.md-render img{max-width:100%}
+.md-render a{color:var(--brand)}
+.md-render hr{border:0;border-top:1px solid var(--line);margin:1em 0}
+
+/* Hover-Vorschau einer Notiz in der Dateiliste: fixes Kaertchen unterm Namen,
+   gleiches Fade-Muster wie die Tooltips; Ueberlanges wird unten abgeschnitten */
+.note-tip{
+  position:fixed;z-index:40;width:360px;max-height:280px;overflow:hidden;
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);
+  box-shadow:0 8px 28px rgba(16,24,40,.14);padding:.8rem .95rem;
+  font-size:.85rem;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .12s ease,visibility .12s ease;
+}
+.note-tip.open{opacity:1;visibility:visible}
+/* Notiz-Namen sind Buttons, sollen aber wie die Datei-Links aussehen */
+button.fname{
+  background:none;border:0;padding:0;margin:0;font:inherit;
+  text-align:left;cursor:pointer;
+}
+
 /* Fusszeile unter der Dateiliste: Filter "Nur eigene Dateien" */
 .list-footer{
   display:flex;justify-content:flex-end;align-items:center;

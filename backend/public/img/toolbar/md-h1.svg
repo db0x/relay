@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   version="1.1"
+   id="svg7"
+   sodipodi:docname="md-h1.svg"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview9"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showgrid="false"
+     inkscape:zoom="32"
+     inkscape:cx="12.078125"
+     inkscape:cy="7.015625"
+     inkscape:window-width="2560"
+     inkscape:window-height="1367"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg7" />
+  <defs
+     id="defs3">
+    <style
+       id="current-color-scheme"
+       type="text/css">
+   .ColorScheme-Text { color:#444444; } .ColorScheme-Highlight { color:#4285f4; } .ColorScheme-NeutralText { color:#ff9800; } .ColorScheme-PositiveText { color:#4caf50; } .ColorScheme-NegativeText { color:#f44336; }
+  </style>
+  </defs>
+  <path
+     style="fill:currentColor;stroke-width:0.570677"
+     class="ColorScheme-Text"
+     d="M 3.7721198,3.1087036 V 5.2049734 H 2.3738994 V 6.6024866 H 3.7721198 V 9.397513 H 2.3738994 v 1.397513 h 1.3982204 v 2.09627 h 0.9321469 v -2.09627 h 1.8642939 v 2.09627 h 0.9321466 v -2.09627 h 1.398221 V 9.397513 H 7.5007072 V 6.6024866 h 1.398221 V 5.2049734 H 7.5007072 V 3.1087036 H 6.5685606 V 5.2049734 H 4.7042667 V 3.1087036 Z m 0.9321469,3.493783 H 6.5685606 V 9.397513 H 4.7042667 Z"
+     id="path5" />
+  <text
+     xml:space="preserve"
+     style="font-size:26.6667px;font-family:Ubuntu;-inkscape-font-specification:Ubuntu;text-align:center;text-anchor:middle;opacity:0.2;fill:#ffffff;stroke:#c7c7c7;stroke-width:0.25;stroke-linejoin:round;stop-color:#000000"
+     x="12.291314"
+     y="8.506753"
+     id="text346"><tspan
+       sodipodi:role="line"
+       id="tspan344" /></text>
+  <text
+     xml:space="preserve"
+     style="font-size:9.36903px;font-family:Ubuntu;-inkscape-font-specification:Ubuntu;text-align:center;text-anchor:middle;opacity:1;fill:#444444;fill-opacity:1;stroke:none;stroke-width:0.0878339;stroke-linejoin:round;stop-color:#000000"
+     x="12.733023"
+     y="12.894378"
+     id="text400"><tspan
+       sodipodi:role="line"
+       id="tspan398"
+       x="12.733023"
+       y="12.894378"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:Ubuntu;-inkscape-font-specification:'Ubuntu Bold';stroke:none;stroke-width:0.0878339">1</tspan></text>
+</svg>

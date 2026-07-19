@@ -200,7 +200,7 @@
 
   // Lange Dateinamen (Liste) und Dialog-Titel sind per Ellipsis gekuerzt (CSS);
   // der volle Text erscheint als Tooltip — aber nur, wenn wirklich abgeschnitten
-  document.querySelectorAll(".fname, .dialog-head h2").forEach(function (el) {
+  document.querySelectorAll(".fname:not(.note-open), .dialog-head h2").forEach(function (el) {
     el.addEventListener("mouseenter", function () {
       if (el.scrollWidth > el.clientWidth) {
         el.dataset.tip = el.textContent.trim().replace(/\s+/g, " ");
@@ -226,6 +226,301 @@
     ownOnly.checked = localStorage.getItem(OWN_KEY) === "1";
     ownOnly.addEventListener("change", applyOwnFilter);
     applyOwnFilter();
+  }
+
+  // Notizen: Markdown-Editor (CodeMirror mit Markdown-Highlighting) als
+  // grosser modaler Dialog, rechts eine Live-Vorschau (marked -> DOMPurify ->
+  // highlight.js fuer Code-Bloecke). "Neue Notiz" oeffnet sofort mit
+  // "# Titel"-Vorlage; Klick auf eine Notiz laedt deren Inhalt.
+  // Speichern erst bei Aenderung gegenueber dem Oeffnen (eigene Logik statt
+  // dialog-submit-Waechter: der Ausgangszustand wechselt mit jedem Oeffnen).
+  var noteDlg = document.getElementById("dlg-note");
+  if (noteDlg) {
+    var noteForm = document.getElementById("note-form");
+    var noteText = noteForm.querySelector("textarea");
+    var noteSave = document.getElementById("note-save");
+    var noteTitleEl = document.getElementById("dlg-note-title");
+    var notePreview = document.getElementById("note-preview");
+    var noteStatus = document.getElementById("note-status");
+    var noteCreateAction = noteForm.action; // .../notes/create
+    var noteBaseUrl = noteCreateAction.replace(/\/notes\/create$/, "");
+    var noteBaseline = "";
+    var noteCM = null;    // CodeMirror-Instanz; ohne Vendor-JS bleibt die Textarea
+    var noteTimer = null;
+
+    if (window.marked) marked.use({ gfm: true, breaks: true });
+
+    function noteVal() { return noteCM ? noteCM.getValue() : noteText.value; }
+
+    // Vorschau rendern; wirft der Parser, gilt das Markdown als ungueltig
+    // und die Statuszeile zeigt den Fehler (Speichern bleibt moeglich)
+    function renderNotePreview() {
+      if (!window.marked || !window.DOMPurify) return;
+      var html;
+      try {
+        html = marked.parse(noteVal());
+        noteStatus.textContent = "";
+      } catch (e) {
+        noteStatus.textContent = "Markdown-Fehler: " + (e && e.message || e);
+        return;
+      }
+      notePreview.innerHTML = DOMPurify.sanitize(html);
+      if (window.hljs) {
+        notePreview.querySelectorAll("pre code").forEach(function (el) {
+          hljs.highlightElement(el);
+        });
+      }
+    }
+
+    function onNoteChange() {
+      var v = noteVal();
+      noteSave.disabled = v === noteBaseline || v.trim() === "";
+      clearTimeout(noteTimer);
+      noteTimer = setTimeout(renderNotePreview, 200);
+    }
+
+    function ensureNoteEditor() {
+      if (noteCM || !window.CodeMirror) return;
+      noteCM = CodeMirror.fromTextArea(noteText, {
+        mode: "markdown",
+        lineWrapping: true,
+        extraKeys: {
+          "Ctrl-B": function () { mdActions.bold(); },
+          "Ctrl-I": function () { mdActions.italic(); },
+        },
+      });
+      noteCM.on("change", onNoteChange);
+    }
+    noteText.addEventListener("input", onNoteChange); // Fallback ohne CodeMirror
+
+    // Ansicht vs. Bearbeiten: bestehende Notizen oeffnen als gerendertes
+    // Panel (note-view); der Stift auf dem Panel wechselt ins Bearbeiten.
+    var noteCanEdit = false;
+    var noteEditBtn = document.getElementById("note-edit");
+    function setNoteMode(editMode) {
+      noteDlg.classList.toggle("note-view", !editMode);
+      if (noteEditBtn) noteEditBtn.hidden = editMode || !noteCanEdit;
+      if (editMode && noteCM) {
+        noteCM.refresh(); // Spalte war ausgeblendet -> Masse neu messen
+        noteCM.focus();
+      }
+    }
+    if (noteEditBtn) {
+      noteEditBtn.addEventListener("click", function () { setNoteMode(true); });
+    }
+
+    function openNote(title, content, action, canEdit, startEdit) {
+      ensureNoteEditor();
+      noteCanEdit = canEdit;
+      setNoteMode(!!(startEdit && canEdit));
+      noteTitleEl.textContent = title;
+      noteForm.action = action;
+      if (noteCM) {
+        noteCM.setValue(content);
+        noteCM.setOption("readOnly", canEdit ? false : "nocursor");
+      } else {
+        noteText.value = content;
+        noteText.readOnly = !canEdit;
+      }
+      noteSave.hidden = !canEdit;
+      noteSave.disabled = true;
+      noteStatus.textContent = "";
+      noteBaseline = content;
+      noteDlg.showModal();
+      if (noteCM) {
+        noteCM.refresh(); // war beim Initialisieren unsichtbar -> Masse neu messen
+        if (canEdit) noteCM.focus();
+      } else if (canEdit) {
+        noteText.focus();
+      }
+      renderNotePreview();
+    }
+
+    // Splitter: Aufteilung Editor/Vorschau per Ziehen aendern (20-80%),
+    // gemerkt im localStorage; CodeMirror muss bei Breitenaenderung neu messen
+    var noteSplitter = document.getElementById("note-splitter");
+    var noteMain = noteForm.querySelector(".note-main");
+    var noteEditorPane = noteForm.querySelector(".note-editor-pane");
+    var SPLIT_KEY = "relay-note-split";
+    var savedSplit = parseFloat(localStorage.getItem(SPLIT_KEY));
+    if (savedSplit >= 20 && savedSplit <= 80)
+      noteEditorPane.style.flex = "0 0 " + savedSplit + "%";
+    if (noteSplitter) {
+      noteSplitter.addEventListener("pointerdown", function (e) {
+        e.preventDefault();
+        noteSplitter.setPointerCapture(e.pointerId);
+        noteSplitter.classList.add("dragging");
+      });
+      noteSplitter.addEventListener("pointermove", function (e) {
+        if (!noteSplitter.hasPointerCapture(e.pointerId)) return;
+        var rect = noteMain.getBoundingClientRect();
+        var pct = Math.min(80, Math.max(20, ((e.clientX - rect.left) / rect.width) * 100));
+        noteEditorPane.style.flex = "0 0 " + pct + "%";
+        localStorage.setItem(SPLIT_KEY, pct.toFixed(1));
+        if (noteCM) noteCM.refresh();
+      });
+      noteSplitter.addEventListener("pointerup", function (e) {
+        noteSplitter.releasePointerCapture(e.pointerId);
+        noteSplitter.classList.remove("dragging");
+      });
+    }
+
+    // Markdown-Toolbar: Toggle-Operationen auf der CodeMirror-Selektion.
+    // Alle Aenderungen laufen ueber die CM-API -> change-Event -> Vorschau
+    // und Speichern-Zustand aktualisieren sich von selbst.
+    function mdWrap(marker) {
+      if (!noteCM) return;
+      var sel = noteCM.getSelection();
+      if (sel.length >= 2 * marker.length && sel.startsWith(marker) && sel.endsWith(marker)) {
+        noteCM.replaceSelection(sel.slice(marker.length, sel.length - marker.length), "around");
+      } else if (sel) {
+        noteCM.replaceSelection(marker + sel + marker, "around");
+      } else {
+        var cur = noteCM.getCursor();
+        noteCM.replaceRange(marker + marker, cur);
+        noteCM.setCursor({ line: cur.line, ch: cur.ch + marker.length });
+      }
+      noteCM.focus();
+    }
+    function mdEachLine(fn) { // fn(text) -> neuer Text, fuer alle selektierten Zeilen
+      if (!noteCM) return;
+      var from = noteCM.getCursor("from").line, to = noteCM.getCursor("to").line;
+      noteCM.operation(function () {
+        for (var l = from, i = 0; l <= to; l++, i++) {
+          var t = noteCM.getLine(l);
+          noteCM.replaceRange(fn(t, i), { line: l, ch: 0 }, { line: l, ch: t.length });
+        }
+      });
+      noteCM.focus();
+    }
+    function mdPrefix(prefix, re) {
+      mdEachLine(function (t) { return re.test(t) ? t.replace(re, "") : prefix + t; });
+    }
+    function mdHeading(level) {
+      mdEachLine(function (t) {
+        var m = t.match(/^(#{1,6})\s+/);
+        var stripped = t.replace(/^#{1,6}\s+/, "");
+        return m && m[1].length === level ? stripped : "#".repeat(level) + " " + stripped;
+      });
+    }
+    var mdActions = {
+      bold: function () { mdWrap("**"); },
+      italic: function () { mdWrap("*"); },
+      strike: function () { mdWrap("~~"); },
+      code: function () { mdWrap("`"); },
+      h1: function () { mdHeading(1); },
+      h2: function () { mdHeading(2); },
+      h3: function () { mdHeading(3); },
+      ul: function () { mdPrefix("- ", /^-\s+(?!\[)/); },
+      ol: function () { mdEachLine(function (t, i) {
+        return /^\d+\.\s+/.test(t) ? t.replace(/^\d+\.\s+/, "") : (i + 1) + ". " + t;
+      }); },
+      task: function () { mdPrefix("- [ ] ", /^-\s+\[[ xX]\]\s+/); },
+      quote: function () { mdPrefix("> ", /^>\s?/); },
+      codeblock: function () {
+        if (!noteCM) return;
+        var sel = noteCM.getSelection();
+        if (sel) {
+          noteCM.replaceSelection("```\n" + sel + "\n```", "around");
+        } else {
+          var cur = noteCM.getCursor();
+          noteCM.replaceRange("```\n\n```", cur);
+          noteCM.setCursor({ line: cur.line + 1, ch: 0 });
+        }
+        noteCM.focus();
+      },
+      link: function () {
+        if (!noteCM) return;
+        noteCM.replaceSelection("[" + (noteCM.getSelection() || "Text") + "](url)");
+        var end = noteCM.getCursor();
+        noteCM.setSelection({ line: end.line, ch: end.ch - 4 }, { line: end.line, ch: end.ch - 1 });
+        noteCM.focus();
+      },
+      hr: function () {
+        if (!noteCM) return;
+        var cur = noteCM.getCursor();
+        noteCM.replaceRange("\n---\n", { line: cur.line, ch: noteCM.getLine(cur.line).length });
+        noteCM.focus();
+      },
+    };
+    document.querySelectorAll("#note-toolbar .note-tb").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var fn = mdActions[btn.dataset.md];
+        if (fn && noteCM && !noteCM.getOption("readOnly")) fn();
+      });
+    });
+
+    var noteNew = document.getElementById("note-new");
+    if (noteNew) {
+      noteNew.addEventListener("click", function () {
+        openNote("Neue Notiz", "# Titel\n\n", noteCreateAction, true, true);
+        // "Titel" vorselektieren: lostippen ersetzt das Platzhalterwort
+        if (noteCM) noteCM.setSelection({ line: 0, ch: 2 }, { line: 0, ch: 7 });
+        else noteText.setSelectionRange(2, 7);
+      });
+    }
+    // Hover ueber einem Notiz-Namen: gerenderte Vorschau als Kaertchen unter
+    // dem Namen (gleiche Verzoegerung wie Tooltips, Inhalt wird gecacht;
+    // nach dem Speichern laedt die Seite ohnehin neu -> Cache immer frisch)
+    var noteTip = document.getElementById("note-tip");
+    var noteTipCache = {};
+    var noteTipTimer = null;
+    function hideNoteTip() {
+      clearTimeout(noteTipTimer);
+      if (noteTip) noteTip.classList.remove("open");
+    }
+    window.addEventListener("scroll", hideNoteTip, true);
+    document.querySelectorAll(".note-open").forEach(function (btn) {
+      btn.addEventListener("mouseleave", hideNoteTip);
+      btn.addEventListener("mouseenter", function () {
+        if (!noteTip || !window.marked || !window.DOMPurify) return;
+        clearTimeout(noteTipTimer);
+        noteTipTimer = setTimeout(function () {
+          var rel = btn.dataset.rel.split("/").map(encodeURIComponent).join("/");
+          var key = btn.dataset.owner + "/" + btn.dataset.rel;
+          var loaded = noteTipCache[key] !== undefined
+            ? Promise.resolve(noteTipCache[key])
+            : fetch(noteBaseUrl + "/notes/raw/" + encodeURIComponent(btn.dataset.owner) + "/" + rel)
+                .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+                .then(function (t) { noteTipCache[key] = t; return t; });
+          loaded.then(function (text) {
+            noteTip.innerHTML = DOMPurify.sanitize(marked.parse(text));
+            if (window.hljs) {
+              noteTip.querySelectorAll("pre code").forEach(function (el) {
+                hljs.highlightElement(el);
+              });
+            }
+            var r = btn.getBoundingClientRect();
+            var left = Math.max(8, Math.min(r.left, window.innerWidth - noteTip.offsetWidth - 8));
+            var top = r.bottom + 6;
+            if (top + noteTip.offsetHeight > window.innerHeight - 8)
+              top = Math.max(8, r.top - noteTip.offsetHeight - 6);
+            noteTip.style.left = left + "px";
+            noteTip.style.top = top + "px";
+            noteTip.classList.add("open");
+          }).catch(function () { /* Vorschau ist optional — Fehler still schlucken */ });
+        }, 350);
+      });
+    });
+
+    document.querySelectorAll(".note-open").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        hideNoteTip();
+        var rel = btn.dataset.rel.split("/").map(encodeURIComponent).join("/");
+        var url = noteBaseUrl + "/notes/raw/" + encodeURIComponent(btn.dataset.owner) + "/" + rel;
+        fetch(url)
+          .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+          .then(function (text) {
+            openNote(btn.dataset.label,
+              text,
+              noteBaseUrl + "/notes/save/" + encodeURIComponent(btn.dataset.owner) + "/" + rel,
+              btn.dataset.canedit === "1");
+          })
+          .catch(function () {
+            showNotice("Fehler", "Die Notiz konnte nicht geladen werden.", { danger: true });
+          });
+      });
+    });
   }
 
   // Hinweis-Dialog mit einer OK-Taste (App-Design statt window.alert).

@@ -23,7 +23,18 @@ function iconFor(name) {
   if (["xlsx", "xls", "ods", "csv"].includes(ext)) return "xlsx";
   if (["pptx", "ppt", "odp"].includes(ext)) return "pptx";
   if (ext === "pdf") return "pdf";
+  if (ext === "md") return "note";
   return "docx"; // Standard (Textdokumente und Unbekanntes)
+}
+
+// Notizen heissen {uuid}-{Titel}.md — angezeigt (Liste, Dialoge, Rueckfragen)
+// wird nur der Titel; alle Links/Aktionen laufen weiter ueber den vollen Namen
+const NOTE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.*)\.md$/i;
+function labelFor(name) {
+  const m = path.basename(name).match(NOTE_RE);
+  // Unterstriche stammen aus secureFilename (Leerzeichen im Titel) —
+  // fuer die Anzeige wieder zu Leerzeichen
+  return m ? (m[1].replace(/_/g, " ") || "Notiz") : name;
 }
 
 // Dateigroesse menschenlesbar (deutsche Schreibweise: Komma als Dezimaltrenner)
@@ -68,7 +79,8 @@ router.get("/", loginRequired, (req, res) => {
   const meta = (name, p) => {
     const st = fs.statSync(p);
     return {
-      name, icon: iconFor(name), sizeBytes: st.size, mtime: st.mtimeMs,
+      name, label: labelFor(name), isNote: /\.md$/i.test(name),
+      icon: iconFor(name), sizeBytes: st.size, mtime: st.mtimeMs,
       size: formatSize(st.size), modified: formatDate(st.mtimeMs),
     };
   };
@@ -79,7 +91,7 @@ router.get("/", loginRequired, (req, res) => {
   const folders = entries.filter((e) => e.isDirectory()).map((e) => {
     const st = fs.statSync(path.join(curAbs, e.name));
     return {
-      name: e.name, relpath: cur ? `${cur}/${e.name}` : e.name, isDir: true,
+      name: e.name, label: e.name, relpath: cur ? `${cur}/${e.name}` : e.name, isDir: true,
       icon: "folder", sizeBytes: -1, size: "—", mtime: st.mtimeMs,
       modified: formatDate(st.mtimeMs),
       owner: me, ownerName: req.session.name, isOwner: true, perm: "owner",
@@ -121,7 +133,8 @@ router.get("/", loginRequired, (req, res) => {
   const sort = ["name", "size", "date"].includes(req.query.sort) ? req.query.sort : "date";
   const dir = req.query.dir === "asc" ? "asc" : "desc";
   const cmp = {
-    name: (a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }),
+    // nach dem ANGEZEIGTEN Namen sortieren — Notizen also nach Titel, nicht UUID
+    name: (a, b) => a.label.localeCompare(b.label, "de", { sensitivity: "base" }),
     size: (a, b) => a.sizeBytes - b.sizeBytes,
     date: (a, b) => a.mtime - b.mtime,
   }[sort];

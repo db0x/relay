@@ -1,5 +1,13 @@
 <!doctype html><meta charset="utf-8"><title><%= appName %> — Dokumente</title>
 <link rel="stylesheet" href="<%= base %>/static/css/index.css?v=<%= v %>">
+<link rel="stylesheet" href="<%= base %>/static/vendor/codemirror.min.css?v=<%= v %>">
+<link rel="stylesheet" href="<%= base %>/static/vendor/highlight-github.min.css?v=<%= v %>">
+<script defer src="<%= base %>/static/vendor/codemirror.min.js?v=<%= v %>"></script>
+<script defer src="<%= base %>/static/vendor/cm-xml.min.js?v=<%= v %>"></script>
+<script defer src="<%= base %>/static/vendor/cm-markdown.min.js?v=<%= v %>"></script>
+<script defer src="<%= base %>/static/vendor/marked.min.js?v=<%= v %>"></script>
+<script defer src="<%= base %>/static/vendor/purify.min.js?v=<%= v %>"></script>
+<script defer src="<%= base %>/static/vendor/highlight.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/js/index.js?v=<%= v %>"></script>
 <header class="topbar">
     <div class="brand">
@@ -47,6 +55,10 @@
       <button type="button" class="create-btn" data-create="pptx"
               data-tip="Neue Präsentation" aria-label="Neue Präsentation">
         <span class="create-zoom"><img src="<%= base %>/static/img/pptx.svg" alt="" width="48" height="48"></span>
+      </button>
+      <button type="button" class="create-btn" id="note-new"
+              data-tip="Neue Notiz" aria-label="Neue Notiz">
+        <span class="create-zoom"><img src="<%= base %>/static/img/note.svg" alt="" width="48" height="48"></span>
       </button>
     </div>
     <span class="tool-sep" aria-hidden="true"></span>
@@ -99,9 +111,13 @@
               <img class="ficon" src="<%= base %>/static/img/<%= f.icon %>.svg" alt="" width="28" height="28">
               <span class="fname-wrap">
                 <% if (f.isDir) { %>
-                <a class="fname" href="<%= base %>/?p=<%= encodeURIComponent(f.relpath) %>"><%= f.name %></a>
+                <a class="fname" href="<%= base %>/?p=<%= encodeURIComponent(f.relpath) %>"><%= f.label %></a>
+                <% } else if (f.isNote) { %>
+                <button type="button" class="fname note-open" data-owner="<%= f.owner %>"
+                        data-rel="<%= f.relpath %>" data-label="<%= f.label %>"
+                        data-canedit="<%= (f.isOwner || f.perm === "edit") ? 1 : 0 %>"><%= f.label %></button>
                 <% } else { %>
-                <a class="fname" href="<%= base %>/edit/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>"><%= f.name %></a>
+                <a class="fname" href="<%= base %>/edit/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>"><%= f.label %></a>
                 <% } %>
                 <% if (!f.isOwner) { %>
                 <span class="badge">von <%= f.ownerName %><% if (f.perm === "view") { %> · nur lesen<% } %></span>
@@ -137,7 +153,7 @@
               <div class="menu-panel row-menu-panel" hidden>
                 <% if (f.isDir) { %>
                 <form class="del-form" action="<%= base %>/rmdir/<%= encPath(f.relpath) %>" method="post"
-                      data-confirm="Ordner „<%= f.name %>“ löschen? Das geht nur, wenn er leer ist.">
+                      data-confirm="Ordner „<%= f.label %>“ löschen? Das geht nur, wenn er leer ist.">
                   <input type="hidden" name="dir" value="<%= curDir %>">
                   <button class="menu-item menu-item-ico menu-item-danger">
                     <img src="<%= base %>/static/img/delete.svg" alt="" width="16" height="16">Löschen
@@ -155,7 +171,7 @@
                   <img src="<%= base %>/static/img/share.svg" alt="" width="16" height="16">Freigeben
                 </button>
                 <form class="del-form" action="<%= base %>/delete/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>" method="post"
-                      data-confirm="„<%= f.name %>“ wirklich löschen? Das lässt sich nicht rückgängig machen.">
+                      data-confirm="„<%= f.label %>“ wirklich löschen? Das lässt sich nicht rückgängig machen.">
                   <input type="hidden" name="dir" value="<%= curDir %>">
                   <button class="menu-item menu-item-ico menu-item-danger">
                     <img src="<%= base %>/static/img/delete.svg" alt="" width="16" height="16">Löschen
@@ -189,7 +205,7 @@
   <dialog id="dlg-share-<%= i %>" class="dialog">
     <header class="dialog-head">
       <img src="<%= base %>/static/img/share.svg" alt="" width="22" height="22">
-      <h2>„<%= f.name %>“ freigeben</h2>
+      <h2>„<%= f.label %>“ freigeben</h2>
       <form method="dialog">
         <button class="dialog-x" aria-label="Schließen">×</button>
       </form>
@@ -243,7 +259,7 @@
   <dialog id="dlg-move-<%= i %>" class="dialog">
     <header class="dialog-head">
       <img src="<%= base %>/static/img/move.svg" alt="" width="22" height="22">
-      <h2>„<%= f.name %>“ verschieben</h2>
+      <h2>„<%= f.label %>“ verschieben</h2>
       <form method="dialog">
         <button class="dialog-x" aria-label="Schließen">×</button>
       </form>
@@ -268,6 +284,88 @@
     <% } %>
   </dialog>
   <% }); %>
+
+  <%# Hover-Vorschau fuer Notizen in der Dateiliste (index.js befuellt) %>
+  <div class="note-tip md-render" id="note-tip" aria-hidden="true"></div>
+
+  <%# Markdown-Notiz-Editor: modaler Dialog, fuellt 70% der Seite (index.js) %>
+  <dialog id="dlg-note" class="dialog dialog-note">
+    <header class="dialog-head">
+      <img src="<%= base %>/static/img/note.svg" alt="" width="22" height="22">
+      <h2 id="dlg-note-title">Neue Notiz</h2>
+      <form method="dialog">
+        <button class="dialog-x" aria-label="Schließen">×</button>
+      </form>
+    </header>
+    <form class="note-form" id="note-form" method="post" action="<%= base %>/notes/create">
+      <input type="hidden" name="dir" value="<%= curDir %>">
+      <div class="note-main">
+        <%# im Ansichtsmodus: Stift auf dem Panel wechselt ins Bearbeiten %>
+        <button type="button" class="iconbtn note-edit-btn" id="note-edit"
+                data-tip="Bearbeiten" aria-label="Bearbeiten" hidden>
+          <img src="<%= base %>/static/img/edit.svg" alt="" width="16" height="16">
+        </button>
+        <div class="note-editor-pane">
+          <div class="note-toolbar" id="note-toolbar" role="toolbar" aria-label="Formatierung">
+            <button type="button" class="note-tb" data-md="bold" data-tip="Fett (Strg+B)" aria-label="Fett">
+              <img src="<%= base %>/static/img/toolbar/md-bold.svg" alt="" width="24" height="24">
+            </button>
+            <button type="button" class="note-tb" data-md="italic" data-tip="Kursiv (Strg+I)" aria-label="Kursiv">
+              <img src="<%= base %>/static/img/toolbar/md-italic.svg" alt="" width="24" height="24">
+            </button>
+            <button type="button" class="note-tb" data-md="strike" data-tip="Durchgestrichen" aria-label="Durchgestrichen">
+              <img src="<%= base %>/static/img/toolbar/md-strike.svg" alt="" width="24" height="24">
+            </button>
+            <span class="note-tb-sep" aria-hidden="true"></span>
+            <button type="button" class="note-tb" data-md="h1" data-tip="Überschrift 1" aria-label="Überschrift 1">
+              <img src="<%= base %>/static/img/toolbar/md-h1.svg" alt="" width="24" height="24">
+            </button>
+            <button type="button" class="note-tb" data-md="h2" data-tip="Überschrift 2" aria-label="Überschrift 2">
+              <img src="<%= base %>/static/img/toolbar/md-h2.svg" alt="" width="24" height="24">
+            </button>
+            <button type="button" class="note-tb" data-md="h3" data-tip="Überschrift 3" aria-label="Überschrift 3">
+              <img src="<%= base %>/static/img/toolbar/md-h3.svg" alt="" width="24" height="24">
+            </button>
+            <span class="note-tb-sep" aria-hidden="true"></span>
+            <button type="button" class="note-tb" data-md="ul" data-tip="Aufzählung" aria-label="Aufzählung">
+              <img src="<%= base %>/static/img/toolbar/md-ul.svg" alt="" width="24" height="24">
+            </button>
+            <button type="button" class="note-tb" data-md="ol" data-tip="Nummerierte Liste" aria-label="Nummerierte Liste">
+              <img src="<%= base %>/static/img/toolbar/md-ol.svg" alt="" width="24" height="24">
+            </button>
+            <button type="button" class="note-tb" data-md="task" data-tip="Checkliste" aria-label="Checkliste">
+              <img src="<%= base %>/static/img/toolbar/md-task.svg" alt="" width="24" height="24">
+            </button>
+            <button type="button" class="note-tb" data-md="quote" data-tip="Zitat" aria-label="Zitat">
+              <img src="<%= base %>/static/img/toolbar/md-quote.svg" alt="" width="24" height="24">
+            </button>
+            <span class="note-tb-sep" aria-hidden="true"></span>
+            <button type="button" class="note-tb" data-md="codeblock" data-tip="Code-Block" aria-label="Code-Block">
+              <img src="<%= base %>/static/img/toolbar/md-codeblock.svg" alt="" width="24" height="24">
+            </button>
+            <button type="button" class="note-tb" data-md="code" data-tip="Code" aria-label="Code">
+              <img src="<%= base %>/static/img/toolbar/md-code.svg" alt="" width="24" height="24">
+            </button>
+            <button type="button" class="note-tb" data-md="link" data-tip="Link" aria-label="Link">
+              <img src="<%= base %>/static/img/toolbar/md-link.svg" alt="" width="24" height="24">
+            </button>
+            <button type="button" class="note-tb" data-md="hr" data-tip="Trennlinie" aria-label="Trennlinie">
+              <img src="<%= base %>/static/img/toolbar/md-hr.svg" alt="" width="24" height="24">
+            </button>
+          </div>
+          <textarea class="note-text" name="md" spellcheck="false"
+                    aria-label="Markdown-Inhalt der Notiz"></textarea>
+        </div>
+        <div class="note-splitter" id="note-splitter" role="separator"
+             aria-orientation="vertical" aria-label="Aufteilung anpassen"></div>
+        <div class="note-preview md-render" id="note-preview" aria-label="Vorschau der Notiz"></div>
+      </div>
+      <div class="note-foot">
+        <span class="note-status" id="note-status" aria-live="polite"></span>
+        <button class="btn btn-sm" id="note-save">Speichern</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="dlg-create" class="dialog">
     <header class="dialog-head">

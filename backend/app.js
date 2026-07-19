@@ -72,6 +72,7 @@ app.use(mount, require("./routes/avatar").router);
 app.use(mount, require("./routes/admin").router);
 app.use(mount, require("./routes/api").router);
 app.use(mount, require("./routes/browse").router);
+app.use(mount, require("./routes/notes").router);
 app.use(mount, require("./routes/editor").router);
 
 // Komfort: wer die Wurzel trifft, obwohl Relay unter BASE laeuft, wird hingefuehrt
