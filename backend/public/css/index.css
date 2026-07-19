@@ -175,6 +175,18 @@ body{
    Doppelklasse: die spaeter definierte .dialog-Basisregel (width 380px)
    wuerde die Breite sonst zuruecksetzen. */
 .dialog.dialog-note{width:56vw;height:56vh;max-width:none;max-height:none}
+/* Bearbeiten-Modus: skalierbar ueber eine eigene, unsichtbare Griffecke
+   unten rechts (kein CSS resize:both — dessen UA-Marker laesst sich nicht
+   ueberall ausblenden). Verschieben am Kopf. Logik in index.js. */
+.dialog.dialog-note:not(.note-view){
+  min-width:min(520px,92vw);min-height:min(320px,60vh);
+}
+.note-resize{
+  position:absolute;right:0;bottom:0;width:18px;height:18px;
+  cursor:nwse-resize;z-index:3;touch-action:none;
+}
+.note-view .note-resize{display:none}
+.dialog-note .dialog-head{cursor:move;touch-action:none}
 /* Nur-Lesen-Notiz: keine Editor-Spalte, nur die gerenderte Ansicht —
    der Dialog wird dafuer auf Lesebreite verschmaelert */
 .dialog.dialog-note.note-view{width:min(92vw,720px)}
@@ -238,6 +250,26 @@ body{
   font:.92rem/1.55 ui-monospace,"Cascadia Code",Consolas,monospace;
   color:var(--ink);
 }
+/* Eigenes CodeMirror-Theme "github" (index.js: theme:"github"): dieselbe
+   GitHub-Light-Palette wie highlight-github.min.css der Vorschau, damit
+   Editor und gerenderte Code-Bloecke farblich uebereinstimmen */
+.cm-s-github .cm-header{color:#005cc5;font-weight:700}
+.cm-s-github .cm-quote{color:#22863a}
+.cm-s-github .cm-comment{color:#6a737d}       /* Inline-Code + Codebloecke */
+.cm-s-github .cm-link{color:#005cc5}
+.cm-s-github .cm-url{color:#032f62}
+.cm-s-github .cm-strong{color:#24292e;font-weight:700}
+.cm-s-github .cm-em{color:#24292e;font-style:italic}
+.cm-s-github .cm-strikethrough{color:#24292e;text-decoration:line-through}
+.cm-s-github .cm-hr{color:#6a737d}
+/* Listentext neutral halten — das Default-Theme faerbt ihn sonst blau/rot
+   (cm-variable-2/-3 bzw. cm-keyword je Verschachtelungstiefe) */
+.cm-s-github .cm-variable-2,.cm-s-github .cm-variable-3,
+.cm-s-github .cm-keyword{color:#24292e}
+/* eingebettetes HTML im Markdown (xml-Mode) */
+.cm-s-github .cm-tag{color:#22863a}
+.cm-s-github .cm-attribute{color:#6f42c1}
+.cm-s-github .cm-string{color:#032f62}
 .note-foot{display:flex;justify-content:space-between;align-items:center;gap:.9rem}
 .note-status{color:var(--danger);font-size:.85rem;min-height:1.2em}
 /* gerenderte Markdown-Typografie — Dialog-Vorschau UND Hover-Tooltip

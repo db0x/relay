@@ -327,6 +327,7 @@
       if (noteCM || !window.CodeMirror) return;
       noteCM = CodeMirror.fromTextArea(noteText, {
         mode: "markdown",
+        theme: "github", // eigene Palette in index.css, passend zur Vorschau
         lineWrapping: true,
         extraKeys: {
           "Ctrl-B": function () { mdActions.bold(); },
@@ -343,11 +344,84 @@
     var noteEditBtn = document.getElementById("note-edit");
     function setNoteMode(editMode) {
       noteDlg.classList.toggle("note-view", !editMode);
+      // evtl. beim Resizen eingefrorene Position aufheben -> wieder zentriert
+      noteDlg.style.left = noteDlg.style.top = noteDlg.style.margin = "";
+      if (editMode) {
+        // gemerkte Groesse anwenden, aber nie groesser als das Fenster
+        var s = (localStorage.getItem("relay-note-size") || "").split("x");
+        if (s.length === 2 && +s[0] && +s[1]) {
+          noteDlg.style.width = Math.min(+s[0], window.innerWidth - 24) + "px";
+          noteDlg.style.height = Math.min(+s[1], window.innerHeight - 24) + "px";
+        }
+      } else {
+        // Lese-Panel behaelt seine kompakte CSS-Groesse
+        noteDlg.style.width = noteDlg.style.height = "";
+      }
       if (noteEditBtn) noteEditBtn.hidden = editMode || !noteCanEdit;
       if (editMode && noteCM) {
         noteCM.refresh(); // Spalte war ausgeblendet -> Masse neu messen
         noteCM.focus();
       }
+    }
+
+    // Verschieben (am Kopf) und Skalieren (unsichtbare Griffecke unten
+    // rechts): beides wandelt die zentrierte Lage (inset:0 + margin:auto)
+    // zuerst in feste left/top-Koordinaten um — beim Skalieren wuerde der
+    // Dialog sonst symmetrisch wachsen und der Griff der Maus davonlaufen.
+    // Kein Sprung: left/top = aktuelle Position; setNoteMode zentriert wieder.
+    function pinNote() {
+      var r = noteDlg.getBoundingClientRect();
+      noteDlg.style.left = r.left + "px";
+      noteDlg.style.top = r.top + "px";
+      noteDlg.style.margin = "0";
+      return r;
+    }
+    function noteDrag(handle, onMove) {
+      handle.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
+        // Klicks auf Bedienelemente im Kopf (×) nicht kapern
+        if (e.target.closest("button,a,input")) return;
+        var r = pinNote();
+        var sx = e.clientX, sy = e.clientY;
+        function move(ev) { onMove(r, ev.clientX - sx, ev.clientY - sy); }
+        function stop() {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", stop);
+          handle.removeEventListener("pointercancel", stop);
+        }
+        handle.setPointerCapture(e.pointerId);
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", stop);
+        handle.addEventListener("pointercancel", stop);
+        e.preventDefault(); // sonst wuerde der Titeltext beim Ziehen markiert
+      });
+    }
+    noteDrag(noteDlg.querySelector(".dialog-head"), function (r, dx, dy) {
+      // Kopfzeile bleibt immer erreichbar: nie ganz aus dem Fenster schieben
+      noteDlg.style.left = Math.max(80 - r.width,
+        Math.min(r.left + dx, window.innerWidth - 80)) + "px";
+      noteDlg.style.top = Math.max(8,
+        Math.min(r.top + dy, window.innerHeight - 48)) + "px";
+    });
+    var noteResize = document.getElementById("note-resize");
+    if (noteResize) noteDrag(noteResize, function (r, dx, dy) {
+      // Untergrenzen zieht das CSS ein (min-width/min-height)
+      noteDlg.style.width = (r.width + dx) + "px";
+      noteDlg.style.height = (r.height + dy) + "px";
+    });
+    // bei jeder Groessenaenderung: CodeMirror neu vermessen und die vom
+    // Nutzer gewaehlte Groesse merken (Inline-width setzt nur der UA-Resize
+    // bzw. setNoteMode aus dem gemerkten Wert — CSS-Groessen nicht speichern)
+    if (window.ResizeObserver) {
+      new ResizeObserver(function () {
+        if (!noteDlg.open || noteDlg.classList.contains("note-view")) return;
+        if (noteCM) noteCM.refresh();
+        if (noteDlg.style.width) {
+          var r = noteDlg.getBoundingClientRect();
+          localStorage.setItem("relay-note-size",
+            Math.round(r.width) + "x" + Math.round(r.height));
+        }
+      }).observe(noteDlg);
     }
     if (noteEditBtn) {
       noteEditBtn.addEventListener("click", function () { setNoteMode(true); });
