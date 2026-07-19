@@ -134,6 +134,24 @@ OnlyOffice **PDF viewer** — always read-only (download and print allowed, no
 editing, no save callback), regardless of share permissions. Creating and
 editing remain limited to the office formats.
 
+## Notes
+
+Markdown notes with their own editor — the first feature that does not use
+OnlyOffice. The note icon in the toolbar opens a modal editor (90% of the
+viewport): **CodeMirror 5** with markdown syntax highlighting on the left,
+a **live HTML preview** (50/50 split) on the right, rendered by **marked**,
+sanitized with **DOMPurify** (shared notes must not inject script) and with
+**highlight.js** for fenced code blocks; parser errors show up in a status
+line. All four libraries are vendored locally under `public/vendor/` — the
+LAN server must not depend on a CDN. The editor is prefilled with `# Titel`. Saving stores
+the note as `{uuid}-{title}.md` in the user's **Notizen** folder (created on
+demand); the title is the first line (leading `#` stripped). Lists and
+dialogs show only the title — never the UUID (underscores render as spaces).
+Clicking a note reopens the editor; if the owner changes the title line, the
+file is renamed (UUID stays, shares move along). Shared notes open read-only
+("Nur lesen") or editable ("Bearbeiten") accordingly. Otherwise notes are
+normal files: share, move, delete, download and sync API all work unchanged.
+
 ## Shares
 
 Every user can share their own files with other users — via the share icon
