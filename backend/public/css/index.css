@@ -171,6 +171,33 @@ body{
 /* rechtsbuendig neben "Neuer Ordner": margin-left:auto schiebt beide nach rechts */
 .upload-form{display:flex;align-items:center;margin-left:auto}
 
+/* Fusszeile unter der Dateiliste: Filter "Nur eigene Dateien" */
+.list-footer{
+  display:flex;justify-content:flex-end;align-items:center;
+  margin-top:.35rem;padding:.55rem .2rem 0;border-top:1px solid var(--line-soft);
+}
+.switch-label{
+  display:inline-flex;align-items:center;gap:.55em;cursor:pointer;
+  color:var(--muted);font-size:.88rem;line-height:20px;user-select:none;
+}
+/* optischer Ausgleich: Schrift sitzt zentriert sonst einen Hauch zu hoch
+   neben der 20px-Pille (gleiches Muster wie bei den Dialog-Titeln) */
+.switch-text{position:relative;top:1px}
+.switch-label input{position:absolute;opacity:0;pointer-events:none}
+.switch-ui{
+  width:36px;height:20px;border-radius:999px;background:#cfd4da;
+  position:relative;flex:0 0 auto;transition:background .15s ease;
+}
+.switch-ui::after{
+  content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;
+  border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.25);
+  transition:left .15s ease;
+}
+.switch-label input:checked + .switch-ui{background:var(--brand)}
+.switch-label input:checked + .switch-ui::after{left:18px}
+.switch-label input:focus-visible + .switch-ui{outline:2px solid var(--brand);outline-offset:2px}
+.switch-label:hover{color:var(--ink)}
+
 /* Meldungen */
 .flash{padding:.6em .85em;border-radius:var(--radius-sm);margin:0 0 14px;font-size:.9em}
 .flash.ok{background:#e7f6ec;color:#166534}

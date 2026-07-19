@@ -93,7 +93,7 @@
       </thead>
       <tbody>
         <% if (files.length) { files.forEach(function(f, i){ %>
-        <tr>
+        <tr<%- f.isOwner ? "" : ' class="row-foreign"' %>>
           <td class="col-name">
             <div class="file-cell">
               <img class="ficon" src="<%= base %>/static/img/<%= f.icon %>.svg" alt="" width="28" height="28">
@@ -173,6 +173,17 @@
       </tbody>
     </table>
   </div>
+
+  <% if (files.some(function(f){ return !f.isOwner; })) { %>
+  <%# Fusszeile mit Filter: nur sichtbar, wenn es ueberhaupt Freigaben gibt %>
+  <footer class="list-footer">
+    <label class="switch-label">
+      <input type="checkbox" id="own-only">
+      <span class="switch-ui" aria-hidden="true"></span>
+      <span class="switch-text">Nur eigene Dateien</span>
+    </label>
+  </footer>
+  <% } %>
 
   <% files.forEach(function(f, i){ if (!f.isOwner || f.isDir) return; %>
   <dialog id="dlg-share-<%= i %>" class="dialog">

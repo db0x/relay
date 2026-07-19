@@ -212,6 +212,22 @@
     el.addEventListener("mouseleave", function () { clearTip(el); });
   });
 
+  // Fusszeilen-Filter: "Nur eigene Dateien" blendet die mir freigegebenen
+  // Zeilen aus; der Zustand ueberlebt im localStorage
+  var ownOnly = document.getElementById("own-only");
+  if (ownOnly) {
+    var OWN_KEY = "relay-own-only";
+    var applyOwnFilter = function () {
+      document.querySelectorAll("tr.row-foreign").forEach(function (row) {
+        row.hidden = ownOnly.checked;
+      });
+      localStorage.setItem(OWN_KEY, ownOnly.checked ? "1" : "0");
+    };
+    ownOnly.checked = localStorage.getItem(OWN_KEY) === "1";
+    ownOnly.addEventListener("change", applyOwnFilter);
+    applyOwnFilter();
+  }
+
   // Hinweis-Dialog mit einer OK-Taste (App-Design statt window.alert).
   // content: String oder DOM-Knoten (fuer Fettdruck u.ae.);
   // opts.danger: roter Kopf ("geht nicht"), opts.icon: Bild-URL im Kopf
