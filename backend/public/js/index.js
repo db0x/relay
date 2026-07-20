@@ -451,21 +451,25 @@
 
     // Kleines Icon (place.svg/users.svg) als Abschnittsmarkierung in der
     // Lese-Zusammenfassung — strukturiert die Zeile, ohne sie zu vergroessern
-    function noteSummaryIcon(name) {
+    function noteSummaryIcon(name, size) {
       var img = document.createElement("img");
       img.className = "note-summary-icon";
       img.src = noteBaseUrl + "/static/img/" + name + ".svg";
-      img.alt = ""; img.width = 14; img.height = 14;
+      img.alt = ""; img.width = size || 14; img.height = size || 14;
       return img;
     }
 
-    // Minimalistische Lese-Ansicht statt der Formularfelder: nur rendern, was
-    // tatsaechlich gesetzt ist — Personen als Avatar+Name (bekannt) bzw.
-    // reiner Text (Freitext), kein leeres Geruest.
-    function renderNoteSummary(meta) {
-      noteViewSummary.innerHTML = "";
+    // Meta-Badges (ToDo/Personen/Ort) in `target` einhaengen — nur, was
+    // tatsaechlich gesetzt ist: Personen als Avatar+Name (bekannt) bzw. reiner
+    // Text (Freitext). Rueckgabe: Anzahl gerenderter Badges (0 = nichts).
+    // Gemeinsam genutzt von der Lese-Ansicht im Dialog UND dem Hover-Tooltip;
+    // opts.avatar/opts.icon steuern die Groessen (Tooltip nutzt kleinere).
+    function appendSummaryBadges(target, meta, opts) {
+      opts = opts || {};
+      var avSize = opts.avatar || 18, icoSize = opts.icon || 14;
       var known = (meta.people && meta.people.known) || [];
       var extra = (meta.people && meta.people.extra) || [];
+      var count = 0;
 
       if (meta.isTodo) {
         var overdue = !!meta.dueDate && meta.dueDate < new Date().toISOString().slice(0, 10);
@@ -474,19 +478,19 @@
         var badge = document.createElement("span");
         badge.className = "note-summary-badge badge-todo" + (overdue ? " badge-todo-over" : "");
         badge.textContent = "ToDo" + (meta.dueDate ? " · fällig " + formatDueLabel(meta.dueDate) : "");
-        noteViewSummary.appendChild(badge);
+        target.appendChild(badge); count++;
       }
 
       if (known.length || extra.length) {
         var wrap = document.createElement("span");
         wrap.className = "note-people note-summary-badge";
-        wrap.appendChild(noteSummaryIcon("users"));
+        wrap.appendChild(noteSummaryIcon("users", icoSize));
         known.forEach(function (uname) {
           var u = knownByUsername[uname];
           if (!u) return; // Nutzer inzwischen geloescht -> stillschweigend auslassen
           var p = document.createElement("span");
           p.className = "note-person";
-          p.appendChild(personAvatar({ username: u.username, name: u.display_name, hasAvatar: u.hasAvatar }, 18));
+          p.appendChild(personAvatar({ username: u.username, name: u.display_name, hasAvatar: u.hasAvatar }, avSize));
           p.appendChild(document.createTextNode(u.display_name));
           wrap.appendChild(p);
         });
@@ -496,18 +500,23 @@
           p.textContent = name;
           wrap.appendChild(p);
         });
-        noteViewSummary.appendChild(wrap);
+        target.appendChild(wrap); count++;
       }
 
       if (meta.ort) {
         var ortSpan = document.createElement("span");
         ortSpan.className = "note-ort note-summary-badge";
-        ortSpan.appendChild(noteSummaryIcon("place"));
+        ortSpan.appendChild(noteSummaryIcon("place", icoSize));
         ortSpan.appendChild(document.createTextNode(meta.ort));
-        noteViewSummary.appendChild(ortSpan);
+        target.appendChild(ortSpan); count++;
       }
+      return count;
+    }
 
-      noteSummaryHasContent = noteViewSummary.childElementCount > 0;
+    // Minimalistische Lese-Ansicht (Dialog) — nur sichtbar, wenn etwas da ist
+    function renderNoteSummary(meta) {
+      noteViewSummary.innerHTML = "";
+      noteSummaryHasContent = appendSummaryBadges(noteViewSummary, meta) > 0;
     }
 
     function updateDueVisibility() {
@@ -885,19 +894,42 @@
         clearTimeout(noteTipTimer);
         noteTipTimer = setTimeout(function () {
           var rel = btn.dataset.rel.split("/").map(encodeURIComponent).join("/");
+          var ownerPart = encodeURIComponent(btn.dataset.owner) + "/" + rel;
           var key = btn.dataset.owner + "/" + btn.dataset.rel;
+          // Inhalt UND Metadaten laden (Meta ist optional -> Fehler schluckt der
+          // Badge-Teil einfach); zusammen gecacht {text, meta}
           var loaded = noteTipCache[key] !== undefined
             ? Promise.resolve(noteTipCache[key])
-            : fetch(noteBaseUrl + "/notes/raw/" + encodeURIComponent(btn.dataset.owner) + "/" + rel)
-                .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
-                .then(function (t) { noteTipCache[key] = t; return t; });
-          loaded.then(function (text) {
-            noteTip.innerHTML = DOMPurify.sanitize(marked.parse(text));
-            externalizeLinks(noteTip);
+            : Promise.all([
+                fetch(noteBaseUrl + "/notes/raw/" + ownerPart)
+                  .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); }),
+                fetch(noteBaseUrl + "/notes/meta/" + ownerPart)
+                  .then(function (r) { return r.ok ? r.json() : null; })
+                  .catch(function () { return null; }),
+              ]).then(function (res) {
+                var data = { text: res[0], meta: res[1] };
+                noteTipCache[key] = data;
+                return data;
+              });
+          loaded.then(function (data) {
+            noteTip.innerHTML = "";
+            var body = document.createElement("div");
+            body.className = "md-render";
+            body.innerHTML = DOMPurify.sanitize(marked.parse(data.text));
+            externalizeLinks(body);
             if (window.hljs) {
-              noteTip.querySelectorAll("pre code").forEach(function (el) {
+              body.querySelectorAll("pre code").forEach(function (el) {
                 hljs.highlightElement(el);
               });
+            }
+            noteTip.appendChild(body);
+            // Meta-Badges als Fuss unten ins Kaertchen (nur, wenn gesetzt);
+            // ~10% kleiner als in der Dialog-Lese-Ansicht
+            if (data.meta) {
+              var badges = document.createElement("div");
+              badges.className = "note-tip-badges";
+              if (appendSummaryBadges(badges, data.meta, { avatar: 16, icon: 13 }))
+                noteTip.appendChild(badges);
             }
             var r = btn.getBoundingClientRect();
             var left = Math.max(8, Math.min(r.left, window.innerWidth - noteTip.offsetWidth - 8));

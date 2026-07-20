@@ -273,14 +273,20 @@ body{
 .cm-s-github .cm-tag{color:#22863a}
 .cm-s-github .cm-attribute{color:#6f42c1}
 .cm-s-github .cm-string{color:#032f62}
-.note-foot{display:flex;justify-content:space-between;align-items:center;gap:.9rem}
+/* Fuss-Zeile mit Speichern klar als eigene Zone abgesetzt (Trennlinie oben) —
+   drei sichtbar getrennte Bereiche: Editor/Vorschau | Metadaten | Fuss */
+.note-foot{
+  display:flex;justify-content:space-between;align-items:center;gap:.9rem;
+  padding-top:.6rem;border-top:1px solid var(--line);flex:0 0 auto;
+}
 .note-status{color:var(--danger);font-size:.85rem;min-height:1.2em}
 /* Kompaktes, horizontales Edit-Panel: Gruppen fliessen in einer Zeile und
    brechen bei Bedarf um — bewusst NICHT jede Beschriftung auf eine eigene
-   Zeile (das machte das Panel unnoetig hoch) */
+   Zeile (das machte das Panel unnoetig hoch). Eigene Zone zwischen
+   Editor/Vorschau (oben) und Fuss-Zeile (unten), beidseitig mit Trennlinie */
 .note-details{
-  display:flex;flex-wrap:wrap;align-items:center;gap:.45rem 1.3rem;
-  padding:.6rem 0 0;border-top:1px solid var(--line);flex:0 0 auto;
+  display:flex;flex-wrap:wrap;align-items:center;gap:.45rem 1rem;
+  padding:.55rem 0;border-top:1px solid var(--line);flex:0 0 auto;
 }
 /* [hidden] hat als Attribut-Selektor dieselbe Spezifitaet wie eine
    Klasse — ohne diese Regel wuerde die eigene display:flex-Regel oben
@@ -293,10 +299,21 @@ body{
 .note-details .field-sm[name="ort"]{width:130px}
 
 /* Personen als Chip-Feld mit Autocomplete (index.js) --------------------- */
-.note-people-field{position:relative}
+/* Das Personen-Feld nimmt den freien Platz der Zeile ein (waechst horizontal),
+   die anderen Gruppen ruecken zusammen — so bleibt alles moeglichst in EINER
+   Zeile, die Chips laufen erst dann um, wenn die volle Breite ausgeschoepft ist */
+/* nowrap: Icon bleibt links neben dem Chip-Feld (die Gruppe selbst bricht nicht
+   um); die Chips laufen NUR innerhalb des Feldes um. align-items:flex-start +
+   Icon-Versatz, damit das Icon an der ersten Chip-Zeile sitzt, auch wenn das
+   Feld mehrzeilig wird */
+.note-people-field{
+  position:relative;flex:1 1 240px;min-width:190px;
+  flex-wrap:nowrap;align-items:flex-start;
+}
+.note-people-field .note-summary-icon{margin-top:6px}
 .chips{
-  display:inline-flex;flex-wrap:wrap;align-items:center;gap:.25rem;
-  min-width:150px;max-width:300px;
+  display:flex;flex-wrap:wrap;align-items:center;gap:.25rem;
+  flex:1 1 0;min-width:0;
   padding:.15rem .3rem;border:1px solid var(--line);border-radius:var(--radius-sm);
   background:#fff;
 }
@@ -388,6 +405,7 @@ body{
    gleiches Fade-Muster wie die Tooltips; Ueberlanges wird unten abgeschnitten */
 .note-tip{
   position:fixed;z-index:40;width:360px;max-height:280px;overflow:hidden;
+  display:flex;flex-direction:column;
   background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);
   box-shadow:0 8px 28px rgba(16,24,40,.14);padding:.8rem .95rem;
   font-size:.85rem;
@@ -395,6 +413,17 @@ body{
   transition:opacity .12s ease,visibility .12s ease;
 }
 .note-tip.open{opacity:1;visibility:visible}
+/* Inhalt darf schrumpfen/abgeschnitten werden, damit der Badge-Fuss unten
+   immer sichtbar bleibt (Kaertchen ist eine Flex-Spalte) */
+.note-tip>.md-render{flex:0 1 auto;min-height:0;overflow:hidden}
+/* Meta-Badges (ToDo/Personen/Ort) als Fuss unten im Hover-Kaertchen, oben mit
+   Trennlinie vom Notiz-Inhalt abgesetzt; ~10% kleinere Schrift */
+.note-tip-badges{
+  flex:0 0 auto;
+  display:flex;flex-wrap:wrap;align-items:center;gap:2px;
+  padding-top:.5rem;margin-top:.5rem;border-top:1px solid var(--line);
+  font-size:.74rem;
+}
 /* Notiz-Namen sind Buttons, sollen aber wie die Datei-Links aussehen */
 button.fname{
   background:none;border:0;padding:0;margin:0;font:inherit;
