@@ -40,6 +40,18 @@ function db() {
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    -- Strukturierte Zusatzattribute einer Notiz (owner/filename), die bewusst
+    -- nicht in der .md landen (notemeta.js). people: JSON-Array von Namen.
+    CREATE TABLE IF NOT EXISTS note_meta (
+      owner    TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      is_todo  INTEGER NOT NULL DEFAULT 0,
+      due_date TEXT,
+      people   TEXT,
+      ort      TEXT,
+      PRIMARY KEY (owner, filename)
+    );
   `);
   // Migration fuer Bestands-Datenbanken: is_admin und locked kamen spaeter dazu
   const cols = _db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
