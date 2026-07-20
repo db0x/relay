@@ -10,6 +10,7 @@ const avatars = require("../avatars");
 const doclang = require("../doclang");
 const settings = require("../settings");
 const shares = require("../shares");
+const notemeta = require("../notemeta");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
 const { BLANKS, BASE, DOCTYPE, MAX_UPLOAD_MB } = require("../config");
@@ -50,6 +51,18 @@ function formatDate(ms) {
   return new Date(ms).toLocaleString("de-DE", {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
+}
+
+// ToDo-Badge fuer die Dateiliste — nur fuer Notizen mit aktivem ToDo-Schalter
+function todoFor(owner, relpath, isNote) {
+  if (!isNote) return null;
+  const m = notemeta.get(owner, relpath);
+  if (!m.isTodo) return null;
+  const [y, mo, d] = (m.dueDate || "").split("-");
+  return {
+    dueLabel: y ? `${d}.${mo}.${y}` : "",
+    overdue: !!m.dueDate && m.dueDate < new Date().toISOString().slice(0, 10),
+  };
 }
 
 // zurueck in den Ordner, aus dem eine Aktion kam (Formulare schicken `dir` mit)
@@ -105,12 +118,14 @@ router.get("/", loginRequired, (req, res) => {
     // hasAvatar je Empfaenger: der Freigabe-Tooltip zeigt Avatar + Name + Recht
     const sh = shares.listForFile(me, relpath)
       .map((s) => ({ ...s, hasAvatar: avatars.has(s.target) }));
+    const m = meta(e.name, path.join(curAbs, e.name));
     return {
-      ...meta(e.name, path.join(curAbs, e.name)),
+      ...m,
       relpath, isDir: false,
       owner: me, ownerName: req.session.name, isOwner: true, perm: "owner",
       shares: sh,
       availableUsers: otherUsers.filter((u) => !sh.some((s) => s.target === u.username)),
+      todo: todoFor(me, relpath, m.isNote),
     };
   });
 
@@ -118,11 +133,13 @@ router.get("/", loginRequired, (req, res) => {
   const shared = cur ? [] : shares.listForUser(me).map((s) => {
     const p = pathFor(s.owner, s.filename);
     if (!fs.existsSync(p)) return null;   // Karteileiche: Datei wurde geloescht
+    const m = meta(s.filename, p);
     return {
-      ...meta(s.filename, p),
+      ...m,
       relpath: s.filename, isDir: false,
       owner: s.owner, ownerName: s.owner_name, isOwner: false, perm: s.perm,
       shares: [], availableUsers: [],
+      todo: todoFor(s.owner, s.filename, m.isNote),
     };
   }).filter(Boolean);
 
@@ -177,6 +194,12 @@ router.get("/", loginRequired, (req, res) => {
     user: req.session.name,
     me,
     hasAvatar: avatars.has(me),
+    // Personen-Auswahl im Notiz-Dialog: ALLE Nutzer (auch man selbst, im
+    // Gegensatz zu otherUsers beim Freigeben-Dialog); hasAvatar fuer die
+    // minimalistische Lese-Ansicht (Avatar statt Initialen-Kreis)
+    knownUsers: users.listUsers().map((u) => (
+      { username: u.username, display_name: u.display_name, hasAvatar: avatars.has(u.username) }
+    )),
     // Dateiauswahl beim Hochladen auf die Formate begrenzen, die der Editor
     // oeffnen kann — abgeleitet aus DOCTYPE, bleibt also automatisch synchron
     uploadAccept: Object.keys(DOCTYPE).map((e) => "." + e).join(","),
@@ -319,6 +342,7 @@ router.post("/move/*", loginRequired, (req, res) => {
   } else {
     fs.renameSync(pathFor(me, fid), pathFor(me, dest));
     shares.rename(me, fid, dest);
+    notemeta.rename(me, fid, dest);
     req.flash("ok", `„${base}“ nach „${to || "Meine Dateien"}“ verschoben.`);
   }
   redirectDir(req, res);
@@ -363,6 +387,7 @@ router.post("/delete/:owner/*", loginRequired, (req, res) => {
   }
   fs.unlinkSync(pathFor(owner, fid));
   shares.unshareAll(owner, fid);   // Freigaben mit entfernen
+  notemeta.remove(owner, fid);     // Notiz-Metadaten mit entfernen
   req.flash("ok", `„${path.basename(fid)}“ gelöscht.`);
   redirectDir(req, res);
 });

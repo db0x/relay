@@ -119,6 +119,9 @@
                 <% } else { %>
                 <a class="fname" href="<%= base %>/edit/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>"><%= f.label %></a>
                 <% } %>
+                <% if (f.todo) { %>
+                <span class="badge badge-todo<%= f.todo.overdue ? " badge-todo-over" : "" %>">ToDo<%= f.todo.dueLabel ? " · fällig " + f.todo.dueLabel : "" %></span>
+                <% } %>
                 <% if (!f.isOwner) { %>
                 <span class="badge">von <%= f.ownerName %><% if (f.perm === "view") { %> · nur lesen<% } %></span>
                 <% } else if (f.shares.length) { %>
@@ -364,6 +367,45 @@
              aria-orientation="vertical" aria-label="Aufteilung anpassen"></div>
         <div class="note-preview md-render" id="note-preview" aria-label="Vorschau der Notiz"></div>
       </div>
+      <%# Kompaktes, horizontales Edit-Panel — Icons (users/place) markieren die
+          Abschnitte wie in der Lese-Ansicht, alles fliesst in einer Zeile und
+          bricht bei Bedarf um (bewusst nicht in die Hoehe gestapelt) %>
+      <div class="note-details" id="note-details">
+        <span class="note-detail-group">
+          <label class="switch-label">
+            <input type="checkbox" id="note-todo" name="is_todo" value="1">
+            <span class="switch-ui" aria-hidden="true"></span>
+            <span class="switch-text">ToDo</span>
+          </label>
+          <input type="date" class="field field-sm" name="due_date" id="note-due"
+                 aria-label="Fällig am" hidden>
+        </span>
+
+        <%# Personen: ein Chip-Feld mit Autocomplete aus den bekannten Nutzern
+            (data-known), das ebenso Freitext fuer Unbekannte annimmt (index.js).
+            Die versteckten Felder people_known/people_extra werden aus dem
+            Chip-Zustand synchronisiert. %>
+        <span class="note-detail-group note-people-field" id="note-people-field"
+              data-known="<%= JSON.stringify(knownUsers) %>">
+          <img class="note-summary-icon" src="<%= base %>/static/img/users.svg"
+               alt="Betroffene Personen" width="16" height="16">
+          <span class="chips" id="note-people-chips">
+            <input type="text" class="chips-input" id="note-people-input"
+                   aria-label="Betroffene Personen" placeholder="Person …" autocomplete="off">
+          </span>
+          <span id="note-people-hidden"></span>
+        </span>
+
+        <span class="note-detail-group">
+          <img class="note-summary-icon" src="<%= base %>/static/img/place.svg"
+               alt="Ort" width="16" height="16">
+          <input class="field field-sm" name="ort" id="note-ort"
+                 aria-label="Ort" placeholder="Ort">
+        </span>
+      </div>
+      <%# Lese-Ansicht der Details: nur sichtbar, wenn etwas gesetzt ist —
+          befuellt index.js beim Oeffnen aus den Notiz-Metadaten %>
+      <div class="note-view-summary" id="note-view-summary" hidden></div>
       <div class="note-foot">
         <span class="note-status" id="note-status" aria-live="polite"></span>
         <button class="btn btn-sm" id="note-save">Speichern</button>

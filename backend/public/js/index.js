@@ -275,6 +275,257 @@
     var noteCM = null;    // CodeMirror-Instanz; ohne Vendor-JS bleibt die Textarea
     var noteTimer = null;
 
+    // ToDo/Personen/Ort — eigenes Formular-Stueck, laeuft aber ueber denselben
+    // Speichern-Button wie der Markdown-Inhalt (ein Submit pro Dialog)
+    var noteTodo = document.getElementById("note-todo");
+    var noteDue = document.getElementById("note-due");
+    var noteOrt = document.getElementById("note-ort");
+    var noteMetaBaseline = "";
+    var noteDetails = document.getElementById("note-details");
+    var noteViewSummary = document.getElementById("note-view-summary");
+    var noteSummaryHasContent = false;
+
+    // Personen: Chip-Feld mit Autocomplete aus den bekannten Nutzern (data-known),
+    // nimmt ebenso Freitext fuer Unbekannte an. peopleChips ist die einzige
+    // Quelle der Wahrheit; versteckte people_known/people_extra-Felder werden
+    // daraus synchronisiert (normaler Form-POST), ebenso die Lese-Ansicht.
+    var notePeopleField = document.getElementById("note-people-field");
+    var notePeopleChips = document.getElementById("note-people-chips");
+    var notePeopleInput = document.getElementById("note-people-input");
+    var notePeopleHidden = document.getElementById("note-people-hidden");
+    var peopleDropdown = null;
+    var knownUsers = [];
+    try { knownUsers = JSON.parse(notePeopleField.dataset.known || "[]"); } catch (e) {}
+    var knownByUsername = {};
+    knownUsers.forEach(function (u) { knownByUsername[u.username] = u; });
+    var peopleChips = []; // {username|null, name, hasAvatar}
+
+    // Avatar (bekannt+Bild) bzw. Initialen-Kreis (bekannt ohne Bild) —
+    // Freitext-Personen bekommen kein Rund; size in px
+    function personAvatar(entry, size) {
+      if (entry.username && entry.hasAvatar) {
+        var img = document.createElement("img");
+        img.className = "person-av";
+        img.src = noteBaseUrl + "/avatar/" + encodeURIComponent(entry.username);
+        img.alt = ""; img.width = size; img.height = size;
+        return img;
+      }
+      var fb = document.createElement("span");
+      fb.className = "person-av person-av-fallback";
+      fb.style.width = fb.style.height = size + "px";
+      fb.textContent = (entry.name || "?").trim().charAt(0).toUpperCase();
+      return fb;
+    }
+
+    function formatDueLabel(iso) {
+      var p = (iso || "").split("-");
+      return p.length === 3 ? p[2] + "." + p[1] + "." + p[0] : "";
+    }
+
+    // --- Personen-Chip-Feld ------------------------------------------------
+    // versteckte Formularfelder aus dem Chip-Zustand aufbauen (people_known je
+    // bekanntem Nutzer, people_extra je Freitext) — type=hidden -> kein Layout
+    function syncHiddenPeople() {
+      notePeopleHidden.innerHTML = "";
+      peopleChips.forEach(function (c) {
+        var inp = document.createElement("input");
+        inp.type = "hidden";
+        inp.name = c.username ? "people_known" : "people_extra";
+        inp.value = c.username || c.name;
+        notePeopleHidden.appendChild(inp);
+      });
+    }
+
+    function renderChips() {
+      Array.prototype.slice.call(notePeopleChips.querySelectorAll(".chip"))
+        .forEach(function (c) { c.remove(); });
+      peopleChips.forEach(function (entry, i) {
+        var chip = document.createElement("span");
+        chip.className = "chip" + (entry.username ? "" : " chip-text");
+        if (entry.username) chip.appendChild(personAvatar(entry, 16));
+        chip.appendChild(document.createTextNode(entry.name));
+        var x = document.createElement("button");
+        x.type = "button"; x.className = "chip-x";
+        x.setAttribute("aria-label", entry.name + " entfernen");
+        x.textContent = "×";
+        x.addEventListener("click", function () { removeChipAt(i); notePeopleInput.focus(); });
+        chip.appendChild(x);
+        notePeopleChips.insertBefore(chip, notePeopleInput);
+      });
+      syncHiddenPeople();
+    }
+
+    function addChip(entry) {
+      var dup = peopleChips.some(function (c) {
+        return entry.username ? c.username === entry.username
+          : (!c.username && c.name.toLowerCase() === entry.name.toLowerCase());
+      });
+      if (!dup) { peopleChips.push(entry); renderChips(); }
+      onNoteChange();
+    }
+    function removeChipAt(i) { peopleChips.splice(i, 1); renderChips(); onNoteChange(); }
+
+    // aktuell noch nicht als Chip stehenden Text zu einer Person machen —
+    // exakter Namenstreffer bei bekannten Nutzern wird zum bekannten Chip
+    function commitPeopleInput() {
+      var val = notePeopleInput.value.replace(/,+$/, "").trim();
+      notePeopleInput.value = "";
+      hidePeopleDropdown();
+      if (!val) return;
+      var match = knownUsers.filter(function (u) {
+        return u.display_name.toLowerCase() === val.toLowerCase();
+      })[0];
+      addChip(match
+        ? { username: match.username, name: match.display_name, hasAvatar: match.hasAvatar }
+        : { username: null, name: val, hasAvatar: false });
+    }
+
+    // Vorschlaege: bekannte Nutzer, die zum Tippen passen und noch nicht drin sind
+    function peopleSuggestions() {
+      var q = notePeopleInput.value.trim().toLowerCase();
+      return knownUsers.filter(function (u) {
+        if (peopleChips.some(function (c) { return c.username === u.username; })) return false;
+        return !q || u.display_name.toLowerCase().indexOf(q) !== -1;
+      });
+    }
+    function showPeopleDropdown() {
+      if (notePeopleInput.disabled) return;
+      var items = peopleSuggestions();
+      if (!peopleDropdown) {
+        peopleDropdown = document.createElement("div");
+        peopleDropdown.className = "chips-dropdown";
+        notePeopleField.appendChild(peopleDropdown);
+      }
+      peopleDropdown.innerHTML = "";
+      if (!items.length) { hidePeopleDropdown(); return; }
+      items.forEach(function (u) {
+        var opt = document.createElement("button");
+        opt.type = "button"; opt.className = "chips-option";
+        opt.appendChild(personAvatar({ username: u.username, name: u.display_name, hasAvatar: u.hasAvatar }, 18));
+        opt.appendChild(document.createTextNode(u.display_name));
+        // mousedown feuert vor dem blur des Inputs -> Auswahl geht nicht verloren
+        opt.addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          notePeopleInput.value = "";
+          addChip({ username: u.username, name: u.display_name, hasAvatar: u.hasAvatar });
+          hidePeopleDropdown();
+          notePeopleInput.focus();
+        });
+        peopleDropdown.appendChild(opt);
+      });
+      peopleDropdown.hidden = false;
+    }
+    function hidePeopleDropdown() { if (peopleDropdown) peopleDropdown.hidden = true; }
+
+    notePeopleInput.addEventListener("input", showPeopleDropdown);
+    notePeopleInput.addEventListener("focus", showPeopleDropdown);
+    notePeopleInput.addEventListener("blur", function () {
+      // kurze Verzoegerung, damit ein Options-mousedown noch greift
+      setTimeout(function () { commitPeopleInput(); }, 130);
+    });
+    notePeopleInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === ",") {
+        if (!notePeopleInput.value.trim()) { if (e.key === ",") e.preventDefault(); return; }
+        e.preventDefault();
+        var sugg = peopleSuggestions();
+        // Tippt der Nutzer einen Teilnamen, nimmt Enter den ersten Vorschlag;
+        // ohne passenden Vorschlag entsteht ein Freitext-Chip
+        if (sugg.length) {
+          notePeopleInput.value = "";
+          addChip({ username: sugg[0].username, name: sugg[0].display_name, hasAvatar: sugg[0].hasAvatar });
+          hidePeopleDropdown();
+        } else {
+          commitPeopleInput();
+        }
+      } else if (e.key === "Backspace" && notePeopleInput.value === "" && peopleChips.length) {
+        removeChipAt(peopleChips.length - 1);
+      } else if (e.key === "Escape") {
+        hidePeopleDropdown();
+      }
+    });
+    // beim Absenden noch nicht bestaetigten Text uebernehmen (Klick auf Speichern
+    // blurrt zwar, aber der verzoegerte Commit liefe u.U. erst nach dem Submit)
+    noteForm.addEventListener("submit", function () {
+      if (notePeopleInput.value.trim()) commitPeopleInput();
+    });
+
+    // Kleines Icon (place.svg/users.svg) als Abschnittsmarkierung in der
+    // Lese-Zusammenfassung — strukturiert die Zeile, ohne sie zu vergroessern
+    function noteSummaryIcon(name) {
+      var img = document.createElement("img");
+      img.className = "note-summary-icon";
+      img.src = noteBaseUrl + "/static/img/" + name + ".svg";
+      img.alt = ""; img.width = 14; img.height = 14;
+      return img;
+    }
+
+    // Minimalistische Lese-Ansicht statt der Formularfelder: nur rendern, was
+    // tatsaechlich gesetzt ist — Personen als Avatar+Name (bekannt) bzw.
+    // reiner Text (Freitext), kein leeres Geruest.
+    function renderNoteSummary(meta) {
+      noteViewSummary.innerHTML = "";
+      var known = (meta.people && meta.people.known) || [];
+      var extra = (meta.people && meta.people.extra) || [];
+
+      if (meta.isTodo) {
+        var overdue = !!meta.dueDate && meta.dueDate < new Date().toISOString().slice(0, 10);
+        // note-summary-badge (nicht die kompakte .badge-Basis) -> gleiche Hoehe
+        // wie die Personen-/Ort-Badges; badge-todo(-over) faerbt es gelb/rot
+        var badge = document.createElement("span");
+        badge.className = "note-summary-badge badge-todo" + (overdue ? " badge-todo-over" : "");
+        badge.textContent = "ToDo" + (meta.dueDate ? " · fällig " + formatDueLabel(meta.dueDate) : "");
+        noteViewSummary.appendChild(badge);
+      }
+
+      if (known.length || extra.length) {
+        var wrap = document.createElement("span");
+        wrap.className = "note-people note-summary-badge";
+        wrap.appendChild(noteSummaryIcon("users"));
+        known.forEach(function (uname) {
+          var u = knownByUsername[uname];
+          if (!u) return; // Nutzer inzwischen geloescht -> stillschweigend auslassen
+          var p = document.createElement("span");
+          p.className = "note-person";
+          p.appendChild(personAvatar({ username: u.username, name: u.display_name, hasAvatar: u.hasAvatar }, 18));
+          p.appendChild(document.createTextNode(u.display_name));
+          wrap.appendChild(p);
+        });
+        extra.forEach(function (name) {
+          var p = document.createElement("span");
+          p.className = "note-person note-person-text";
+          p.textContent = name;
+          wrap.appendChild(p);
+        });
+        noteViewSummary.appendChild(wrap);
+      }
+
+      if (meta.ort) {
+        var ortSpan = document.createElement("span");
+        ortSpan.className = "note-ort note-summary-badge";
+        ortSpan.appendChild(noteSummaryIcon("place"));
+        ortSpan.appendChild(document.createTextNode(meta.ort));
+        noteViewSummary.appendChild(ortSpan);
+      }
+
+      noteSummaryHasContent = noteViewSummary.childElementCount > 0;
+    }
+
+    function updateDueVisibility() {
+      // Faelligkeitsdatum ist optional — es gibt ToDos ohne feste Timeline;
+      // das Datumsfeld erscheint inline neben dem Schalter, nur wenn ToDo an ist
+      var on = noteTodo.checked;
+      noteDue.hidden = !on;
+      if (!on) noteDue.value = "";
+    }
+
+    function metaSnapshot() {
+      return JSON.stringify({
+        isTodo: noteTodo.checked, dueDate: noteTodo.checked ? noteDue.value : "",
+        people: peopleChips.map(function (c) { return c.username || ("~" + c.name); }),
+        ort: noteOrt.value,
+      });
+    }
+
     if (window.marked) marked.use({ gfm: true, breaks: true });
 
     function noteVal() { return noteCM ? noteCM.getValue() : noteText.value; }
@@ -318,10 +569,14 @@
 
     function onNoteChange() {
       var v = noteVal();
-      noteSave.disabled = v === noteBaseline || v.trim() === "";
+      var unchanged = v === noteBaseline && metaSnapshot() === noteMetaBaseline;
+      noteSave.disabled = unchanged || v.trim() === "";
       clearTimeout(noteTimer);
       noteTimer = setTimeout(renderNotePreview, 200);
     }
+
+    noteTodo.addEventListener("change", function () { updateDueVisibility(); onNoteChange(); });
+    [noteDue, noteOrt].forEach(function (el) { el.addEventListener("input", onNoteChange); });
 
     function ensureNoteEditor() {
       if (noteCM || !window.CodeMirror) return;
@@ -358,6 +613,16 @@
         noteDlg.style.width = noteDlg.style.height = "";
       }
       if (noteEditBtn) noteEditBtn.hidden = editMode || !noteCanEdit;
+      // Detailfelder nur im Bearbeiten-Modus anfassbar — wie der Editor
+      // selbst (das Panel im Lese-Modus zeigt nur an, aendert nichts)
+      var metaEditable = editMode && noteCanEdit;
+      noteTodo.disabled = !metaEditable;
+      [noteDue, noteOrt, notePeopleInput].forEach(function (el) { el.disabled = !metaEditable; });
+      if (!metaEditable) hidePeopleDropdown();
+      // Formular nur beim Bearbeiten sichtbar, Lese-Zusammenfassung nur im
+      // Lese-Modus UND nur, wenn es ueberhaupt etwas zu zeigen gibt
+      noteDetails.hidden = !editMode;
+      noteViewSummary.hidden = editMode || !noteSummaryHasContent;
       if (editMode && noteCM) {
         noteCM.refresh(); // Spalte war ausgeblendet -> Masse neu messen
         noteCM.focus();
@@ -427,10 +692,10 @@
       noteEditBtn.addEventListener("click", function () { setNoteMode(true); });
     }
 
-    function openNote(title, content, action, canEdit, startEdit) {
+    function openNote(title, content, action, canEdit, startEdit, meta) {
+      meta = meta || { isTodo: false, dueDate: "", people: { known: [], extra: [] }, ort: "" };
       ensureNoteEditor();
       noteCanEdit = canEdit;
-      setNoteMode(!!(startEdit && canEdit));
       noteTitleEl.textContent = title;
       noteForm.action = action;
       if (noteCM) {
@@ -444,6 +709,31 @@
       noteSave.disabled = true;
       noteStatus.textContent = "";
       noteBaseline = content;
+
+      // Formularfelder (Bearbeiten-Modus) befuellen: people speichert
+      // Nutzernamen bekannter Nutzer + Freitext getrennt (siehe notemeta.js)
+      peopleChips = [];
+      (meta.people.known || []).forEach(function (uname) {
+        var u = knownByUsername[uname];
+        if (u) peopleChips.push({ username: u.username, name: u.display_name, hasAvatar: u.hasAvatar });
+      });
+      (meta.people.extra || []).forEach(function (name) {
+        peopleChips.push({ username: null, name: name, hasAvatar: false });
+      });
+      notePeopleInput.value = "";
+      hidePeopleDropdown();
+      renderChips();
+      noteTodo.checked = meta.isTodo;
+      noteDue.value = meta.dueDate || "";
+      updateDueVisibility();
+      noteOrt.value = meta.ort || "";
+      noteMetaBaseline = metaSnapshot();
+
+      // Lese-Zusammenfassung aus denselben Daten bauen, dann erst den Modus
+      // setzen — der blendet Formular/Zusammenfassung passend ein/aus
+      renderNoteSummary(meta);
+      setNoteMode(!!(startEdit && canEdit));
+
       openDlg(noteDlg);
       if (noteCM) {
         noteCM.refresh(); // war beim Initialisieren unsichtbar -> Masse neu messen
@@ -626,14 +916,20 @@
       btn.addEventListener("click", function () {
         hideNoteTip();
         var rel = btn.dataset.rel.split("/").map(encodeURIComponent).join("/");
-        var url = noteBaseUrl + "/notes/raw/" + encodeURIComponent(btn.dataset.owner) + "/" + rel;
-        fetch(url)
-          .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
-          .then(function (text) {
+        var ownerPart = encodeURIComponent(btn.dataset.owner) + "/" + rel;
+        Promise.all([
+          fetch(noteBaseUrl + "/notes/raw/" + ownerPart)
+            .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); }),
+          fetch(noteBaseUrl + "/notes/meta/" + ownerPart)
+            .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }),
+        ])
+          .then(function (res) {
             openNote(btn.dataset.label,
-              text,
-              noteBaseUrl + "/notes/save/" + encodeURIComponent(btn.dataset.owner) + "/" + rel,
-              btn.dataset.canedit === "1");
+              res[0],
+              noteBaseUrl + "/notes/save/" + ownerPart,
+              btn.dataset.canedit === "1",
+              false,
+              res[1]);
           })
           .catch(function () {
             showNotice("Fehler", "Die Notiz konnte nicht geladen werden.", { danger: true });
