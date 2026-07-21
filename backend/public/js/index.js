@@ -706,9 +706,10 @@
       noteEditBtn.addEventListener("click", function () { setNoteMode(true); });
     }
     if (notePdfBtn) {
-      // oeffnet das gerenderte PDF im neuen Tab (Wrapper-Apps -> System-Browser)
+      // oeffnet das gerenderte PDF im OnlyOffice-Viewer — im SELBEN Tab
+      // (wie das normale Datei-Oeffnen), nicht in einem neuen
       notePdfBtn.addEventListener("click", function () {
-        if (noteExportUrl) window.open(noteExportUrl, "_blank", "noopener");
+        if (noteExportUrl) window.location.assign(noteExportUrl);
       });
     }
 
