@@ -10,10 +10,11 @@
 <script defer src="<%= base %>/static/vendor/highlight.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/js/index.js?v=<%= v %>"></script>
 <header class="topbar">
-    <div class="brand">
+    <%# Klick auf Logo/Name fuehrt zurueck zur Startseite ("Meine Dateien") %>
+    <a class="brand" href="<%= base %>/" data-tip="Zur Startseite" aria-label="Zur Startseite">
       <img src="<%= base %>/static/img/logo.svg" alt="" width="28" height="28">
       <span><%= appName %></span>
-    </div>
+    </a>
     <div class="user">
       <% if (hasAvatar) { %>
       <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="32" height="32">

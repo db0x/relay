@@ -38,7 +38,12 @@ body{
   padding:.7rem clamp(16px,4vw,36px);
   box-shadow:0 1px 3px rgba(16,24,40,.06);
 }
-.brand{display:flex;align-items:center;gap:.55em;font-size:1.2rem;font-weight:650}
+.brand{
+  display:flex;align-items:center;gap:.55em;font-size:1.2rem;font-weight:650;
+  color:inherit;text-decoration:none;cursor:pointer;
+  transition:opacity .12s ease;
+}
+.brand:hover{opacity:.7}
 .user{display:flex;align-items:center;gap:.9em}
 .uname{color:var(--muted);font-size:.92rem}
 .avatar{border-radius:50%;object-fit:cover;display:block;margin-right:-.5em}
