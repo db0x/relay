@@ -4,16 +4,21 @@
 // zeigt nur den Titel (labelFor in routes/browse.js).
 const fs = require("fs");
 const path = require("path");
+const http = require("http");
 const crypto = require("crypto");
 const express = require("express");
+const jwt = require("jsonwebtoken");
+const { marked } = require("marked");
 
 const shares = require("../shares");
 const notemeta = require("../notemeta");
 const users = require("../users");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, pathFor } = require("../storage");
-const { BASE } = require("../config");
+const { BASE, DS_INTERNAL, HOST_INTERNAL, JWT_SECRET, FILE_SECRET } = require("../config");
 const { loginRequired } = require("./auth");
+
+marked.setOptions({ gfm: true, breaks: true });
 
 const router = express.Router();
 const NOTES_DIR = "Notizen";
@@ -96,6 +101,110 @@ router.post("/notes/save/:owner/*", loginRequired, (req, res) => {
   const dir = securePath(req.body.dir || "") || "";
   req.flash("ok", "Notiz gespeichert.");
   res.redirect(dir ? `${BASE}/?p=${encodeURIComponent(dir)}` : `${BASE}/`);
+});
+
+// --- PDF-Export ueber die OnlyOffice-Konvertierung ---------------------
+// Ablauf: Markdown -> HTML (marked) -> kurzlebig signiert bereitgestellt ->
+// DocumentServer holt es und konvertiert HTML->PDF -> wir reichen das PDF durch.
+
+// Notiz-HTML rendern und in ein vollstaendiges Dokument mit dezentem Print-Stil
+// verpacken (OnlyOffice interpretiert semantisches HTML + einfache CSS-Regeln)
+function pdfHtmlDoc(md) {
+  const body = marked.parse(md);
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Notiz</title>
+<style>
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:11pt;color:#1a1a1a;line-height:1.5;margin:0}
+h1,h2,h3,h4{line-height:1.25;margin:.8em 0 .3em}
+h1{font-size:20pt;margin-top:0} h2{font-size:16pt} h3{font-size:13pt}
+p{margin:.4em 0} ul,ol{margin:.4em 0 .4em 1.4em}
+code{font-family:Consolas,monospace;background:#f1f3f5;padding:.1em .3em;border-radius:4px}
+pre{background:#f6f8fa;padding:.6em .8em;border-radius:6px} pre code{background:none;padding:0}
+blockquote{margin:.6em 0;padding:.2em .9em;border-left:3px solid #ccc;color:#555}
+table{border-collapse:collapse;margin:.6em 0} th,td{border:1px solid #ccc;padding:.3em .6em}
+a{color:#2563eb} img{max-width:100%}
+</style></head><body>${body}</body></html>`;
+}
+
+// kurzlebiger Speicher der Quell-HTML (nur waehrend der Konvertierung); der
+// DocumentServer holt sie ueber die signierte pdf-src-Route (kein Login-Cookie)
+const pdfSources = new Map(); // id -> { html, expires(ms) }
+function prunePdfSources() {
+  const now = Date.now();
+  for (const [k, v] of pdfSources) if (v.expires < now) pdfSources.delete(k);
+}
+function pdfSrcToken(id, exp) {
+  return crypto.createHmac("sha256", FILE_SECRET).update(`pdfsrc:${id}:${exp}`).digest("base64url");
+}
+
+// Quelle fuer den DocumentServer: signiert + zeitlich begrenzt, nur solange die
+// Konvertierung laeuft im Map vorhanden
+router.get("/notes/pdf-src/:id", (req, res) => {
+  const id = req.params.id;
+  const exp = parseInt(req.query.expires, 10) || 0;
+  const tok = String(req.query.token || "");
+  const good = pdfSrcToken(id, exp);
+  const ok = exp >= Math.floor(Date.now() / 1000) && tok.length === good.length &&
+    crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(good));
+  const entry = pdfSources.get(id);
+  if (!ok || !entry) return res.sendStatus(403);
+  res.type("text/html; charset=utf-8").send(entry.html);
+});
+
+// Notiz als PDF: rendert, konvertiert ueber den DS und liefert das PDF inline
+// (oeffnet im neuen Tab). Besitzer und Freigaben (auch nur-lesen) duerfen das.
+router.get("/notes/pdf/:owner/*", loginRequired, (req, res) => {
+  const owner = req.params.owner, fid = req.params[0];
+  if (!accessFor(req.session.user, owner, fid)) return res.sendStatus(404);
+  let md;
+  try { md = fs.readFileSync(pathFor(owner, fid), "utf8"); } catch (e) { return res.sendStatus(404); }
+  const name = titleOf(md);
+
+  const id = crypto.randomUUID().replace(/-/g, "");
+  const exp = Math.floor(Date.now() / 1000) + 60;
+  pdfSources.set(id, { html: pdfHtmlDoc(md), expires: Date.now() + 60000 });
+  prunePdfSources();
+  const srcUrl = `${HOST_INTERNAL}/notes/pdf-src/${id}`
+    + `?expires=${exp}&token=${encodeURIComponent(pdfSrcToken(id, exp))}`;
+
+  const conv = { async: false, filetype: "html", outputtype: "pdf", key: id, title: `${name}.html`, url: srcUrl };
+  const payload = JSON.stringify(conv);
+  const token = jwt.sign(conv, JWT_SECRET, { algorithm: "HS256" });
+  const u = new URL(`${DS_INTERNAL}/ConvertService.ashx`);
+  const opts = {
+    method: "POST", hostname: u.hostname, port: u.port || 80, path: u.pathname,
+    headers: {
+      "Content-Type": "application/json", "Accept": "application/json",
+      "Content-Length": Buffer.byteLength(payload), "Authorization": "Bearer " + token,
+    },
+  };
+  const creq = http.request(opts, (cres) => {
+    let d = "";
+    cres.on("data", (c) => (d += c));
+    cres.on("end", () => {
+      pdfSources.delete(id);
+      let j = null;
+      try { j = JSON.parse(d); } catch (e) { /* faellt unten in den Fehlerzweig */ }
+      if (!j || !j.fileUrl) {
+        console.error("PDF-Konvertierung fehlgeschlagen:", d);
+        return res.sendStatus(502);
+      }
+      // PDF liegt im DS-Cache (gleicher interner Host) -> holen und durchreichen
+      const pu = new URL(j.fileUrl);
+      http.get(DS_INTERNAL + pu.pathname + (pu.search || ""), (pr) => {
+        if (pr.statusCode !== 200) { pr.resume(); return res.sendStatus(502); }
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `inline; filename="${name}.pdf"`);
+        pr.pipe(res);
+      }).on("error", () => res.sendStatus(502));
+    });
+  });
+  creq.on("error", (e) => {
+    pdfSources.delete(id);
+    console.error("PDF-Konvertierung Fehler:", e.message);
+    res.sendStatus(502);
+  });
+  creq.write(payload);
+  creq.end();
 });
 
 module.exports = { router };

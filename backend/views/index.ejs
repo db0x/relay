@@ -308,11 +308,17 @@
     <form class="note-form" id="note-form" method="post" action="<%= base %>/notes/create">
       <input type="hidden" name="dir" value="<%= curDir %>">
       <div class="note-main">
-        <%# im Ansichtsmodus: Stift auf dem Panel wechselt ins Bearbeiten %>
-        <button type="button" class="iconbtn note-edit-btn" id="note-edit"
-                data-tip="Bearbeiten" aria-label="Bearbeiten" hidden>
-          <img src="<%= base %>/static/img/edit.svg" alt="" width="16" height="16">
-        </button>
+        <%# im Ansichtsmodus oben rechts: als PDF oeffnen + Bearbeiten %>
+        <div class="note-view-actions">
+          <button type="button" class="iconbtn" id="note-pdf"
+                  data-tip="Als PDF öffnen" aria-label="Als PDF öffnen" hidden>
+            <img src="<%= base %>/static/img/pdf.svg" alt="" width="16" height="16">
+          </button>
+          <button type="button" class="iconbtn" id="note-edit"
+                  data-tip="Bearbeiten" aria-label="Bearbeiten" hidden>
+            <img src="<%= base %>/static/img/edit.svg" alt="" width="16" height="16">
+          </button>
+        </div>
         <div class="note-editor-pane">
           <div class="note-toolbar" id="note-toolbar" role="toolbar" aria-label="Formatierung">
             <button type="button" class="note-tb" data-md="bold" data-tip="Fett (Strg+B)" aria-label="Fett">

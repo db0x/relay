@@ -606,6 +606,8 @@
     // Panel (note-view); der Stift auf dem Panel wechselt ins Bearbeiten.
     var noteCanEdit = false;
     var noteEditBtn = document.getElementById("note-edit");
+    var notePdfBtn = document.getElementById("note-pdf");
+    var noteExportUrl = null; // /notes/pdf/... — nur bei gespeicherten Notizen
     function setNoteMode(editMode) {
       noteDlg.classList.toggle("note-view", !editMode);
       // evtl. beim Resizen eingefrorene Position aufheben -> wieder zentriert
@@ -622,6 +624,9 @@
         noteDlg.style.width = noteDlg.style.height = "";
       }
       if (noteEditBtn) noteEditBtn.hidden = editMode || !noteCanEdit;
+      // PDF-Export nur im Lese-Modus und nur bei bereits gespeicherten Notizen
+      // (auch fuer nur-lesende Freigaben verfuegbar)
+      if (notePdfBtn) notePdfBtn.hidden = editMode || !noteExportUrl;
       // Detailfelder nur im Bearbeiten-Modus anfassbar — wie der Editor
       // selbst (das Panel im Lese-Modus zeigt nur an, aendert nichts)
       var metaEditable = editMode && noteCanEdit;
@@ -700,6 +705,12 @@
     if (noteEditBtn) {
       noteEditBtn.addEventListener("click", function () { setNoteMode(true); });
     }
+    if (notePdfBtn) {
+      // oeffnet das gerenderte PDF im neuen Tab (Wrapper-Apps -> System-Browser)
+      notePdfBtn.addEventListener("click", function () {
+        if (noteExportUrl) window.open(noteExportUrl, "_blank", "noopener");
+      });
+    }
 
     function openNote(title, content, action, canEdit, startEdit, meta) {
       meta = meta || { isTodo: false, dueDate: "", people: { known: [], extra: [] }, ort: "" };
@@ -707,6 +718,9 @@
       noteCanEdit = canEdit;
       noteTitleEl.textContent = title;
       noteForm.action = action;
+      // PDF-Export nur fuer gespeicherte Notizen: die Save-Action traegt owner/rel
+      noteExportUrl = action.indexOf("/notes/save/") !== -1
+        ? action.replace("/notes/save/", "/notes/pdf/") : null;
       if (noteCM) {
         noteCM.setValue(content);
         noteCM.setOption("readOnly", canEdit ? false : "nocursor");
