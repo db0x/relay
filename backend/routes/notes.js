@@ -327,6 +327,12 @@ function openPdfViewer(req, res, buf, name) {
   prune(pdfFiles);
   const fileUrl = `${HOST_INTERNAL}${BASE}/notes/pdf-file/${id}`
     + `?expires=${exp}&token=${encodeURIComponent(pdfToken(PDF_TOKENS.file, id, exp))}`;
+  // Avatar des eingeloggten Nutzers fuer die Editor-Oberflaeche: absolute,
+  // signierte URL (der Editor-iframe laeuft auf DS-Origin, bekommt kein
+  // Session-Cookie) — wie in routes/editor.js
+  const pub = `${req.protocol}://${req.get("host")}`;
+  const image = avatars.has(req.session.user)
+    ? pub + avatars.signedUrl(req.session.user, exp) : undefined;
   const config = {
     document: {
       fileType: "pdf",
@@ -340,7 +346,7 @@ function openPdfViewer(req, res, buf, name) {
       mode: "view",
       lang: "de-DE",
       region: "de-DE",
-      user: { id: req.session.user, name: req.session.name },
+      user: { id: req.session.user, name: req.session.name, image },
       customization: { uiTheme: EDITOR_THEME, features: { tabStyle: "fill" } },
       // kein callbackUrl: reine Ansicht, der DS schreibt nichts zurueck
     },
