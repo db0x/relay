@@ -719,9 +719,10 @@
       noteCanEdit = canEdit;
       noteTitleEl.textContent = title;
       noteForm.action = action;
-      // PDF-Export nur fuer gespeicherte Notizen: die Save-Action traegt owner/rel
+      // PDF-Export nur fuer gespeicherte Notizen: die Save-Action traegt owner/rel.
+      // Ziel liegt unter /edit/, damit Voltage den OnlyOffice-Kontext erkennt.
       noteExportUrl = action.indexOf("/notes/save/") !== -1
-        ? action.replace("/notes/save/", "/notes/pdf/") : null;
+        ? action.replace("/notes/save/", "/edit/notepdf/") : null;
       if (noteCM) {
         noteCM.setValue(content);
         noteCM.setOption("readOnly", canEdit ? false : "nocursor");

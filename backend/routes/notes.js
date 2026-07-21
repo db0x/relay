@@ -8,11 +8,13 @@ const http = require("http");
 const crypto = require("crypto");
 const express = require("express");
 const jwt = require("jsonwebtoken");
+const sharp = require("sharp");
 const { marked } = require("marked");
 
 const shares = require("../shares");
 const notemeta = require("../notemeta");
 const users = require("../users");
+const avatars = require("../avatars");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, pathFor } = require("../storage");
 const { BASE, DS_INTERNAL, HOST_INTERNAL, PUBLIC_DS, JWT_SECRET, FILE_SECRET, EDITOR_THEME } = require("../config");
@@ -114,34 +116,98 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
-// Metadaten fuers PDF (dieselben Infos wie die Lese-Badges) — als dezenter
-// Block mit fetten Labels unter einer Trennlinie. Bewusst KEINE Pillen:
-// OnlyOffice konvertiert border-radius/Inline-Hintergruende nicht sauber
-// (Pillen liefen zu einem Balken zusammen); Personen mit Namen statt Avatar.
-// Leer, wenn nichts gesetzt.
-function pdfMetaHtml(meta) {
-  const rows = [];
+// Metadaten-Badges fuers PDF als GRAFIK: dieselben Pillen wie in der UI
+// (ToDo farbig, Personen mit Avatar/Initialen, Ort) werden als SVG aufgebaut
+// und mit sharp zu PNG gerastert — OnlyOffice bettet das Bild sauber ein.
+// (Direkt als HTML-Pillen konvertiert OnlyOffice border-radius/Hintergruende
+// nicht; darum der Umweg ueber ein Bild.) Rueckgabe {dataUri,width,height}
+// oder null, wenn nichts gesetzt ist.
+async function metaBadgeImage(meta) {
+  const FS = 14, H = 30, R = 15, PADX = 12, CIRC = 22, CGAP = 6, PILLGAP = 8, ROWGAP = 8, MAXW = 540;
+  const estW = (t, bold) => Math.ceil([...String(t)].length * FS * (bold ? 0.66 : 0.6));
+  const txt = (x, y, t, fill, bold) =>
+    `<text x="${x}" y="${y}" font-family="DejaVu Sans, sans-serif" font-size="${FS}" fill="${fill}"`
+    + `${bold ? ' font-weight="bold"' : ""}>${escapeHtml(t)}</text>`;
+  let clipId = 0;
+
+  // Text-Pille (ToDo/Ort): Segmente erlauben fett+normal in einer Pille
+  const textPill = (segs, bg, fg) => {
+    const w = PADX * 2 + segs.reduce((s, g) => s + estW(g.t, g.bold), 0);
+    return { w, render(x, y) {
+      let tx = x + PADX; const ty = y + H / 2 + FS * 0.35;
+      let out = `<rect x="${x}" y="${y}" width="${w}" height="${H}" rx="${R}" fill="${bg}"/>`;
+      for (const g of segs) { out += txt(tx, ty, g.t, fg, g.bold); tx += estW(g.t, g.bold); }
+      return out;
+    } };
+  };
+  // Personen-Pille: Avatar (oder Initialen-Kreis) + Name
+  const personPill = (p) => {
+    const w = 5 + CIRC + CGAP + estW(p.name, false) + PADX;
+    return { w, render(x, y) {
+      const cy = y + H / 2, cx = x + 5 + CIRC / 2, id = `av${clipId++}`;
+      let out = `<rect x="${x}" y="${y}" width="${w}" height="${H}" rx="${R}" fill="#f1f3f5"/>`;
+      if (p.avatar) {
+        out += `<clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${CIRC / 2}"/></clipPath>`
+          + `<image xlink:href="${p.avatar}" x="${x + 5}" y="${cy - CIRC / 2}" width="${CIRC}" height="${CIRC}" `
+          + `preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>`;
+      } else {
+        out += `<circle cx="${cx}" cy="${cy}" r="${CIRC / 2}" fill="#2563eb"/>`
+          + `<text x="${cx}" y="${cy + FS * 0.32}" text-anchor="middle" font-family="DejaVu Sans, sans-serif" `
+          + `font-size="${FS - 2}" fill="#fff" font-weight="bold">${escapeHtml(p.initial)}</text>`;
+      }
+      out += txt(x + 5 + CIRC + CGAP, y + H / 2 + FS * 0.35, p.name, "#1a1a1a", false);
+      return out;
+    } };
+  };
+
+  const pills = [];
   if (meta.isTodo) {
     const overdue = !!meta.dueDate && meta.dueDate < new Date().toISOString().slice(0, 10);
     const [y, mo, d] = (meta.dueDate || "").split("-");
-    const due = y ? ` · fällig ${d}.${mo}.${y}` : "";
-    rows.push(`<div style="margin:.3em 0"><b style="color:${overdue ? "#991b1b" : "#92400e"}">ToDo</b>${due}</div>`);
+    const segs = [{ t: "ToDo", bold: true }];
+    if (y) segs.push({ t: ` · fällig ${d}.${mo}.${y}`, bold: false });
+    pills.push(textPill(segs, overdue ? "#fdecec" : "#fef3c7", overdue ? "#991b1b" : "#92400e"));
   }
-  const known = (meta.people.known || [])
-    .map((u) => { const x = users.get(u); return x ? x.display_name : null; }).filter(Boolean);
-  const people = known.concat(meta.people.extra || []);
-  if (people.length) rows.push(`<div style="margin:.3em 0"><b>Personen:</b> ${escapeHtml(people.join(", "))}</div>`);
-  if (meta.ort) rows.push(`<div style="margin:.3em 0"><b>Ort:</b> ${escapeHtml(meta.ort)}</div>`);
-  return rows.length
-    ? `<div style="margin-top:1.6em;padding-top:.7em;border-top:1px solid #d0d5dd;font-size:10.5pt;color:#475467">${rows.join("")}</div>`
-    : "";
+  for (const uname of (meta.people.known || [])) {
+    const u = users.get(uname); if (!u) continue; // geloeschte Nutzer auslassen
+    let avatar = null;
+    if (avatars.has(uname)) {
+      try { avatar = "data:image/png;base64," + fs.readFileSync(avatars.pathFor(uname)).toString("base64"); } catch (e) { /* dann Initiale */ }
+    }
+    pills.push(personPill({ name: u.display_name, avatar, initial: (u.display_name.trim()[0] || "?").toUpperCase() }));
+  }
+  for (const n of (meta.people.extra || []))
+    pills.push(personPill({ name: n, avatar: null, initial: (n.trim()[0] || "?").toUpperCase() }));
+  if (meta.ort) pills.push(textPill([{ t: "Ort: ", bold: true }, { t: meta.ort, bold: false }], "#f1f3f5", "#1a1a1a"));
+
+  if (!pills.length) return null;
+
+  // Flow-Layout: Pillen fliessen nebeneinander und brechen bei MAXW um
+  let x = 0, y = 0, totalW = 0;
+  const placed = [];
+  for (const pill of pills) {
+    if (x > 0 && x + pill.w > MAXW) { y += H + ROWGAP; x = 0; }
+    placed.push({ pill, x, y });
+    x += pill.w + PILLGAP;
+    totalW = Math.max(totalW, x - PILLGAP);
+  }
+  const W = Math.ceil(totalW) + 2, Hgt = y + H + 2;
+  const body = placed.map((pl) => pl.pill.render(pl.x + 1, pl.y + 1)).join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${Hgt}">${body}</svg>`;
+  const png = await sharp(Buffer.from(svg)).png().toBuffer();
+  return { dataUri: "data:image/png;base64," + png.toString("base64"), width: W, height: Hgt };
 }
 
 // Notiz-HTML rendern und in ein vollstaendiges Dokument mit dezentem Print-Stil
 // verpacken (OnlyOffice interpretiert semantisches HTML + einfache CSS-Regeln).
-// metaHtml haengt die Metadaten-Badges unten an (siehe pdfMetaHtml).
-function pdfHtmlDoc(md, metaHtml) {
+// badge (optional) haengt die Metadaten-Badges als Bild unten unter einer
+// Trennlinie an.
+function pdfHtmlDoc(md, badge) {
   const body = marked.parse(md);
+  const meta = badge
+    ? `<div style="margin-top:1.4em;padding-top:.8em;border-top:1px solid #e5e7eb">`
+      + `<img src="${badge.dataUri}" width="${badge.width}" height="${badge.height}"/></div>`
+    : "";
   return `<!doctype html><html><head><meta charset="utf-8"><title>Notiz</title>
 <style>
 body{font-family:'Segoe UI',Arial,sans-serif;font-size:11pt;color:#1a1a1a;line-height:1.5;margin:0}
@@ -153,7 +219,7 @@ pre{background:#f6f8fa;padding:.6em .8em;border-radius:6px} pre code{background:
 blockquote{margin:.6em 0;padding:.2em .9em;border-left:3px solid #ccc;color:#555}
 table{border-collapse:collapse;margin:.6em 0} th,td{border:1px solid #ccc;padding:.3em .6em}
 a{color:#2563eb} img{max-width:100%}
-</style></head><body>${body}${metaHtml || ""}</body></html>`;
+</style></head><body>${body}${meta}</body></html>`;
 }
 
 // kurzlebiger Speicher der Quell-HTML (nur waehrend der Konvertierung); der
@@ -193,18 +259,22 @@ router.get("/notes/pdf-file/:id", (req, res) => {
 });
 
 // Notiz als PDF: rendert -> konvertiert -> oeffnet im OnlyOffice-PDF-Viewer.
-// Besitzer und Freigaben (auch nur-lesen) duerfen das.
-router.get("/notes/pdf/:owner/*", loginRequired, (req, res) => {
+// Besitzer und Freigaben (auch nur-lesen) duerfen das. Der Pfad liegt bewusst
+// unter /edit/, damit die Wrapper-App (Voltage) den OnlyOffice-Kontext erkennt
+// und ihren "Zurueck zur Liste"-Knopf zeigt (wie beim normalen Datei-Oeffnen).
+router.get("/edit/notepdf/:owner/*", loginRequired, async (req, res) => {
   const owner = req.params.owner, fid = req.params[0];
   if (!accessFor(req.session.user, owner, fid)) return res.sendStatus(404);
   let md;
   try { md = fs.readFileSync(pathFor(owner, fid), "utf8"); } catch (e) { return res.sendStatus(404); }
   const name = titleOf(md);
 
-  // 1) Quell-HTML (inkl. Metadaten-Badges) kurzlebig signiert bereitstellen
+  // 1) Quell-HTML (inkl. grafischer Metadaten-Badges) kurzlebig bereitstellen
   const srcId = crypto.randomUUID().replace(/-/g, "");
   const srcExp = Math.floor(Date.now() / 1000) + 60;
-  const html = pdfHtmlDoc(md, pdfMetaHtml(notemeta.get(owner, fid)));
+  let badge = null;
+  try { badge = await metaBadgeImage(notemeta.get(owner, fid)); } catch (e) { console.error("Badge-Bild fehlgeschlagen:", e.message); }
+  const html = pdfHtmlDoc(md, badge);
   pdfSources.set(srcId, { html, expires: Date.now() + 60000 });
   prune(pdfSources);
   const srcUrl = `${HOST_INTERNAL}${BASE}/notes/pdf-src/${srcId}`
