@@ -76,6 +76,17 @@ router.get("/notes/meta/:owner/*", loginRequired, (req, res) => {
   res.json(notemeta.get(owner, fid));
 });
 
+// Position eines Notiz-Icons auf dem "Desktop" merken (je Betrachter)
+router.post("/notes/desktop", loginRequired, express.json(), (req, res) => {
+  const b = req.body || {};
+  const owner = String(b.owner || ""), filename = String(b.filename || "");
+  const x = Number(b.x), y = Number(b.y);
+  if (!owner || !filename || !Number.isFinite(x) || !Number.isFinite(y)) return res.sendStatus(400);
+  if (!accessFor(req.session.user, owner, filename)) return res.sendStatus(404);
+  notemeta.setDesktopPos(req.session.user, owner, filename, x, y);
+  res.sendStatus(204);
+});
+
 // Speichern einer bestehenden Notiz: Besitzer oder Bearbeiten-Freigabe.
 // Aendert der BESITZER die Titelzeile, wird die Datei umbenannt (UUID bleibt)
 // und die Freigaben ziehen mit um.

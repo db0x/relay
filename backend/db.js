@@ -52,6 +52,28 @@ function db() {
       ort      TEXT,
       PRIMARY KEY (owner, filename)
     );
+
+    -- Frei platzierbare Notiz-Icons auf der Dateiliste ("Desktop"). Position
+    -- ist je BETRACHTER (username) und Notiz (owner/filename) — jeder Nutzer
+    -- hat sein eigenes Layout (notemeta.js: Desktop-Funktionen).
+    CREATE TABLE IF NOT EXISTS note_desktop (
+      username TEXT NOT NULL,
+      owner    TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      x        REAL NOT NULL,
+      y        REAL NOT NULL,
+      PRIMARY KEY (username, owner, filename)
+    );
+
+    -- Frei verschiebbare UI-Elemente je Nutzer (z.B. key='page' fuer die
+    -- Dokumentenliste). notemeta.js: getLayout/setLayout.
+    CREATE TABLE IF NOT EXISTS desktop_layout (
+      username TEXT NOT NULL,
+      key      TEXT NOT NULL,
+      x        REAL NOT NULL,
+      y        REAL NOT NULL,
+      PRIMARY KEY (username, key)
+    );
   `);
   // Migration fuer Bestands-Datenbanken: is_admin und locked kamen spaeter dazu
   const cols = _db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);

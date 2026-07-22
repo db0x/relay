@@ -65,6 +65,29 @@ function todoFor(owner, relpath, isNote) {
   };
 }
 
+// Notiz-Icons fuer den "Desktop" (freie Bereiche neben der Liste): alle als
+// ToDo markierten Notizen — eigene UND geteilte — global (ordnerunabhaengig),
+// jeweils mit gemerkter Position (falls der Nutzer das Icon verschoben hat).
+function desktopNotesFor(me) {
+  const posRows = notemeta.desktopPositions(me);
+  const posOf = (owner, filename) => {
+    const r = posRows.find((p) => p.owner === owner && p.filename === filename);
+    return r ? { x: r.x, y: r.y } : null;
+  };
+  const out = [];
+  const add = (owner, filename, canedit) => {
+    if (!/\.md$/i.test(filename) || !fs.existsSync(pathFor(owner, filename))) return;
+    out.push({ owner, relpath: filename, label: labelFor(filename), canedit, pos: posOf(owner, filename) });
+  };
+  // eigene ToDo-Notizen (alle Ordner)
+  notemeta.listTodos(me).forEach((rel) => add(me, rel, true));
+  // an mich freigegebene ToDo-Notizen
+  shares.listForUser(me).forEach((s) => {
+    if (notemeta.get(s.owner, s.filename).isTodo) add(s.owner, s.filename, s.perm === "edit");
+  });
+  return out;
+}
+
 // zurueck in den Ordner, aus dem eine Aktion kam (Formulare schicken `dir` mit)
 function redirectDir(req, res) {
   const d = securePath(req.body && req.body.dir || "");
@@ -190,6 +213,10 @@ router.get("/", loginRequired, (req, res) => {
     columns,
     crumbs,
     curDir: cur,
+    // frei platzierbare Notiz-Icons neben der Liste (ordnerunabhaengig sichtbar)
+    desktopNotes: desktopNotesFor(me),
+    // gemerkte Position der frei verschiebbaren Dokumentenliste (oder null)
+    pageLayout: notemeta.getLayout(me, "page"),
     allDirs: walkDirs(userDir).sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" })),
     user: req.session.name,
     me,
@@ -228,6 +255,17 @@ router.get("/", loginRequired, (req, res) => {
     }),
     api_token: row.api_token,
   });
+});
+
+// Position eines frei verschiebbaren UI-Elements merken (aktuell nur die
+// Dokumentenliste, key="page") — je Nutzer
+router.post("/desktop/layout", loginRequired, express.json(), (req, res) => {
+  const b = req.body || {};
+  const key = String(b.key || "");
+  const x = Number(b.x), y = Number(b.y);
+  if (key !== "page" || !Number.isFinite(x) || !Number.isFinite(y)) return res.sendStatus(400);
+  notemeta.setLayout(req.session.user, key, x, y);
+  res.sendStatus(204);
 });
 
 // --- Freigaben verwalten (nur eigene Dateien) ------------------------

@@ -15,29 +15,48 @@
 }
 
 *{box-sizing:border-box}
-html{background:var(--bg)}
+/* Desktop-Hintergrundbild (hinter Karte + Notiz-Icons); var(--bg) als Fallback */
+html{
+  background:var(--bg) url(../img/background/desktop.jpg) center/cover fixed no-repeat;
+}
 body{
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
+  margin:0;min-height:100vh;background:transparent;color:var(--ink);
   line-height:1.45;
 }
 
-/* Karte, die den Seiteninhalt hält */
+/* Karte mit dem Seiteninhalt — frei verschiebbar (position + Ziehen: index.js).
+   Position wird von index.js gesetzt (Default zentriert unter der Titelleiste);
+   max-height + overflow, damit lange Listen INNERHALB der Karte scrollen und
+   sie nicht aus dem Viewport waechst. */
 .page{
-  width:min(840px,calc(100% - 32px));margin:28px auto;background:var(--card);
+  position:fixed;z-index:10;top:96px;
+  /* Default ungefaehr zentriert (JS setzt danach die genaue/gemerkte Position;
+     so blitzt die Karte nicht kurz oben-links auf) */
+  left:max(16px, (100vw - min(840px, 100vw - 32px)) / 2);
+  width:min(840px,calc(100% - 32px));
+  max-height:calc(100vh - 112px);overflow:auto;
+  background:var(--card);
   border:1px solid var(--line);border-radius:var(--radius);
   box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
   padding:24px 26px 28px;
+  cursor:move; /* leere Bereiche = Greif-Flaeche zum Verschieben */
 }
+.page.dragging{user-select:none}
+/* interaktive Inhalte behalten ihren normalen Cursor (nicht den move-Cursor) */
+.page a,.page button,.page summary,.page label,.page .fname,.page .crumb{cursor:pointer}
+.page input,.page select,.page textarea{cursor:auto}
 
 /* Titelleiste als voller Streifen über die ganze Breite */
 .topbar{
   position:sticky;top:0;z-index:30;
-  display:flex;justify-content:space-between;align-items:center;
+  display:flex;justify-content:space-between;align-items:center;gap:1rem;
   background:var(--card);border-bottom:1px solid var(--line);
-  padding:.7rem clamp(16px,4vw,36px);
+  padding:.5rem clamp(16px,4vw,36px);
   box-shadow:0 1px 3px rgba(16,24,40,.06);
 }
+/* Brand + Werkzeugleiste zusammen links; Nutzer bleibt rechts */
+.topbar-left{display:flex;align-items:center;gap:clamp(.6rem,2vw,1.5rem);min-width:0}
 .brand{
   display:flex;align-items:center;gap:.55em;font-size:1.2rem;font-weight:650;
   color:inherit;text-decoration:none;cursor:pointer;
@@ -139,18 +158,19 @@ body{
 .grow{flex:1;min-width:140px}
 
 /* Werkzeugleiste (Neu / Hochladen / Ordner) */
+/* Werkzeugleiste sitzt jetzt in der Titelleiste — kompakt, ohne eigenen Kasten */
 .toolbar{
-  display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:22px;
-  background:#f7f8fa;border:1px solid var(--line);border-radius:var(--radius-sm);padding:.7rem;
+  display:flex;gap:.35rem;align-items:center;
 }
-.create-group{display:flex;gap:.5rem}
+.create-group{display:flex;gap:.1rem}
 /* Erstellen: pure Icons statt Buttons — beim Hover hebt sich das gewaehlte
    Icon ab (leichter Zoom + Untergrund), damit die Auswahl sichtbar ist */
 .create-btn{
-  width:56px;height:56px;padding:0;border:0;background:none;cursor:pointer;
-  display:grid;place-items:center;border-radius:12px;
+  width:40px;height:40px;padding:0;border:0;background:none;cursor:pointer;
+  display:grid;place-items:center;border-radius:10px;
   transition:background .12s ease;
 }
+.create-btn img{width:30px;height:30px}
 /* WICHTIG: der Zoom liegt auf dem .create-zoom-Wrapper (Icon + Plus-Overlay
    als EINE Einheit), NICHT auf dem Button — ein transform auf dem Button
    machte ihn zum Bezugsrahmen fuer position:fixed und wuerde den
@@ -164,22 +184,23 @@ body{
 /* Plus-Overlay unten rechts, im Stil des Avatar-Stifts — auf dem Wrapper,
    damit es den Hover-Zoom mitmacht */
 .create-zoom::after{
-  content:"";position:absolute;right:-4px;bottom:-2px;width:20px;height:20px;
+  content:"";position:absolute;right:-4px;bottom:-3px;width:16px;height:16px;
   border-radius:50%;border:1px solid var(--line);
-  background:#fff url(../img/add.svg) center/13px 13px no-repeat;
+  background:#fff url(../img/add.svg) center/10px 10px no-repeat;
   box-shadow:0 1px 3px rgba(16,24,40,.18);pointer-events:none;
 }
 .create-btn:hover .create-zoom::after,
 .create-btn:focus-visible .create-zoom::after{background-color:#f2f4f7}
 .create-btn:hover,.create-btn:focus-visible{background:var(--line-soft)}
-.tool-sep{width:1px;align-self:stretch;background:var(--line);margin:0 .35rem}
-/* rechtsbuendig neben "Neuer Ordner": margin-left:auto schiebt beide nach rechts */
-.upload-form{display:flex;align-items:center;margin-left:auto}
+.tool-sep{width:1px;height:26px;background:var(--line);margin:0 .3rem;flex:0 0 auto}
+.upload-form{display:flex;align-items:center}
 
 /* Notiz-Editor: modaler Dialog, fuellt die Seite zu 90% in alle Richtungen.
    Doppelklasse: die spaeter definierte .dialog-Basisregel (width 380px)
    wuerde die Breite sonst zuruecksetzen. */
-.dialog.dialog-note{width:56vw;height:56vh;max-width:none;max-height:none}
+/* padding-bottom:0 (statt der 1.1rem der .dialog-Basis): die Fuss-Abstaende
+   steuert allein die note-form, damit alle vertikalen Abstaende gleich sind */
+.dialog.dialog-note{width:56vw;height:56vh;max-width:none;max-height:none;padding-bottom:0}
 /* Bearbeiten-Modus: skalierbar ueber eine eigene, unsichtbare Griffecke
    unten rechts (kein CSS resize:both — dessen UA-Marker laesst sich nicht
    ueberall ausblenden). Verschieben am Kopf. Logik in index.js. */
@@ -208,9 +229,13 @@ body{
 .note-view-actions{position:absolute;top:.15rem;right:.4rem;z-index:2;display:flex;gap:.25rem}
 .note-view-actions .iconbtn[hidden]{display:none}
 .dialog-note[open]{display:flex;flex-direction:column}
+/* Ein einheitlicher vertikaler Abstand (--note-gap) fuer ALLE Zonen-Abstaende:
+   Vorschau|Metadaten|Fuss und die Trennlinien liegen dadurch gleichmaessig.
+   Der Fuss-Abstand nach unten = padding-bottom (Dialog-Padding ist 0). */
 .note-form{
-  flex:1;min-height:0;display:flex;flex-direction:column;gap:.6rem;
-  padding:.9rem;
+  --note-gap:.7rem;
+  flex:1;min-height:0;display:flex;flex-direction:column;gap:var(--note-gap);
+  padding:.9rem .9rem var(--note-gap);
 }
 /* zweispaltig: Editor links, Live-Vorschau rechts — je 50% */
 .note-main{flex:1;min-height:0;display:flex;gap:.9rem}
@@ -282,7 +307,7 @@ body{
    drei sichtbar getrennte Bereiche: Editor/Vorschau | Metadaten | Fuss */
 .note-foot{
   display:flex;justify-content:space-between;align-items:center;gap:.9rem;
-  padding-top:.6rem;border-top:1px solid var(--line);flex:0 0 auto;
+  padding-top:var(--note-gap);border-top:1px solid var(--line);flex:0 0 auto;
 }
 .note-status{color:var(--danger);font-size:.85rem;min-height:1.2em}
 /* Kompaktes, horizontales Edit-Panel: Gruppen fliessen in einer Zeile und
@@ -291,7 +316,9 @@ body{
    Editor/Vorschau (oben) und Fuss-Zeile (unten), beidseitig mit Trennlinie */
 .note-details{
   display:flex;flex-wrap:wrap;align-items:center;gap:.45rem 1rem;
-  padding:.55rem 0;border-top:1px solid var(--line);flex:0 0 auto;
+  /* padding-top = Abstand Trennlinie->Inhalt; nach unten sorgt die note-form-
+     gap fuer den gleichen Abstand zur Fuss-Trennlinie (kein doppeltes Padding) */
+  padding:var(--note-gap) 0 0;border-top:1px solid var(--line);flex:0 0 auto;
 }
 /* [hidden] hat als Attribut-Selektor dieselbe Spezifitaet wie eine
    Klasse — ohne diese Regel wuerde die eigene display:flex-Regel oben
@@ -405,6 +432,34 @@ body{
 .md-render img{max-width:100%}
 .md-render a{color:var(--brand)}
 .md-render hr{border:0;border-top:1px solid var(--line);margin:1em 0}
+
+/* Frei platzierbare Notiz-Icons ("Desktop") neben der Liste --------------
+   Overlay-Ebene ueber die ganze Seite, laesst Klicks durch (pointer-events:
+   none); nur die Icons selbst fangen Zeiger ab. Unter der Topbar (z-index 30)
+   und den Dialogen (60), aber ueber der Seite. */
+.note-desktop{position:fixed;inset:0;z-index:20;pointer-events:none}
+.note-desk{
+  position:fixed;pointer-events:auto;
+  display:flex;flex-direction:column;align-items:center;gap:3px;width:76px;
+  padding:5px 2px;border:0;border-radius:10px;background:none;
+  cursor:grab;touch-action:none;font:inherit;
+  transition:background .12s ease;
+}
+/* grauer Overlay-Hover funktioniert auf hellem UND dunklem Hintergrund */
+.note-desk:hover{background:rgba(127,127,127,.16)}
+.note-desk.dragging{cursor:grabbing;opacity:.85}
+.note-desk img{
+  width:46px;height:46px;display:block;pointer-events:none;
+  filter:drop-shadow(0 2px 4px rgba(16,24,40,.3));
+}
+/* Label als halbtransparenter weisser Chip mit dunklem Text -> lesbar auf
+   hellem App-Hintergrund wie auf dunklem (Voltage-)Fensterhintergrund */
+.note-desk-label{
+  max-width:76px;font-size:.71rem;line-height:1.4;text-align:center;
+  color:var(--ink);background:rgba(255,255,255,.82);
+  padding:0 6px;border-radius:6px;box-shadow:0 1px 2px rgba(16,24,40,.14);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;
+}
 
 /* Hover-Vorschau einer Notiz in der Dateiliste: fixes Kaertchen unterm Namen,
    gleiches Fade-Muster wie die Tooltips; Ueberlanges wird unten abgeschnitten */
@@ -810,6 +865,15 @@ a.crumb:hover{text-decoration:underline}
 .reset-form{margin:0;align-self:flex-end}
 .tokhint{color:var(--muted);font-size:.8em}
 .tokhint code{background:#eef1f5;padding:.05em .35em;border-radius:5px}
+
+/* Enge Titelleiste: Text der Aktions-Buttons weg (Icon + data-tip bleiben),
+   damit die Werkzeugleiste neben Brand und Nutzer nicht ueberlaeuft */
+@media (max-width:900px){
+  .toolbar .tool-label{display:none}
+}
+@media (max-width:600px){
+  .topbar .uname{display:none}       /* Nutzername weg; Avatar + Menue bleiben */
+}
 
 @media (max-width:560px){
   .page{padding:18px 16px 22px}

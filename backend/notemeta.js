@@ -36,13 +36,47 @@ function set(owner, filename, { isTodo, dueDate, people, ort }) {
   ).run(owner, filename, isTodo ? 1 : 0, dueDate || null, JSON.stringify({ known, extra }), ort || null);
 }
 
-// Datei wurde umbenannt/verschoben: Meta zeigt auf den neuen Pfad
+// Datei wurde umbenannt/verschoben: Meta UND Desktop-Positionen ziehen mit um
 function rename(owner, from, to) {
   db().prepare("UPDATE note_meta SET filename=? WHERE owner=? AND filename=?").run(to, owner, from);
+  db().prepare("UPDATE note_desktop SET filename=? WHERE owner=? AND filename=?").run(to, owner, from);
 }
 
+// Notiz geloescht: Meta UND alle Desktop-Positionen (jedes Nutzers) entfernen
 function remove(owner, filename) {
   db().prepare("DELETE FROM note_meta WHERE owner=? AND filename=?").run(owner, filename);
+  db().prepare("DELETE FROM note_desktop WHERE owner=? AND filename=?").run(owner, filename);
 }
 
-module.exports = { get, set, rename, remove };
+// Dateinamen aller ToDo-Notizen eines Besitzers (fuer die Desktop-Icons)
+function listTodos(owner) {
+  return db().prepare("SELECT filename FROM note_meta WHERE owner=? AND is_todo=1")
+    .all(owner).map((r) => r.filename);
+}
+
+// --- Desktop-Positionen der Notiz-Icons (je Betrachter) -----------------
+function desktopPositions(username) {
+  return db().prepare("SELECT owner, filename, x, y FROM note_desktop WHERE username=?").all(username);
+}
+function setDesktopPos(username, owner, filename, x, y) {
+  db().prepare(
+    `INSERT INTO note_desktop (username, owner, filename, x, y) VALUES (?,?,?,?,?)
+     ON CONFLICT(username, owner, filename) DO UPDATE SET x=excluded.x, y=excluded.y`
+  ).run(username, owner, filename, x, y);
+}
+
+// --- Freie Position anderer UI-Elemente je Nutzer (key -> x,y) -----------
+function getLayout(username, key) {
+  const r = db().prepare("SELECT x, y FROM desktop_layout WHERE username=? AND key=?").get(username, key);
+  return r ? { x: r.x, y: r.y } : null;
+}
+function setLayout(username, key, x, y) {
+  db().prepare(
+    `INSERT INTO desktop_layout (username, key, x, y) VALUES (?,?,?,?)
+     ON CONFLICT(username, key) DO UPDATE SET x=excluded.x, y=excluded.y`
+  ).run(username, key, x, y);
+}
+
+module.exports = {
+  get, set, rename, remove, listTodos, desktopPositions, setDesktopPos, getLayout, setLayout,
+};
