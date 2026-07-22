@@ -49,6 +49,11 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   // fid als kurzer Hash: der Key erlaubt kein "/", und Pfad + Nutzer + mtime
   // koennten die 128-Zeichen-Grenze des DocumentServers sprengen
   const fidHash = crypto.createHash("sha256").update(fid).digest("hex").slice(0, 16);
+  // Retry nach einem Ladehaenger (edit.js haengt "?relay-retry" an): FRISCHER,
+  // einmaliger Key -> umgeht den evtl. kaputten DS-Cache/Session-Zustand des
+  // normalen mtime-Keys. Erst nach dem ~5s-Speicherfenster (Watchdog wartet
+  // laenger) -> die Datei hat dann den aktuellen Stand, kein Datenverlust.
+  const retrySuffix = req.query["relay-retry"] ? "-r" + crypto.randomBytes(4).toString("hex") : "";
   // Avatare: absolute, signierte URLs — der Editor-iframe laeuft je nach Setup
   // auf fremder Origin (Port-Setup) und der Browser schickt dorthin keine
   // Session-Cookies. Host aus dem Request: darueber hat der Browser uns erreicht.
@@ -60,7 +65,7 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
       // key stabil pro Inhalts-Version: gleichzeitige Editoren teilen die Session
       // (Co-Editing), aendert sich nach Save. Nutzer im Key: gleiche Dateinamen
       // verschiedener Nutzer duerfen sich im DS-Cache nicht vermischen.
-      key: `${secureFilename(uid)}-${fidHash}-${mtime}`,
+      key: `${secureFilename(uid)}-${fidHash}-${mtime}${retrySuffix}`,
       title: path.basename(fid),
       url: src,
       // Nur-Lesen-Freigaben: der DocumentServer erzwingt das, weil die ganze
