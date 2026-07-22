@@ -7,6 +7,11 @@
 // schliessenden Session — der DS lehnt ab und der Editor bliebe stumm im
 // Lade-Skelett haengen. Ein einmaliger Reload holt die Config mit frischem
 // Key; hilft auch das nicht, gibt es eine sichtbare Meldung statt des Skeletts.
+//
+// Watchdog: manchmal haengt der Editor STILL im Skelett, ohne onError/
+// onOutdatedVersion zu feuern (~15% der Oeffnungen) — dann greift die
+// Event-Behandlung nicht. Bleibt onDocumentReady zu lange aus, loesen wir
+// denselben einmaligen Reload aus (was der Nutzer sonst von Hand macht).
 (function () {
   var retryKey = "relay-edit-retry:" + location.pathname;
 
@@ -66,14 +71,35 @@
   var cfg = JSON.parse(document.getElementById("editor-config").textContent);
   // alle Nutzer (id, name, image) fuer onRequestUsers — kommt vom Backend
   var relayUsers = JSON.parse(document.getElementById("relay-users").textContent);
+
+  // Watchdog gegen stille Ladehaenger: feuert onDocumentReady nicht binnen
+  // WATCHDOG_MS, gilt der Start als haengen geblieben -> einmaliger Reload.
+  // 25s ist grosszuegig genug, dass es normale (auch groessere) Ladevorgaenge
+  // nie faelschlich abbricht.
+  var WATCHDOG_MS = 25000;
+  var watchdog = setTimeout(function () {
+    watchdog = null;
+    retryOnce("Der Editor blieb im Ladebildschirm hängen.");
+  }, WATCHDOG_MS);
+  function stopWatchdog() { if (watchdog) { clearTimeout(watchdog); watchdog = null; } }
+
+  function restartWatchdog(ms) { stopWatchdog(); watchdog = setTimeout(function () {
+    watchdog = null; retryOnce("Der Editor blieb im Ladebildschirm hängen.");
+  }, ms); }
+
   cfg.events = {
-    // Editor laeuft -> ein etwaiger Retry-Marker ist erledigt
-    onDocumentReady: function () { sessionStorage.removeItem(retryKey); },
+    // Editor laeuft -> Watchdog stoppen und Retry-Marker aufraeumen
+    onDocumentReady: function () { stopWatchdog(); sessionStorage.removeItem(retryKey); },
+    // Anwendung geladen, aber Dokument evtl. noch nicht -> Fenster verkuerzen,
+    // damit ein Doc-Ladehaenger schneller erkannt wird (statt bis 25s zu warten)
+    onAppReady: function () { if (watchdog) restartWatchdog(12000); },
     // Datei wurde nach dem Rendern dieser Seite gespeichert -> Key veraltet
     onOutdatedVersion: function () {
+      stopWatchdog();
       retryOnce("Das Dokument wurde zwischenzeitlich gespeichert.");
     },
     onError: function (e) {
+      stopWatchdog();
       var detail = e && e.data && e.data.errorDescription;
       retryOnce("Das Dokument konnte nicht geöffnet werden" +
         (detail ? ": " + detail : "."));
