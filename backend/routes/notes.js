@@ -17,7 +17,7 @@ const users = require("../users");
 const avatars = require("../avatars");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, pathFor } = require("../storage");
-const { BASE, DS_INTERNAL, HOST_INTERNAL, PUBLIC_DS, JWT_SECRET, FILE_SECRET, EDITOR_THEME } = require("../config");
+const { BASE, DS_INTERNAL, HOST_INTERNAL, PUBLIC_DS, JWT_SECRET, FILE_SECRET, EDITOR_THEME, dsFetchUrl } = require("../config");
 const { loginRequired } = require("./auth");
 
 marked.setOptions({ gfm: true, breaks: true });
@@ -311,8 +311,8 @@ router.get("/edit/notepdf/:owner/*", loginRequired, async (req, res) => {
       try { j = JSON.parse(d); } catch (e) { /* Fehlerzweig unten */ }
       if (!j || !j.fileUrl) { console.error("PDF-Konvertierung fehlgeschlagen:", d); return res.sendStatus(502); }
       // 3) PDF-Bytes aus dem DS-Cache holen und kurzlebig puffern
-      const pu = new URL(j.fileUrl);
-      http.get(DS_INTERNAL + pu.pathname + (pu.search || ""), (pr) => {
+      // dsFetchUrl: Host->DS_INTERNAL und "/ds"-Praefix (nginx) entfernen
+      http.get(dsFetchUrl(j.fileUrl), (pr) => {
         if (pr.statusCode !== 200) { pr.resume(); return res.sendStatus(502); }
         const chunks = [];
         pr.on("data", (c) => chunks.push(c));

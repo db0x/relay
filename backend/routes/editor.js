@@ -11,7 +11,7 @@ const users = require("../users");
 const avatars = require("../avatars");
 const { accessFor } = require("../access");
 const { secureFilename, encPath, securePath, dirFor, pathFor, walkFiles } = require("../storage");
-const { PUBLIC_DS, HOST_INTERNAL, DS_INTERNAL, JWT_SECRET, FILE_SECRET, DOCTYPE, BASE, EDITOR_THEME } = require("../config");
+const { PUBLIC_DS, HOST_INTERNAL, DS_INTERNAL, JWT_SECRET, FILE_SECRET, DOCTYPE, BASE, EDITOR_THEME, dsFetchUrl } = require("../config");
 const { loginRequired } = require("./auth");
 
 const router = express.Router();
@@ -172,9 +172,17 @@ router.post("/callback/:uid/*", express.json(), (req, res) => {
   const status = data.status;
   // 2 = alle raus, speichern;  6 = ForceSave/Autosave waehrend Bearbeitung
   if (status === 2 || status === 6) {
-    const u = new URL(data.url);
-    const fetchUrl = DS_INTERNAL + u.pathname + (u.search || "");
+    const fetchUrl = dsFetchUrl(data.url); // Host->DS_INTERNAL, "/ds"-Praefix weg
     http.get(fetchUrl, (r) => {
+      // KRITISCH: nur bei 200 speichern. Sonst (z.B. 404 "Cannot GET ...")
+      // die Datei NICHT ueberschreiben — sonst landet die Fehlerseite als
+      // Inhalt (Datenverlust). error:1 -> der DS behaelt die Session/versucht
+      // erneut, der Inhalt geht nicht verloren.
+      if (r.statusCode !== 200) {
+        r.resume(); // Body verwerfen
+        console.error("callback: DS-Download HTTP", r.statusCode, "-", fetchUrl);
+        return res.json({ error: 1 });
+      }
       const chunks = [];
       r.on("data", (c) => chunks.push(c));
       r.on("end", () => {
@@ -189,7 +197,7 @@ router.post("/callback/:uid/*", express.json(), (req, res) => {
           res.json({ error: 1 });
         }
       });
-    }).on("error", () => res.json({ error: 1 }));
+    }).on("error", (e) => { console.error("callback fetch error:", e.message); res.json({ error: 1 }); });
     return;
   }
   res.json({ error: 0 });

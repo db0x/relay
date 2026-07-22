@@ -12,13 +12,34 @@ base = base.replace(/\/+$/, "");
 // DS-Start als maxDownloadBytes gesetzt; MAX_UPLOAD_MB wird daran gekappt
 const maxFileMb = Math.max(1, parseInt(process.env.MAX_FILE_MB, 10) || 512);
 
+// oeffentliche DocumentServer-URL (Browser/Editor/Cache-Links); hinter nginx
+// mit Pfad-Praefix (z.B. http://moria/ds)
+const publicDs = process.env.PUBLIC_DS_URL
+  || `http://${process.env.SERVER_HOST}:${process.env.DS_PORT || 5000}`;
+// Pfad-Praefix des DS (z.B. "/ds") — intern serviert der DS OHNE diesen Praefix
+let dsPrefix = "";
+try { dsPrefix = new URL(publicDs).pathname.replace(/\/+$/, ""); } catch (e) { /* leer */ }
+
+// Eine DS-Cache-/Callback-URL (oeffentlich) in die intern erreichbare URL
+// umschreiben: Host durch DS_INTERNAL ersetzen UND den oeffentlichen
+// Pfad-Praefix entfernen. WICHTIG fuer den Speicher-Callback: bliebe der
+// Praefix drin (z.B. /ds/cache/...), liefe der interne Abruf ins 404 — und die
+// Express-Fehlerseite ("Cannot GET ...") landete frueher als Dateiinhalt
+// (Datenverlust). Der Aufrufer MUSS zusaetzlich den HTTP-Status pruefen.
+function dsFetchUrl(dsUrl) {
+  const u = new URL(dsUrl);
+  let p = u.pathname;
+  if (dsPrefix && (p === dsPrefix || p.startsWith(dsPrefix + "/"))) {
+    p = p.slice(dsPrefix.length) || "/";
+  }
+  return process.env.DS_INTERNAL + p + (u.search || "");
+}
+
 module.exports = {
   BASE: base,
   DOCS: "/data/documents",                        // Wurzel der Nutzer-Dateien
-  // browserseitig (api.js, Editor, Cache): explizit gesetzt (z.B. http://moria/ds
-  // hinter nginx) oder aus SERVER_HOST:DS_PORT gebaut
-  PUBLIC_DS: process.env.PUBLIC_DS_URL
-    || `http://${process.env.SERVER_HOST}:${process.env.DS_PORT || 5000}`,
+  PUBLIC_DS: publicDs,
+  dsFetchUrl,
   HOST_INTERNAL: process.env.HOST_INTERNAL,       // DocumentServer -> uns
   DS_INTERNAL: process.env.DS_INTERNAL,           // uns -> DocumentServer (Cache)
   JWT_SECRET: process.env.JWT_SECRET,             // OnlyOffice-Config/Callback signieren
