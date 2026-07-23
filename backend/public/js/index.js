@@ -8,6 +8,18 @@
     if (e.persisted) location.reload();
   });
 
+  // Statusmeldungen unten mittig: nach 2,5s ausblenden und aus dem Layout
+  // nehmen (der Fade dauert .4s, danach display:none -> keine Klick-Sperre).
+  var flashTray = document.getElementById("flash-tray");
+  if (flashTray) {
+    setTimeout(function () {
+      flashTray.classList.add("flash-hide");
+      flashTray.addEventListener("transitionend", function () {
+        flashTray.hidden = true;
+      }, { once: true });
+    }, 2500);
+  }
+
   // Menüs: Topbar-Kebab + ein Kontextmenü pro Dateizeile — es ist immer
   // höchstens eins offen. Die Zeilen-Panels sind position:fixed (im
   // scrollenden Tabellen-Wrapper erzeugte absolute Positionierung
@@ -1161,6 +1173,14 @@
       layoutDeskDefaults(deskAuto);
       deskIcons.forEach(setupDeskDrag);
     }
+
+    // Karte UND Icons sind jetzt an ihrer (ggf. gemerkten) Position -> weich
+    // einblenden. Ein Frame Verzoegerung, damit die Endposition schon steht:
+    // sonst saehe man doch den Sprung von der Default-Stelle. (CSS haelt beide
+    // bis dahin auf opacity:0; ohne JS greift der scripting:none-Fallback.)
+    requestAnimationFrame(function () {
+      document.body.classList.add("desk-ready");
+    });
 
     // Standard-Platzierung ohne gemerkte Position: abwechselnd linker/rechter
     // freier Rand neben der Liste, von oben (unter der Topbar) nach unten

@@ -1,4 +1,10 @@
 <!doctype html><meta charset="utf-8"><title><%= appName %> — Dokumente</title>
+<%# Kritisch, MUSS vor dem externen CSS stehen: ohne deklariertes color-scheme
+    malt ein Dark-Mode-Browser beim Neuladen kurz seinen dunklen Standard-Canvas,
+    bevor das Hintergrundbild greift -> schwarzer Blitz. Die Grundfarbe ist der
+    Mittelton des Desktop-Bildes, damit der Moment vor dem Bild nahtlos wirkt. %>
+<meta name="color-scheme" content="light">
+<style>html{background:#375998;color-scheme:light}</style>
 <link rel="stylesheet" href="<%= base %>/static/css/index.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/vendor/codemirror.min.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/vendor/highlight-github.min.css?v=<%= v %>">
@@ -117,11 +123,17 @@
   <% }); %>
 </div>
 
-<div class="page" id="page"<% if (pageLayout) { %> data-x="<%= pageLayout.x %>" data-y="<%= pageLayout.y %>"<% } %>>
+<%# Statusmeldungen: unten mittig auf dem Desktop (nicht mehr in der
+    Datei-Karte), blenden nach 2,5s von selbst aus (index.js) %>
+<% if (flashes.length) { %>
+<div class="flash-tray" id="flash-tray" aria-live="polite">
   <% flashes.forEach(function(f){ %>
   <div class="flash <%= f[0] %>"><%= f[1] %></div>
   <% }); %>
+</div>
+<% } %>
 
+<div class="page" id="page"<% if (pageLayout) { %> data-x="<%= pageLayout.x %>" data-y="<%= pageLayout.y %>"<% } %>>
   <% if (crumbs.length > 1) { %>
   <nav class="crumbs">
     <% crumbs.forEach(function(c, i){ %>

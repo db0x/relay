@@ -42,6 +42,21 @@ body{
   padding:24px 26px 28px;
   cursor:move; /* leere Bereiche = Greif-Flaeche zum Verschieben */
 }
+/* Beim Laden positioniert index.js Karte UND Notiz-Icons erst per JS. Bis
+   dahin bleiben sie unsichtbar und blenden dann zusammen weich ein — so sieht
+   man nicht mehr, wie die Karte an der Default-Stelle auftaucht und auf ihre
+   gemerkte Position springt. body.desk-ready wird nach dem Platzieren gesetzt.
+   Ohne JS (dann kein Platzieren) sofort sichtbar lassen. */
+body:not(.desk-ready) .page,
+body:not(.desk-ready) .note-desktop{opacity:0}
+.page,.note-desktop{transition:opacity .3s ease}
+@media (scripting:none){
+  body:not(.desk-ready) .page,
+  body:not(.desk-ready) .note-desktop{opacity:1}
+}
+@media (prefers-reduced-motion:reduce){
+  .page,.note-desktop{transition:none}
+}
 .page.dragging{user-select:none}
 /* interaktive Inhalte behalten ihren normalen Cursor (nicht den move-Cursor) */
 .page a,.page button,.page summary,.page label,.page .fname,.page .crumb{cursor:pointer}
@@ -576,9 +591,28 @@ button.fname{
 .switch-label:hover{color:var(--ink)}
 
 /* Meldungen */
-.flash{padding:.6em .85em;border-radius:var(--radius-sm);margin:0 0 14px;font-size:.9em}
-.flash.ok{background:#e7f6ec;color:#166534}
-.flash.err{background:#fdecec;color:#991b1b}
+/* Statusmeldungen: unten mittig auf dem Desktop, ueber allem ausser Dialogen.
+   index.js blendet die Ablage nach 2,5s aus (Klasse .flash-hide -> Fade). */
+.flash-tray{
+  position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+  z-index:45;display:flex;flex-direction:column;gap:8px;align-items:center;
+  max-width:min(92vw,560px);pointer-events:none;
+  transition:opacity .4s ease,transform .4s ease;
+}
+.flash-tray.flash-hide{opacity:0;transform:translateX(-50%) translateY(8px)}
+/* display:flex oben schlaegt sonst das hidden-Attribut (index.js nach Fade) */
+.flash-tray[hidden]{display:none}
+.flash{
+  padding:.55em .95em;border-radius:var(--radius-sm);font-size:.9em;
+  box-shadow:0 6px 20px rgba(16,24,40,.18);
+  border:1px solid transparent;
+}
+.flash.ok{background:#e7f6ec;color:#166534;border-color:#bfe6cc}
+.flash.err{background:#fdecec;color:#991b1b;border-color:#f3c9c9}
+@media (prefers-reduced-motion:reduce){
+  .flash-tray{transition:opacity .4s ease}
+  .flash-tray.flash-hide{transform:translateX(-50%)}
+}
 
 /* Brotkrumen-Navigation in Unterordnern */
 .crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:.4em;margin:0 0 12px;font-size:.92rem}
