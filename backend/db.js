@@ -50,6 +50,7 @@ function db() {
       due_date TEXT,
       people   TEXT,
       ort      TEXT,
+      color    TEXT,   -- '#rrggbb' fuer das Notiz-Icon; NULL = Standardfarbe
       PRIMARY KEY (owner, filename)
     );
 
@@ -83,6 +84,10 @@ function db() {
     _db.exec("ALTER TABLE users ADD COLUMN locked INTEGER NOT NULL DEFAULT 0");
   if (!cols.includes("email"))
     _db.exec("ALTER TABLE users ADD COLUMN email TEXT"); // optional, NULL = nicht gepflegt
+  // note_meta.color kam mit den farbigen Notiz-Icons dazu
+  const metaCols = _db.prepare("PRAGMA table_info(note_meta)").all().map((c) => c.name);
+  if (!metaCols.includes("color"))
+    _db.exec("ALTER TABLE note_meta ADD COLUMN color TEXT");
   return _db;
 }
 

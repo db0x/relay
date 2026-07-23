@@ -309,7 +309,43 @@ body{
   display:flex;justify-content:space-between;align-items:center;gap:.9rem;
   padding-top:var(--note-gap);border-top:1px solid var(--line);flex:0 0 auto;
 }
-.note-status{color:var(--danger);font-size:.85rem;min-height:1.2em}
+/* nimmt den Platz zwischen Farbtupfer (links) und Speichern (rechts) ein */
+.note-status{color:var(--danger);font-size:.85rem;min-height:1.2em;flex:1;min-width:0}
+
+/* Farbe der Notiz, dezent als runder Farbtupfer in der Fusszeile: sichtbar
+   ist nur der Klecks (Coloris' eigener Swatch-Button), das Textfeld dahinter
+   ist der Klickfaenger — der Button selbst ist pointer-events:none. */
+.note-color{display:inline-flex;flex:0 0 auto}
+.note-color[hidden]{display:none}          /* schlaegt das display oben */
+.note-color .clr-field{
+  width:22px;height:22px;border-radius:50%;
+  background:var(--note-swatch,#fab9ff);
+  box-shadow:inset 0 0 0 1px rgba(16,24,40,.18);
+}
+/* Coloris' eigener Swatch-Knopf zeigt stur den Eingabewert — bei "Standard"
+   (leerer Wert) bliebe er transparent. Die Flaeche faerbt darum index.js
+   ueber --note-swatch, der Knopf entfaellt. */
+.note-color .clr-field button{display:none}
+/* der Hex-Wert selbst wird nicht angezeigt (color:transparent) — das Feld ist
+   nur Flaeche zum Anklicken, gefuellt von der Farbe des .clr-field darunter.
+   display:block ist wichtig: als Inline-Element saesse es auf der
+   Textgrundlinie und laege damit NICHT deckungsgleich auf dem Farbkreis. */
+.note-color-input{
+  display:block;width:22px;height:22px;
+  margin:0;padding:0;border:0;border-radius:50%;
+  background:none;color:transparent;cursor:pointer;font-size:1px;
+  outline:none;
+}
+/* Fokus als weisser Ring INNEN plus Haarlinie direkt auf der Kante — liest
+   sich als "ausgewaehlt" und kann nie versetzt wirken. Der fruehere
+   outline-Ring sass sichtbar neben dem Punkt und wirkte wie ein Fehler. */
+.note-color .clr-field:has(.note-color-input:focus-visible){
+  box-shadow:inset 0 0 0 2px #fff,0 0 0 1px rgba(16,24,40,.35);
+}
+/* Coloris an den Relay-Look angleichen (Rahmen/Radius wie bei den Tooltips) */
+.clr-picker.clr-polaroid{border:1px solid var(--line);border-radius:var(--radius-sm)}
+.clr-picker input.clr-color{font-family:inherit;border-radius:var(--radius-sm)}
+.clr-picker .clr-clear{background:var(--bg);color:var(--ink);font-family:inherit}
 /* Kompaktes, horizontales Edit-Panel: Gruppen fliessen in einer Zeile und
    brechen bei Bedarf um — bewusst NICHT jede Beschriftung auf eine eigene
    Zeile (das machte das Panel unnoetig hoch). Eigene Zone zwischen
@@ -448,7 +484,7 @@ body{
 /* grauer Overlay-Hover funktioniert auf hellem UND dunklem Hintergrund */
 .note-desk:hover{background:rgba(127,127,127,.16)}
 .note-desk.dragging{cursor:grabbing;opacity:.85}
-.note-desk img{
+.note-desk .note-ico{
   width:46px;height:46px;display:block;pointer-events:none;
   filter:drop-shadow(0 2px 4px rgba(16,24,40,.3));
 }
@@ -459,6 +495,28 @@ body{
   color:var(--ink);background:rgba(255,255,255,.82);
   padding:0 6px;border-radius:6px;box-shadow:0 1px 2px rgba(16,24,40,.14);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;
+}
+
+/* Farbige Notiz-Icons: note.svg liegt einmal als <symbol> im Dokument
+   (index.ejs), jedes Icon ist ein <use> darauf. Custom Properties erben in
+   den Schatten-Baum eines <use> hinein — nur darueber laesst sich jede
+   Instanz einzeln einfaerben (als <img> ginge es gar nicht). Ohne
+   .note-colored greifen die Standardwerte im <symbol>: das originale
+   zweifarbige Pink. Die umgeknickte Ecke wird aus der gewaehlten Farbe
+   abgeleitet, damit eine einzige Farbe pro Notiz genuegt. */
+.svg-sprite{position:absolute;width:0;height:0;overflow:hidden}
+.note-colored{
+  --note-body:var(--note-color);
+  --note-fold:color-mix(in srgb,var(--note-color) 82%,#000);
+}
+/* Bei einer DUNKLEN Farbe muss die Ecke heller werden — abdunkeln laesst sie
+   dort verschwinden. Welche Richtung noetig ist, entscheidet nicht das CSS,
+   sondern notemeta.isDark() (Server) bzw. isDarkNoteColor() (index.js) und
+   setzt diese Klasse. Ein frueherer CSS-Alleingang mit relativen Farben und
+   sign() lief nur in neueren Browsern und fiel sonst still auf "abdunkeln"
+   zurueck -> dunkle Ecken blieben unsichtbar (vom Nutzer gemeldet). */
+.note-colored.note-dark{
+  --note-fold:color-mix(in srgb,var(--note-color) 66%,#fff);
 }
 
 /* Hover-Vorschau einer Notiz in der Dateiliste: fixes Kaertchen unterm Namen,
@@ -769,7 +827,7 @@ a.crumb:hover{text-decoration:underline}
   border-bottom:1px solid var(--line);background:#f7f8fa;
   border-radius:14px 14px 0 0;
 }
-.dialog-head img{display:block;flex:0 0 auto}
+.dialog-head img,.dialog-head .note-ico{display:block;flex:0 0 auto}
 /* Titel (oft mit Dateinamen) bleibt einzeilig und kuerzt per Ellipsis —
    lange Namen duerfen den Dialog nicht horizontal aufschieben; der volle
    Titel kommt als data-tip-Tooltip (index.js, nur wenn abgeschnitten) */

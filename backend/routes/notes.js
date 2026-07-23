@@ -46,7 +46,19 @@ function metaFromBody(body) {
     dueDate: String(body.due_date || "").trim(),
     people: { known, extra },
     ort: String(body.ort || "").trim(),
+    color: noteColor(body.color),
   };
+}
+
+// Icon-Farbe: nur '#rrggbb' wird uebernommen (das Feld ist frei tippbar, der
+// Wert landet als CSS-Custom-Property im Markup). Die Standardfarbe selbst
+// wird als "" gespeichert — dann rendert das Icon sein originales zweifarbiges
+// Pink; jede andere Farbe leitet den Eck-Ton per color-mix davon ab.
+const NOTE_COLOR_DEFAULT = "#fab9ff";
+function noteColor(raw) {
+  const v = String(raw || "").trim().toLowerCase();
+  if (!/^#[0-9a-f]{6}$/.test(v) || v === NOTE_COLOR_DEFAULT) return "";
+  return v;
 }
 
 // neue Notiz: landet immer im Ordner "Notizen" (wird bei Bedarf angelegt)

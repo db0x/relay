@@ -53,15 +53,20 @@ function formatDate(ms) {
   });
 }
 
-// ToDo-Badge fuer die Dateiliste — nur fuer Notizen mit aktivem ToDo-Schalter
-function todoFor(owner, relpath, isNote) {
-  if (!isNote) return null;
+// Notiz-Angaben fuer die Dateiliste, aus EINEM Meta-Zugriff: das ToDo-Badge
+// (nur bei aktivem Schalter) und die Icon-Farbe (dieselbe wie auf dem
+// Desktop — eine Notiz sieht ueberall gleich aus). "" = Standardfarbe.
+function noteInfoFor(owner, relpath, isNote) {
+  if (!isNote) return { todo: null, noteColor: "" };
   const m = notemeta.get(owner, relpath);
-  if (!m.isTodo) return null;
   const [y, mo, d] = (m.dueDate || "").split("-");
   return {
-    dueLabel: y ? `${d}.${mo}.${y}` : "",
-    overdue: !!m.dueDate && m.dueDate < new Date().toISOString().slice(0, 10),
+    todo: m.isTodo ? {
+      dueLabel: y ? `${d}.${mo}.${y}` : "",
+      overdue: !!m.dueDate && m.dueDate < new Date().toISOString().slice(0, 10),
+    } : null,
+    noteColor: m.color || "",
+    noteDark: notemeta.isDark(m.color),
   };
 }
 
@@ -75,15 +80,19 @@ function desktopNotesFor(me) {
     return r ? { x: r.x, y: r.y } : null;
   };
   const out = [];
-  const add = (owner, filename, canedit) => {
+  const add = (owner, filename, canedit, color) => {
     if (!/\.md$/i.test(filename) || !fs.existsSync(pathFor(owner, filename))) return;
-    out.push({ owner, relpath: filename, label: labelFor(filename), canedit, pos: posOf(owner, filename) });
+    out.push({
+      owner, relpath: filename, label: labelFor(filename), canedit,
+      pos: posOf(owner, filename), color: color || "", dark: notemeta.isDark(color),
+    });
   };
   // eigene ToDo-Notizen (alle Ordner)
-  notemeta.listTodos(me).forEach((rel) => add(me, rel, true));
+  notemeta.listTodos(me).forEach((n) => add(me, n.filename, true, n.color));
   // an mich freigegebene ToDo-Notizen
   shares.listForUser(me).forEach((s) => {
-    if (notemeta.get(s.owner, s.filename).isTodo) add(s.owner, s.filename, s.perm === "edit");
+    const m = notemeta.get(s.owner, s.filename);
+    if (m.isTodo) add(s.owner, s.filename, s.perm === "edit", m.color);
   });
   return out;
 }
@@ -148,7 +157,7 @@ router.get("/", loginRequired, (req, res) => {
       owner: me, ownerName: req.session.name, isOwner: true, perm: "owner",
       shares: sh,
       availableUsers: otherUsers.filter((u) => !sh.some((s) => s.target === u.username)),
-      todo: todoFor(me, relpath, m.isNote),
+      ...noteInfoFor(me, relpath, m.isNote),
     };
   });
 
@@ -162,7 +171,7 @@ router.get("/", loginRequired, (req, res) => {
       relpath: s.filename, isDir: false,
       owner: s.owner, ownerName: s.owner_name, isOwner: false, perm: s.perm,
       shares: [], availableUsers: [],
-      todo: todoFor(s.owner, s.filename, m.isNote),
+      ...noteInfoFor(s.owner, s.filename, m.isNote),
     };
   }).filter(Boolean);
 

@@ -281,6 +281,15 @@
     var noteDue = document.getElementById("note-due");
     var noteOrt = document.getElementById("note-ort");
     var noteMetaBaseline = "";
+
+    // Farbe des Notiz-Icons — dezent als Farbtupfer in der Fusszeile, der
+    // Waehler kommt von Coloris (vendor). Leerer Wert = Standardfarbe; die
+    // steht nur im <symbol> (zweifarbiges Pink) und wird NICHT abgeleitet,
+    // deshalb gilt hier wie im Backend: das Standard-Pink zaehlt als "".
+    var NOTE_COLOR_DEFAULT = "#fab9ff";
+    var noteColorInput = document.getElementById("note-color");
+    var noteColorWrap = document.getElementById("note-color-wrap");
+    var noteDlgIco = document.getElementById("note-dlg-ico");
     var noteDetails = document.getElementById("note-details");
     var noteViewSummary = document.getElementById("note-view-summary");
     var noteSummaryHasContent = false;
@@ -532,8 +541,77 @@
         isTodo: noteTodo.checked, dueDate: noteTodo.checked ? noteDue.value : "",
         people: peopleChips.map(function (c) { return c.username || ("~" + c.name); }),
         ort: noteOrt.value,
+        color: noteColorValue(),
       });
     }
+
+    // --- Notiz-Farbe -------------------------------------------------------
+    // Das Feld ist frei tippbar -> nur '#rrggbb' zaehlt; die Standardfarbe
+    // selbst wird als "" gefuehrt (gleiche Regel wie noteColor() im Backend).
+    function noteColorValue() {
+      var v = (noteColorInput.value || "").trim().toLowerCase();
+      return (/^#[0-9a-f]{6}$/.test(v) && v !== NOTE_COLOR_DEFAULT) ? v : "";
+    }
+
+    // Ist die Farbe dunkel? Dann muss die umgeknickte Ecke des Icons AUFGEHELLT
+    // werden statt abgedunkelt (sonst ist sie auf dunkler Flaeche unsichtbar).
+    // Mass ist die wahrgenommene Helligkeit (OKLCH-L), nicht der RGB-Mittelwert.
+    // ACHTUNG: Zwilling im Backend — isDark() in notemeta.js, gleiche Schwelle.
+    function isDarkNoteColor(hex) {
+      if (!/^#[0-9a-f]{6}$/i.test(hex || "")) return false;
+      var chan = function (i) {
+        var c = parseInt(hex.slice(i, i + 2), 16) / 255;
+        return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+      };
+      var r = chan(1), g = chan(3), b = chan(5);
+      var l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+      var m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+      var s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+      return 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s < 0.62;
+    }
+
+    // --note-color am Icon setzen bzw. entfernen; ohne Farbe greifen die
+    // Standardwerte aus dem <symbol>. Auch fuer die Desktop-Icons nutzbar.
+    function paintNoteIcon(el, hex) {
+      if (!el) return;
+      el.classList.toggle("note-colored", !!hex);
+      el.classList.toggle("note-dark", isDarkNoteColor(hex));
+      if (hex) el.style.setProperty("--note-color", hex);
+      else el.style.removeProperty("--note-color");
+    }
+
+    // Farbe uebernommen: das Icon im Dialogkopf zeigt sie sofort, und der
+    // Farbtupfer in der Fusszeile bekommt sie ueber --note-swatch — bei
+    // "Standard" (leerer Wert) eben die Standardfarbe (siehe index.css).
+    function onColorChanged() {
+      var hex = noteColorValue();
+      paintNoteIcon(noteDlgIco, hex);
+      noteColorWrap.style.setProperty("--note-swatch", hex || NOTE_COLOR_DEFAULT);
+    }
+
+    if (window.Coloris) {
+      Coloris({
+        el: "#note-color",
+        // Der Notiz-Dialog ist modal: im Top-Layer ist nur sein eigener
+        // Teilbaum bedienbar. Der Waehler muss deshalb IN den Dialog, sonst
+        // laege er unsichtbar/blockiert dahinter.
+        parent: "#dlg-note",
+        theme: "polaroid", themeMode: "light", margin: 6,
+        format: "hex", alpha: false, focusInput: false,
+        // ohne eigene Farbe steht der Waehler auf der Standardfarbe (nicht auf
+        // Schwarz) — von dort aus greift man am ehesten daneben
+        defaultColor: NOTE_COLOR_DEFAULT,
+        clearButton: true, clearLabel: "Standard",
+        // Voreinstellung im gleichen Pastellregister wie das Original-Pink,
+        // damit die Icons auf dem Desktop zusammen ruhig bleiben
+        swatches: ["#fab9ff", "#ffd666", "#8fd694", "#8fbcff",
+          "#ff9a8f", "#7fd8d0", "#c3a6ff", "#c9ced6"],
+      });
+    }
+    noteColorInput.addEventListener("input", function () {
+      onColorChanged();
+      onNoteChange();
+    });
 
     if (window.marked) marked.use({ gfm: true, breaks: true });
 
@@ -631,8 +709,12 @@
       // selbst (das Panel im Lese-Modus zeigt nur an, aendert nichts)
       var metaEditable = editMode && noteCanEdit;
       noteTodo.disabled = !metaEditable;
-      [noteDue, noteOrt, notePeopleInput].forEach(function (el) { el.disabled = !metaEditable; });
+      [noteDue, noteOrt, notePeopleInput, noteColorInput]
+        .forEach(function (el) { el.disabled = !metaEditable; });
       if (!metaEditable) hidePeopleDropdown();
+      // Farbtupfer ist ein Bedienelement -> nur beim Bearbeiten; im Lese-Modus
+      // zeigt das Icon im Dialogkopf die Farbe ohnehin an
+      noteColorWrap.hidden = !metaEditable;
       // Formular nur beim Bearbeiten sichtbar, Lese-Zusammenfassung nur im
       // Lese-Modus UND nur, wenn es ueberhaupt etwas zu zeigen gibt
       noteDetails.hidden = !editMode;
@@ -649,6 +731,11 @@
     // Dialog sonst symmetrisch wachsen und der Griff der Maus davonlaufen.
     // Kein Sprung: left/top = aktuelle Position; setNoteMode zentriert wieder.
     function pinNote() {
+      // Der Farbwaehler haengt an einer festen Position im Dialog — beim
+      // Verschieben/Skalieren wanderte er sonst nicht mit. (Er schliesst sonst
+      // bei jedem Klick von selbst; hier unterdrueckt das preventDefault des
+      // Ziehens aber das mousedown, auf das Coloris dafuer hoert.)
+      if (window.Coloris) Coloris.close();
       var r = noteDlg.getBoundingClientRect();
       noteDlg.style.left = r.left + "px";
       noteDlg.style.top = r.top + "px";
@@ -714,7 +801,7 @@
     }
 
     function openNote(title, content, action, canEdit, startEdit, meta) {
-      meta = meta || { isTodo: false, dueDate: "", people: { known: [], extra: [] }, ort: "" };
+      meta = meta || { isTodo: false, dueDate: "", people: { known: [], extra: [] }, ort: "", color: "" };
       ensureNoteEditor();
       noteCanEdit = canEdit;
       noteTitleEl.textContent = title;
@@ -752,6 +839,8 @@
       noteDue.value = meta.dueDate || "";
       updateDueVisibility();
       noteOrt.value = meta.ort || "";
+      noteColorInput.value = meta.color || "";
+      onColorChanged();
       noteMetaBaseline = metaSnapshot();
 
       // Lese-Zusammenfassung aus denselben Daten bauen, dann erst den Modus
