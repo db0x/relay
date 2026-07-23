@@ -8,6 +8,11 @@
     if (e.persisted) location.reload();
   });
 
+  // Wird in der noteDlg-Closure gesetzt (bindet Hover-Vorschau + Klick der
+  // .note-open-Elemente). Aussen sichtbar, damit die AJAX-Navigation die
+  // frisch getauschten Listen-Notizen erneut binden kann.
+  var bindNoteOpenFn = null;
+
   // Statusmeldungen unten mittig: nach 2,5s ausblenden und aus dem Layout
   // nehmen (der Fade dauert .4s, danach display:none -> keine Klick-Sperre).
   var flashTray = document.getElementById("flash-tray");
@@ -31,28 +36,34 @@
       b.setAttribute("aria-expanded", "false");
     });
   }
-  document.querySelectorAll(".menu-btn, .row-menu-btn").forEach(function (btn) {
-    var panel = btn.parentElement.querySelector(".menu-panel");
-    if (!panel) return;
-    btn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      var willOpen = panel.hidden;
-      closeMenus();
-      if (!willOpen) return;
-      panel.hidden = false;
-      btn.setAttribute("aria-expanded", "true");
-      if (panel.classList.contains("row-menu-panel")) {
-        var r = btn.getBoundingClientRect();
-        var top = r.bottom + 6;
-        if (top + panel.offsetHeight > window.innerHeight - 8)
-          top = Math.max(8, r.top - panel.offsetHeight - 6);
-        panel.style.top = top + "px";
-        panel.style.left = Math.max(8, r.right - panel.offsetWidth) + "px";
-        panel.style.right = "auto"; // Basisregel .menu-panel setzt right:0
-      }
+  // Menue-Knoepfe (Topbar-Kebab + Zeilen-Kebab) verdrahten. root-skopiert, damit
+  // nach einem Ordnerwechsel (swapFolder) nur die neuen Zeilen-Knoepfe gebunden
+  // werden — der Topbar-Kebab bleibt ausserhalb #page und behaelt seine Bindung.
+  function bindMenuButtons(root) {
+    root.querySelectorAll(".menu-btn, .row-menu-btn").forEach(function (btn) {
+      var panel = btn.parentElement.querySelector(".menu-panel");
+      if (!panel) return;
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var willOpen = panel.hidden;
+        closeMenus();
+        if (!willOpen) return;
+        panel.hidden = false;
+        btn.setAttribute("aria-expanded", "true");
+        if (panel.classList.contains("row-menu-panel")) {
+          var r = btn.getBoundingClientRect();
+          var top = r.bottom + 6;
+          if (top + panel.offsetHeight > window.innerHeight - 8)
+            top = Math.max(8, r.top - panel.offsetHeight - 6);
+          panel.style.top = top + "px";
+          panel.style.left = Math.max(8, r.right - panel.offsetWidth) + "px";
+          panel.style.right = "auto"; // Basisregel .menu-panel setzt right:0
+        }
+      });
+      panel.addEventListener("click", function (e) { e.stopPropagation(); });
     });
-    panel.addEventListener("click", function (e) { e.stopPropagation(); });
-  });
+  }
+  bindMenuButtons(document);
   document.addEventListener("click", closeMenus);
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
@@ -64,9 +75,12 @@
   // von ihrer Zeile trennen -> einfach schliessen
   window.addEventListener("scroll", closeMenus, true);
   // Klick auf einen Menüpunkt (Download-Link, Löschen ...) schließt das Menü
-  document.querySelectorAll(".row-menu-panel .menu-item").forEach(function (item) {
-    item.addEventListener("click", closeMenus);
-  });
+  function bindRowMenuItemClose(root) {
+    root.querySelectorAll(".row-menu-panel .menu-item").forEach(function (item) {
+      item.addEventListener("click", closeMenus);
+    });
+  }
+  bindRowMenuItemClose(document);
 
   // Dialoge oeffnen nicht-modal (show statt showModal): showModal legt sie in
   // den Top-Layer des Browsers, ueber den eine umgebende Wrapper-App (z.B.
@@ -82,22 +96,28 @@
     if (!dlg.open) dlg.show();
     if (dlgBackdrop) dlgBackdrop.classList.add("open");
   }
-  document.querySelectorAll("dialog.dialog").forEach(function (d) {
-    d.addEventListener("close", function () {
-      var i = dlgStack.indexOf(d);
-      if (i !== -1) dlgStack.splice(i, 1);
-      if (!dlgStack.length && dlgBackdrop) dlgBackdrop.classList.remove("open");
+  function bindDialogClose(root) {
+    root.querySelectorAll("dialog.dialog").forEach(function (d) {
+      d.addEventListener("close", function () {
+        var i = dlgStack.indexOf(d);
+        if (i !== -1) dlgStack.splice(i, 1);
+        if (!dlgStack.length && dlgBackdrop) dlgBackdrop.classList.remove("open");
+      });
     });
-  });
+  }
+  bindDialogClose(document);
 
   // Menüpunkte mit data-dialog öffnen den passenden <dialog>
-  document.querySelectorAll("[data-dialog]").forEach(function (item) {
-    item.addEventListener("click", function () {
-      var dlg = document.getElementById(item.dataset.dialog);
-      if (dlg) openDlg(dlg);
-      closeMenus();
+  function bindDataDialog(root) {
+    root.querySelectorAll("[data-dialog]").forEach(function (item) {
+      item.addEventListener("click", function () {
+        var dlg = document.getElementById(item.dataset.dialog);
+        if (dlg) openDlg(dlg);
+        closeMenus();
+      });
     });
-  });
+  }
+  bindDataDialog(document);
 
   // Symbol-Buttons "Neue Datei": Dateityp übernehmen, Titel anpassen, Dialog öffnen
   var createDlg = document.getElementById("dlg-create");
@@ -230,34 +250,40 @@
       el.style.removeProperty("--tip-y");
     }, 150);
   }
-  document.querySelectorAll("[data-tip], .share-badge").forEach(function (el) {
-    el.addEventListener("mouseenter", function () { placeTip(el); });
-    el.addEventListener("focus", function () { placeTip(el); });
-    el.addEventListener("mouseleave", function () { clearTip(el); });
-    el.addEventListener("blur", function () { clearTip(el); });
-  });
-
-  // Lange Dateinamen (Liste) und Dialog-Titel sind per Ellipsis gekuerzt (CSS);
-  // der volle Text erscheint als Tooltip — aber nur, wenn wirklich abgeschnitten
-  document.querySelectorAll(".fname:not(.note-open), .dialog-head h2").forEach(function (el) {
-    el.addEventListener("mouseenter", function () {
-      if (el.scrollWidth > el.clientWidth) {
-        el.dataset.tip = el.textContent.trim().replace(/\s+/g, " ");
-        placeTip(el);
-      } else {
-        delete el.dataset.tip;
-      }
+  // root-skopiert: nach einem Ordnerwechsel nur die neuen Listen-Elemente binden;
+  // Topbar-/Dialog-Tooltips ausserhalb #page behalten ihre Bindung vom Erststart.
+  function bindTips(root) {
+    root.querySelectorAll("[data-tip], .share-badge").forEach(function (el) {
+      el.addEventListener("mouseenter", function () { placeTip(el); });
+      el.addEventListener("focus", function () { placeTip(el); });
+      el.addEventListener("mouseleave", function () { clearTip(el); });
+      el.addEventListener("blur", function () { clearTip(el); });
     });
-    el.addEventListener("mouseleave", function () { clearTip(el); });
-  });
+    // Lange Dateinamen (Liste) und Dialog-Titel sind per Ellipsis gekuerzt (CSS);
+    // der volle Text erscheint als Tooltip — aber nur, wenn wirklich abgeschnitten
+    root.querySelectorAll(".fname:not(.note-open), .dialog-head h2").forEach(function (el) {
+      el.addEventListener("mouseenter", function () {
+        if (el.scrollWidth > el.clientWidth) {
+          el.dataset.tip = el.textContent.trim().replace(/\s+/g, " ");
+          placeTip(el);
+        } else {
+          delete el.dataset.tip;
+        }
+      });
+      el.addEventListener("mouseleave", function () { clearTip(el); });
+    });
+  }
+  bindTips(document);
 
   // Fusszeilen-Filter: "Nur eigene Dateien" blendet die mir freigegebenen
-  // Zeilen aus; der Zustand ueberlebt im localStorage
-  var ownOnly = document.getElementById("own-only");
-  if (ownOnly) {
-    var OWN_KEY = "relay-own-only";
+  // Zeilen aus; der Zustand ueberlebt im localStorage. root-skopiert, weil der
+  // Filter (und die Fusszeile) beim Ordnerwechsel neu aus der Liste kommen.
+  var OWN_KEY = "relay-own-only";
+  function bindOwnOnly(root) {
+    var ownOnly = root.querySelector("#own-only");
+    if (!ownOnly) return;
     var applyOwnFilter = function () {
-      document.querySelectorAll("tr.row-foreign").forEach(function (row) {
+      root.querySelectorAll("tr.row-foreign").forEach(function (row) {
         row.hidden = ownOnly.checked;
       });
       localStorage.setItem(OWN_KEY, ownOnly.checked ? "1" : "0");
@@ -266,6 +292,7 @@
     ownOnly.addEventListener("change", applyOwnFilter);
     applyOwnFilter();
   }
+  bindOwnOnly(document);
 
   // Notizen: Markdown-Editor (CodeMirror mit Markdown-Highlighting) als
   // grosser modaler Dialog, rechts eine Live-Vorschau (marked -> DOMPurify ->
@@ -1004,7 +1031,11 @@
       if (noteTip) noteTip.classList.remove("open");
     }
     window.addEventListener("scroll", hideNoteTip, true);
-    document.querySelectorAll(".note-open").forEach(function (btn) {
+    // Hover-Vorschau + Klick-Oeffnen der .note-open (Listenzeilen UND
+    // Desktop-Icons). root-skopiert: nach einem Ordnerwechsel bindet
+    // swapFolder nur die neuen Listenzeilen; die Icons behalten ihre Bindung.
+    function bindNoteOpen(root) {
+    root.querySelectorAll(".note-open").forEach(function (btn) {
       btn.addEventListener("mouseleave", hideNoteTip);
       btn.addEventListener("mouseenter", function () {
         if (!noteTip || !window.marked || !window.DOMPurify) return;
@@ -1061,7 +1092,7 @@
       });
     });
 
-    document.querySelectorAll(".note-open").forEach(function (btn) {
+    root.querySelectorAll(".note-open").forEach(function (btn) {
       btn.addEventListener("click", function () {
         hideNoteTip();
         var rel = btn.dataset.rel.split("/").map(encodeURIComponent).join("/");
@@ -1085,6 +1116,9 @@
           });
       });
     });
+    } // Ende bindNoteOpen
+    bindNoteOpen(document);
+    bindNoteOpenFn = bindNoteOpen; // fuer die AJAX-Navigation (swapFolder)
 
     // Untergrenze fuer alle frei platzierten Elemente: unter der Titelleiste,
     // damit nichts hinter ihr verschwindet
@@ -1348,18 +1382,23 @@
   // × und Escape schließen nur den Dialog.
   var confirmDlg = document.getElementById("dlg-confirm");
   var confirmPending = null;
-  document.querySelectorAll("form[data-confirm]").forEach(function (form) {
-    form.addEventListener("submit", function (e) {
-      if (!confirmDlg) { // Sicherheitsnetz, falls der Dialog mal fehlt
-        if (!window.confirm(form.dataset.confirm)) e.preventDefault();
-        return;
-      }
-      e.preventDefault();
-      confirmPending = form;
-      document.getElementById("dlg-confirm-text").textContent = form.dataset.confirm;
-      openDlg(confirmDlg);
+  // root-skopiert: Loeschen-Formulare (Zeilenmenue) und Freigabe-entziehen
+  // (Freigabe-Dialog) kommen beim Ordnerwechsel neu und muessen erneut binden.
+  function bindConfirmForms(root) {
+    root.querySelectorAll("form[data-confirm]").forEach(function (form) {
+      form.addEventListener("submit", function (e) {
+        if (!confirmDlg) { // Sicherheitsnetz, falls der Dialog mal fehlt
+          if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+          return;
+        }
+        e.preventDefault();
+        confirmPending = form;
+        document.getElementById("dlg-confirm-text").textContent = form.dataset.confirm;
+        openDlg(confirmDlg);
+      });
     });
-  });
+  }
+  bindConfirmForms(document);
   if (confirmDlg) {
     document.getElementById("dlg-confirm-cancel").addEventListener("click", function () {
       confirmDlg.close();
@@ -1372,5 +1411,88 @@
       confirmPending = null;
     });
     confirmDlg.addEventListener("close", function () { confirmPending = null; });
+  }
+
+  // --- AJAX-Ordnernavigation --------------------------------------------
+  // Ordnerwechsel, Breadcrumb und Sortierung tauschen nur die Liste (#page-
+  // Innenteil) und die Zeilen-Dialoge (#row-dialogs) aus. Titelleiste,
+  // Hintergrund, die Karte selbst und die Notiz-Icons bleiben stehen -> kein
+  // Neuaufbau, kein erneutes Einblenden, und schneller. #page/#row-dialogs
+  // bleiben als Container erhalten; nur ihr innerHTML wird ersetzt.
+  var pageEl = document.getElementById("page");
+  var rowDialogsEl = document.getElementById("row-dialogs");
+  if (pageEl && rowDialogsEl) {
+    var listPath = new URL(noteBaseUrl + "/").pathname; // BASE + "/"
+    var navToken = 0;
+
+    // Navigiert dieser Link INNERHALB der Liste (Ordner, Breadcrumb, Sort)?
+    // Nur solche fangen wir ab — /edit/ (Editor) und /download/ nicht.
+    function isListNav(a) {
+      if (!a || a.target === "_blank" || a.hasAttribute("download")) return false;
+      var u;
+      try { u = new URL(a.href); } catch (e) { return false; }
+      return u.origin === location.origin && u.pathname === listPath;
+    }
+
+    function rebindFolder() {
+      bindMenuButtons(pageEl);
+      bindRowMenuItemClose(pageEl);
+      bindDataDialog(pageEl);
+      bindTips(pageEl);
+      bindOwnOnly(pageEl);
+      if (bindNoteOpenFn) bindNoteOpenFn(pageEl);
+      bindConfirmForms(pageEl);
+      // Zeilen-Dialoge: Backdrop-Buchhaltung beim Schliessen + "Freigabe entziehen"
+      bindDialogClose(rowDialogsEl);
+      bindConfirmForms(rowDialogsEl);
+    }
+
+    function swapFolder(doc) {
+      // offene Menues/Dialoge zu, bevor ihre Knoten verschwinden
+      closeMenus();
+      while (dlgStack.length) dlgStack.pop().close();
+      if (dlgBackdrop) dlgBackdrop.classList.remove("open");
+      var newPage = doc.getElementById("page");
+      if (!newPage) return false; // kein Listen-Dokument (z.B. Login) -> Vollreload
+      var newRows = doc.getElementById("row-dialogs");
+      pageEl.innerHTML = newPage.innerHTML;
+      rowDialogsEl.innerHTML = newRows ? newRows.innerHTML : "";
+      pageEl.scrollTop = 0;
+      rebindFolder();
+      return true;
+    }
+
+    function navigateTo(url, push) {
+      var token = ++navToken;
+      fetch(url, { headers: { "X-Requested-With": "fetch" }, credentials: "same-origin" })
+        .then(function (r) {
+          if (!r.ok) throw new Error(r.status);
+          return Promise.all([r.text(), r.url]);
+        })
+        .then(function (res) {
+          if (token !== navToken) return; // eine neuere Navigation hat uebernommen
+          var doc = new DOMParser().parseFromString(res[0], "text/html");
+          if (!swapFolder(doc)) { location.assign(url); return; }
+          if (push) history.pushState({ relayNav: true }, "", res[1] || url);
+          var t = doc.querySelector("title");
+          if (t) document.title = t.textContent;
+        })
+        .catch(function () { location.assign(url); }); // Fehler -> normale Navigation
+    }
+
+    // Delegation auf dem BLEIBENDEN #page -> ueberlebt jeden innerHTML-Tausch
+    pageEl.addEventListener("click", function (e) {
+      if (e.defaultPrevented || e.button !== 0
+        || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target.closest("a");
+      if (!isListNav(a)) return;
+      e.preventDefault();
+      navigateTo(a.href, true);
+    });
+    // Ausgangs-URL in die History, damit der erste Zurueck-Schritt hierher fuehrt
+    history.replaceState({ relayNav: true }, "", location.href);
+    window.addEventListener("popstate", function () {
+      navigateTo(location.href, false);
+    });
   }
 })();

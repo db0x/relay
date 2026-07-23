@@ -1,6 +1,6 @@
 {
   "name": "relay-backend",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "Relay - Familien-Dokumentenserver auf OnlyOffice (Login, Dateien pro Nutzer, Freigaben, Datei-API)",
   "license": "AGPL-3.0-only",
   "main": "app.js",

@@ -273,6 +273,11 @@
          ausserhalb: .page ist position:fixed und damit ein Stacking-Context;
          innerhalb wuerden Dialoge/Tooltips unter die Notiz-Icons/Topbar gedrueckt %>
 
+  <%# Pro-Datei-Dialoge (Freigeben/Verschieben) sind ordnerabhaengig und werden
+      beim Ordnerwechsel zusammen mit der Liste ausgetauscht (index.js: swapFolder).
+      Eigener Container -> gezielt ersetzbar; schlichtes div ohne Position aendert
+      nichts am Stacking (Dialoge nutzen show(), kein showModal). %>
+  <div id="row-dialogs">
   <% files.forEach(function(f, i){ if (!f.isOwner || f.isDir) return; %>
   <dialog id="dlg-share-<%= i %>" class="dialog">
     <header class="dialog-head">
@@ -356,6 +361,7 @@
     <% } %>
   </dialog>
   <% }); %>
+  </div><%# Ende #row-dialogs %>
 
   <%# Hover-Vorschau fuer Notizen in der Dateiliste (index.js befuellt) %>
   <div class="note-tip md-render" id="note-tip" aria-hidden="true"></div>
