@@ -50,7 +50,30 @@ function db() {
       due_date TEXT,
       people   TEXT,
       ort      TEXT,
+      color    TEXT,   -- '#rrggbb' fuer das Notiz-Icon; NULL = Standardfarbe
       PRIMARY KEY (owner, filename)
+    );
+
+    -- Frei platzierbare Notiz-Icons auf der Dateiliste ("Desktop"). Position
+    -- ist je BETRACHTER (username) und Notiz (owner/filename) — jeder Nutzer
+    -- hat sein eigenes Layout (notemeta.js: Desktop-Funktionen).
+    CREATE TABLE IF NOT EXISTS note_desktop (
+      username TEXT NOT NULL,
+      owner    TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      x        REAL NOT NULL,
+      y        REAL NOT NULL,
+      PRIMARY KEY (username, owner, filename)
+    );
+
+    -- Frei verschiebbare UI-Elemente je Nutzer (z.B. key='page' fuer die
+    -- Dokumentenliste). notemeta.js: getLayout/setLayout.
+    CREATE TABLE IF NOT EXISTS desktop_layout (
+      username TEXT NOT NULL,
+      key      TEXT NOT NULL,
+      x        REAL NOT NULL,
+      y        REAL NOT NULL,
+      PRIMARY KEY (username, key)
     );
   `);
   // Migration fuer Bestands-Datenbanken: is_admin und locked kamen spaeter dazu
@@ -61,6 +84,10 @@ function db() {
     _db.exec("ALTER TABLE users ADD COLUMN locked INTEGER NOT NULL DEFAULT 0");
   if (!cols.includes("email"))
     _db.exec("ALTER TABLE users ADD COLUMN email TEXT"); // optional, NULL = nicht gepflegt
+  // note_meta.color kam mit den farbigen Notiz-Icons dazu
+  const metaCols = _db.prepare("PRAGMA table_info(note_meta)").all().map((c) => c.name);
+  if (!metaCols.includes("color"))
+    _db.exec("ALTER TABLE note_meta ADD COLUMN color TEXT");
   return _db;
 }
 

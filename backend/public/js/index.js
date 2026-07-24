@@ -8,6 +8,23 @@
     if (e.persisted) location.reload();
   });
 
+  // Wird in der noteDlg-Closure gesetzt (bindet Hover-Vorschau + Klick der
+  // .note-open-Elemente). Aussen sichtbar, damit die AJAX-Navigation die
+  // frisch getauschten Listen-Notizen erneut binden kann.
+  var bindNoteOpenFn = null;
+
+  // Statusmeldungen unten mittig: nach 2,5s ausblenden und aus dem Layout
+  // nehmen (der Fade dauert .4s, danach display:none -> keine Klick-Sperre).
+  var flashTray = document.getElementById("flash-tray");
+  if (flashTray) {
+    setTimeout(function () {
+      flashTray.classList.add("flash-hide");
+      flashTray.addEventListener("transitionend", function () {
+        flashTray.hidden = true;
+      }, { once: true });
+    }, 2500);
+  }
+
   // Menüs: Topbar-Kebab + ein Kontextmenü pro Dateizeile — es ist immer
   // höchstens eins offen. Die Zeilen-Panels sind position:fixed (im
   // scrollenden Tabellen-Wrapper erzeugte absolute Positionierung
@@ -19,28 +36,34 @@
       b.setAttribute("aria-expanded", "false");
     });
   }
-  document.querySelectorAll(".menu-btn, .row-menu-btn").forEach(function (btn) {
-    var panel = btn.parentElement.querySelector(".menu-panel");
-    if (!panel) return;
-    btn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      var willOpen = panel.hidden;
-      closeMenus();
-      if (!willOpen) return;
-      panel.hidden = false;
-      btn.setAttribute("aria-expanded", "true");
-      if (panel.classList.contains("row-menu-panel")) {
-        var r = btn.getBoundingClientRect();
-        var top = r.bottom + 6;
-        if (top + panel.offsetHeight > window.innerHeight - 8)
-          top = Math.max(8, r.top - panel.offsetHeight - 6);
-        panel.style.top = top + "px";
-        panel.style.left = Math.max(8, r.right - panel.offsetWidth) + "px";
-        panel.style.right = "auto"; // Basisregel .menu-panel setzt right:0
-      }
+  // Menue-Knoepfe (Topbar-Kebab + Zeilen-Kebab) verdrahten. root-skopiert, damit
+  // nach einem Ordnerwechsel (swapFolder) nur die neuen Zeilen-Knoepfe gebunden
+  // werden — der Topbar-Kebab bleibt ausserhalb #page und behaelt seine Bindung.
+  function bindMenuButtons(root) {
+    root.querySelectorAll(".menu-btn, .row-menu-btn").forEach(function (btn) {
+      var panel = btn.parentElement.querySelector(".menu-panel");
+      if (!panel) return;
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var willOpen = panel.hidden;
+        closeMenus();
+        if (!willOpen) return;
+        panel.hidden = false;
+        btn.setAttribute("aria-expanded", "true");
+        if (panel.classList.contains("row-menu-panel")) {
+          var r = btn.getBoundingClientRect();
+          var top = r.bottom + 6;
+          if (top + panel.offsetHeight > window.innerHeight - 8)
+            top = Math.max(8, r.top - panel.offsetHeight - 6);
+          panel.style.top = top + "px";
+          panel.style.left = Math.max(8, r.right - panel.offsetWidth) + "px";
+          panel.style.right = "auto"; // Basisregel .menu-panel setzt right:0
+        }
+      });
+      panel.addEventListener("click", function (e) { e.stopPropagation(); });
     });
-    panel.addEventListener("click", function (e) { e.stopPropagation(); });
-  });
+  }
+  bindMenuButtons(document);
   document.addEventListener("click", closeMenus);
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
@@ -52,9 +75,12 @@
   // von ihrer Zeile trennen -> einfach schliessen
   window.addEventListener("scroll", closeMenus, true);
   // Klick auf einen Menüpunkt (Download-Link, Löschen ...) schließt das Menü
-  document.querySelectorAll(".row-menu-panel .menu-item").forEach(function (item) {
-    item.addEventListener("click", closeMenus);
-  });
+  function bindRowMenuItemClose(root) {
+    root.querySelectorAll(".row-menu-panel .menu-item").forEach(function (item) {
+      item.addEventListener("click", closeMenus);
+    });
+  }
+  bindRowMenuItemClose(document);
 
   // Dialoge oeffnen nicht-modal (show statt showModal): showModal legt sie in
   // den Top-Layer des Browsers, ueber den eine umgebende Wrapper-App (z.B.
@@ -70,22 +96,28 @@
     if (!dlg.open) dlg.show();
     if (dlgBackdrop) dlgBackdrop.classList.add("open");
   }
-  document.querySelectorAll("dialog.dialog").forEach(function (d) {
-    d.addEventListener("close", function () {
-      var i = dlgStack.indexOf(d);
-      if (i !== -1) dlgStack.splice(i, 1);
-      if (!dlgStack.length && dlgBackdrop) dlgBackdrop.classList.remove("open");
+  function bindDialogClose(root) {
+    root.querySelectorAll("dialog.dialog").forEach(function (d) {
+      d.addEventListener("close", function () {
+        var i = dlgStack.indexOf(d);
+        if (i !== -1) dlgStack.splice(i, 1);
+        if (!dlgStack.length && dlgBackdrop) dlgBackdrop.classList.remove("open");
+      });
     });
-  });
+  }
+  bindDialogClose(document);
 
   // Menüpunkte mit data-dialog öffnen den passenden <dialog>
-  document.querySelectorAll("[data-dialog]").forEach(function (item) {
-    item.addEventListener("click", function () {
-      var dlg = document.getElementById(item.dataset.dialog);
-      if (dlg) openDlg(dlg);
-      closeMenus();
+  function bindDataDialog(root) {
+    root.querySelectorAll("[data-dialog]").forEach(function (item) {
+      item.addEventListener("click", function () {
+        var dlg = document.getElementById(item.dataset.dialog);
+        if (dlg) openDlg(dlg);
+        closeMenus();
+      });
     });
-  });
+  }
+  bindDataDialog(document);
 
   // Symbol-Buttons "Neue Datei": Dateityp übernehmen, Titel anpassen, Dialog öffnen
   var createDlg = document.getElementById("dlg-create");
@@ -218,34 +250,40 @@
       el.style.removeProperty("--tip-y");
     }, 150);
   }
-  document.querySelectorAll("[data-tip], .share-badge").forEach(function (el) {
-    el.addEventListener("mouseenter", function () { placeTip(el); });
-    el.addEventListener("focus", function () { placeTip(el); });
-    el.addEventListener("mouseleave", function () { clearTip(el); });
-    el.addEventListener("blur", function () { clearTip(el); });
-  });
-
-  // Lange Dateinamen (Liste) und Dialog-Titel sind per Ellipsis gekuerzt (CSS);
-  // der volle Text erscheint als Tooltip — aber nur, wenn wirklich abgeschnitten
-  document.querySelectorAll(".fname:not(.note-open), .dialog-head h2").forEach(function (el) {
-    el.addEventListener("mouseenter", function () {
-      if (el.scrollWidth > el.clientWidth) {
-        el.dataset.tip = el.textContent.trim().replace(/\s+/g, " ");
-        placeTip(el);
-      } else {
-        delete el.dataset.tip;
-      }
+  // root-skopiert: nach einem Ordnerwechsel nur die neuen Listen-Elemente binden;
+  // Topbar-/Dialog-Tooltips ausserhalb #page behalten ihre Bindung vom Erststart.
+  function bindTips(root) {
+    root.querySelectorAll("[data-tip], .share-badge").forEach(function (el) {
+      el.addEventListener("mouseenter", function () { placeTip(el); });
+      el.addEventListener("focus", function () { placeTip(el); });
+      el.addEventListener("mouseleave", function () { clearTip(el); });
+      el.addEventListener("blur", function () { clearTip(el); });
     });
-    el.addEventListener("mouseleave", function () { clearTip(el); });
-  });
+    // Lange Dateinamen (Liste) und Dialog-Titel sind per Ellipsis gekuerzt (CSS);
+    // der volle Text erscheint als Tooltip — aber nur, wenn wirklich abgeschnitten
+    root.querySelectorAll(".fname:not(.note-open), .dialog-head h2").forEach(function (el) {
+      el.addEventListener("mouseenter", function () {
+        if (el.scrollWidth > el.clientWidth) {
+          el.dataset.tip = el.textContent.trim().replace(/\s+/g, " ");
+          placeTip(el);
+        } else {
+          delete el.dataset.tip;
+        }
+      });
+      el.addEventListener("mouseleave", function () { clearTip(el); });
+    });
+  }
+  bindTips(document);
 
   // Fusszeilen-Filter: "Nur eigene Dateien" blendet die mir freigegebenen
-  // Zeilen aus; der Zustand ueberlebt im localStorage
-  var ownOnly = document.getElementById("own-only");
-  if (ownOnly) {
-    var OWN_KEY = "relay-own-only";
+  // Zeilen aus; der Zustand ueberlebt im localStorage. root-skopiert, weil der
+  // Filter (und die Fusszeile) beim Ordnerwechsel neu aus der Liste kommen.
+  var OWN_KEY = "relay-own-only";
+  function bindOwnOnly(root) {
+    var ownOnly = root.querySelector("#own-only");
+    if (!ownOnly) return;
     var applyOwnFilter = function () {
-      document.querySelectorAll("tr.row-foreign").forEach(function (row) {
+      root.querySelectorAll("tr.row-foreign").forEach(function (row) {
         row.hidden = ownOnly.checked;
       });
       localStorage.setItem(OWN_KEY, ownOnly.checked ? "1" : "0");
@@ -254,6 +292,7 @@
     ownOnly.addEventListener("change", applyOwnFilter);
     applyOwnFilter();
   }
+  bindOwnOnly(document);
 
   // Notizen: Markdown-Editor (CodeMirror mit Markdown-Highlighting) als
   // grosser modaler Dialog, rechts eine Live-Vorschau (marked -> DOMPurify ->
@@ -281,6 +320,15 @@
     var noteDue = document.getElementById("note-due");
     var noteOrt = document.getElementById("note-ort");
     var noteMetaBaseline = "";
+
+    // Farbe des Notiz-Icons — dezent als Farbtupfer in der Fusszeile, der
+    // Waehler kommt von Coloris (vendor). Leerer Wert = Standardfarbe; die
+    // steht nur im <symbol> (zweifarbiges Pink) und wird NICHT abgeleitet,
+    // deshalb gilt hier wie im Backend: das Standard-Pink zaehlt als "".
+    var NOTE_COLOR_DEFAULT = "#fab9ff";
+    var noteColorInput = document.getElementById("note-color");
+    var noteColorWrap = document.getElementById("note-color-wrap");
+    var noteDlgIco = document.getElementById("note-dlg-ico");
     var noteDetails = document.getElementById("note-details");
     var noteViewSummary = document.getElementById("note-view-summary");
     var noteSummaryHasContent = false;
@@ -532,8 +580,77 @@
         isTodo: noteTodo.checked, dueDate: noteTodo.checked ? noteDue.value : "",
         people: peopleChips.map(function (c) { return c.username || ("~" + c.name); }),
         ort: noteOrt.value,
+        color: noteColorValue(),
       });
     }
+
+    // --- Notiz-Farbe -------------------------------------------------------
+    // Das Feld ist frei tippbar -> nur '#rrggbb' zaehlt; die Standardfarbe
+    // selbst wird als "" gefuehrt (gleiche Regel wie noteColor() im Backend).
+    function noteColorValue() {
+      var v = (noteColorInput.value || "").trim().toLowerCase();
+      return (/^#[0-9a-f]{6}$/.test(v) && v !== NOTE_COLOR_DEFAULT) ? v : "";
+    }
+
+    // Ist die Farbe dunkel? Dann muss die umgeknickte Ecke des Icons AUFGEHELLT
+    // werden statt abgedunkelt (sonst ist sie auf dunkler Flaeche unsichtbar).
+    // Mass ist die wahrgenommene Helligkeit (OKLCH-L), nicht der RGB-Mittelwert.
+    // ACHTUNG: Zwilling im Backend — isDark() in notemeta.js, gleiche Schwelle.
+    function isDarkNoteColor(hex) {
+      if (!/^#[0-9a-f]{6}$/i.test(hex || "")) return false;
+      var chan = function (i) {
+        var c = parseInt(hex.slice(i, i + 2), 16) / 255;
+        return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+      };
+      var r = chan(1), g = chan(3), b = chan(5);
+      var l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+      var m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+      var s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+      return 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s < 0.62;
+    }
+
+    // --note-color am Icon setzen bzw. entfernen; ohne Farbe greifen die
+    // Standardwerte aus dem <symbol>. Auch fuer die Desktop-Icons nutzbar.
+    function paintNoteIcon(el, hex) {
+      if (!el) return;
+      el.classList.toggle("note-colored", !!hex);
+      el.classList.toggle("note-dark", isDarkNoteColor(hex));
+      if (hex) el.style.setProperty("--note-color", hex);
+      else el.style.removeProperty("--note-color");
+    }
+
+    // Farbe uebernommen: das Icon im Dialogkopf zeigt sie sofort, und der
+    // Farbtupfer in der Fusszeile bekommt sie ueber --note-swatch — bei
+    // "Standard" (leerer Wert) eben die Standardfarbe (siehe index.css).
+    function onColorChanged() {
+      var hex = noteColorValue();
+      paintNoteIcon(noteDlgIco, hex);
+      noteColorWrap.style.setProperty("--note-swatch", hex || NOTE_COLOR_DEFAULT);
+    }
+
+    if (window.Coloris) {
+      Coloris({
+        el: "#note-color",
+        // Der Notiz-Dialog ist modal: im Top-Layer ist nur sein eigener
+        // Teilbaum bedienbar. Der Waehler muss deshalb IN den Dialog, sonst
+        // laege er unsichtbar/blockiert dahinter.
+        parent: "#dlg-note",
+        theme: "polaroid", themeMode: "light", margin: 6,
+        format: "hex", alpha: false, focusInput: false,
+        // ohne eigene Farbe steht der Waehler auf der Standardfarbe (nicht auf
+        // Schwarz) — von dort aus greift man am ehesten daneben
+        defaultColor: NOTE_COLOR_DEFAULT,
+        clearButton: true, clearLabel: "Standard",
+        // Voreinstellung im gleichen Pastellregister wie das Original-Pink,
+        // damit die Icons auf dem Desktop zusammen ruhig bleiben
+        swatches: ["#fab9ff", "#ffd666", "#8fd694", "#8fbcff",
+          "#ff9a8f", "#7fd8d0", "#c3a6ff", "#c9ced6"],
+      });
+    }
+    noteColorInput.addEventListener("input", function () {
+      onColorChanged();
+      onNoteChange();
+    });
 
     if (window.marked) marked.use({ gfm: true, breaks: true });
 
@@ -631,8 +748,12 @@
       // selbst (das Panel im Lese-Modus zeigt nur an, aendert nichts)
       var metaEditable = editMode && noteCanEdit;
       noteTodo.disabled = !metaEditable;
-      [noteDue, noteOrt, notePeopleInput].forEach(function (el) { el.disabled = !metaEditable; });
+      [noteDue, noteOrt, notePeopleInput, noteColorInput]
+        .forEach(function (el) { el.disabled = !metaEditable; });
       if (!metaEditable) hidePeopleDropdown();
+      // Farbtupfer ist ein Bedienelement -> nur beim Bearbeiten; im Lese-Modus
+      // zeigt das Icon im Dialogkopf die Farbe ohnehin an
+      noteColorWrap.hidden = !metaEditable;
       // Formular nur beim Bearbeiten sichtbar, Lese-Zusammenfassung nur im
       // Lese-Modus UND nur, wenn es ueberhaupt etwas zu zeigen gibt
       noteDetails.hidden = !editMode;
@@ -649,6 +770,11 @@
     // Dialog sonst symmetrisch wachsen und der Griff der Maus davonlaufen.
     // Kein Sprung: left/top = aktuelle Position; setNoteMode zentriert wieder.
     function pinNote() {
+      // Der Farbwaehler haengt an einer festen Position im Dialog — beim
+      // Verschieben/Skalieren wanderte er sonst nicht mit. (Er schliesst sonst
+      // bei jedem Klick von selbst; hier unterdrueckt das preventDefault des
+      // Ziehens aber das mousedown, auf das Coloris dafuer hoert.)
+      if (window.Coloris) Coloris.close();
       var r = noteDlg.getBoundingClientRect();
       noteDlg.style.left = r.left + "px";
       noteDlg.style.top = r.top + "px";
@@ -714,7 +840,7 @@
     }
 
     function openNote(title, content, action, canEdit, startEdit, meta) {
-      meta = meta || { isTodo: false, dueDate: "", people: { known: [], extra: [] }, ort: "" };
+      meta = meta || { isTodo: false, dueDate: "", people: { known: [], extra: [] }, ort: "", color: "" };
       ensureNoteEditor();
       noteCanEdit = canEdit;
       noteTitleEl.textContent = title;
@@ -752,6 +878,8 @@
       noteDue.value = meta.dueDate || "";
       updateDueVisibility();
       noteOrt.value = meta.ort || "";
+      noteColorInput.value = meta.color || "";
+      onColorChanged();
       noteMetaBaseline = metaSnapshot();
 
       // Lese-Zusammenfassung aus denselben Daten bauen, dann erst den Modus
@@ -903,7 +1031,11 @@
       if (noteTip) noteTip.classList.remove("open");
     }
     window.addEventListener("scroll", hideNoteTip, true);
-    document.querySelectorAll(".note-open").forEach(function (btn) {
+    // Hover-Vorschau + Klick-Oeffnen der .note-open (Listenzeilen UND
+    // Desktop-Icons). root-skopiert: nach einem Ordnerwechsel bindet
+    // swapFolder nur die neuen Listenzeilen; die Icons behalten ihre Bindung.
+    function bindNoteOpen(root) {
+    root.querySelectorAll(".note-open").forEach(function (btn) {
       btn.addEventListener("mouseleave", hideNoteTip);
       btn.addEventListener("mouseenter", function () {
         if (!noteTip || !window.marked || !window.DOMPurify) return;
@@ -960,7 +1092,7 @@
       });
     });
 
-    document.querySelectorAll(".note-open").forEach(function (btn) {
+    root.querySelectorAll(".note-open").forEach(function (btn) {
       btn.addEventListener("click", function () {
         hideNoteTip();
         var rel = btn.dataset.rel.split("/").map(encodeURIComponent).join("/");
@@ -984,6 +1116,168 @@
           });
       });
     });
+    } // Ende bindNoteOpen
+    bindNoteOpen(document);
+    bindNoteOpenFn = bindNoteOpen; // fuer die AJAX-Navigation (swapFolder)
+
+    // Untergrenze fuer alle frei platzierten Elemente: unter der Titelleiste,
+    // damit nichts hinter ihr verschwindet
+    function deskMinY() {
+      var tb = document.querySelector(".topbar");
+      return (tb ? tb.getBoundingClientRect().bottom : 0) + 6;
+    }
+
+    // --- Frei verschiebbare Dokumentenliste (die .page-Karte) -------------
+    // position:fixed; index.js setzt Position (Default zentriert unter der
+    // Titelleiste) und max-height, damit lange Listen INNEN scrollen. Ziehen
+    // aus nicht-interaktiven Bereichen; Position wird gemerkt (POST /desktop/layout).
+    // MUSS vor dem Icon-Layout laufen, da dieses die Kartenposition ausliest.
+    var page = document.getElementById("page");
+    function placePage() {
+      var vw = window.innerWidth, vh = window.innerHeight, w = page.offsetWidth, minY = deskMinY();
+      var left, top;
+      if (page.dataset.x !== undefined) {
+        left = parseFloat(page.dataset.x); top = parseFloat(page.dataset.y);
+      } else {
+        left = Math.round((vw - w) / 2); top = minY + 10;
+      }
+      // stets zu einem grossen Teil sichtbar und nie hinter der Titelleiste
+      left = Math.max(140 - w, Math.min(left, vw - 140));
+      top = Math.max(minY, Math.min(top, vh - 160));
+      page.style.left = left + "px"; page.style.top = top + "px";
+      page.style.maxHeight = (vh - top - 16) + "px";
+    }
+    if (page) {
+      placePage();
+      window.addEventListener("resize", placePage);
+
+      var pageDragSkip = "a,button,input,select,textarea,label,summary,"
+        + ".fname,.row-menu,.share-badge,[data-dialog],[data-create],th .sort";
+      page.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
+        // nur aus nicht-interaktiven Flaechen ziehen (Klicks auf Inhalte bleiben)
+        if (e.target.closest(pageDragSkip)) return;
+        // interne Scrollleiste nicht als Ziehen kapern
+        if (e.clientX > page.getBoundingClientRect().right - 16) return;
+        var r = page.getBoundingClientRect();
+        var ox = e.clientX - r.left, oy = e.clientY - r.top, moved = false;
+        try { page.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+        page.classList.add("dragging");
+        function move(ev) {
+          var vw = window.innerWidth, vh = window.innerHeight, w = page.offsetWidth, minY = deskMinY();
+          var left = Math.max(140 - w, Math.min(ev.clientX - ox, vw - 140));
+          var top = Math.max(minY, Math.min(ev.clientY - oy, vh - 160));
+          page.style.left = left + "px"; page.style.top = top + "px";
+          page.style.maxHeight = (vh - top - 16) + "px";
+          moved = true;
+        }
+        function up() {
+          page.classList.remove("dragging");
+          page.removeEventListener("pointermove", move);
+          page.removeEventListener("pointerup", up);
+          page.removeEventListener("pointercancel", up);
+          if (moved) {
+            fetch(noteBaseUrl + "/desktop/layout", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ key: "page", x: parseFloat(page.style.left) || 0, y: parseFloat(page.style.top) || 0 }),
+            }).catch(function () { /* Position merken ist optional */ });
+          }
+        }
+        page.addEventListener("pointermove", move);
+        page.addEventListener("pointerup", up);
+        page.addEventListener("pointercancel", up);
+      });
+    }
+
+    // --- Frei platzierbare Notiz-Icons ("Desktop") ------------------------
+    // Die Icons sind zugleich .note-open -> Klick (oeffnen) und Hover
+    // (Vorschau) laufen ueber die Handler oben. Hier nur Position + Ziehen.
+    var deskIcons = Array.prototype.slice.call(document.querySelectorAll(".note-desk"));
+    if (deskIcons.length) {
+      var deskAuto = [];
+      deskIcons.forEach(function (icon) {
+        if (icon.dataset.x !== undefined && icon.dataset.y !== undefined) {
+          icon.style.left = icon.dataset.x + "px";
+          // gemerkte Position nie unter die Titelleiste (Altbestand absichern)
+          icon.style.top = Math.max(deskMinY(), parseFloat(icon.dataset.y)) + "px";
+        } else {
+          deskAuto.push(icon); // ohne gemerkte Position -> automatisch platzieren
+        }
+      });
+      layoutDeskDefaults(deskAuto);
+      deskIcons.forEach(setupDeskDrag);
+    }
+
+    // Karte UND Icons sind jetzt an ihrer (ggf. gemerkten) Position -> weich
+    // einblenden. Ein Frame Verzoegerung, damit die Endposition schon steht:
+    // sonst saehe man doch den Sprung von der Default-Stelle. (CSS haelt beide
+    // bis dahin auf opacity:0; ohne JS greift der scripting:none-Fallback.)
+    requestAnimationFrame(function () {
+      document.body.classList.add("desk-ready");
+    });
+
+    // Standard-Platzierung ohne gemerkte Position: abwechselnd linker/rechter
+    // freier Rand neben der Liste, von oben (unter der Topbar) nach unten
+    function layoutDeskDefaults(icons) {
+      if (!icons.length) return;
+      var page = document.querySelector(".page");
+      var pr = page ? page.getBoundingClientRect() : { left: 0, right: window.innerWidth };
+      var top0 = deskMinY() + 8;
+      var iconW = 72, stepY = 74;
+      var leftX = Math.max(6, pr.left - iconW - 14);
+      var rightX = Math.min(window.innerWidth - iconW - 6, pr.right + 14);
+      icons.forEach(function (icon, i) {
+        var side = i % 2, idx = Math.floor(i / 2);
+        icon.style.left = (side === 0 ? leftX : rightX) + "px";
+        icon.style.top = Math.min(top0 + idx * stepY, window.innerHeight - stepY) + "px";
+      });
+    }
+
+    function saveDeskPos(icon) {
+      fetch(noteBaseUrl + "/notes/desktop", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          owner: icon.dataset.owner, filename: icon.dataset.rel,
+          x: parseFloat(icon.style.left) || 0, y: parseFloat(icon.style.top) || 0,
+        }),
+      }).catch(function () { /* Position merken ist optional */ });
+    }
+
+    function setupDeskDrag(icon) {
+      var dragged = false;
+      // Klick NACH einem Drag unterdruecken (Capture-Phase laeuft vor dem
+      // .note-open-Klick; stopImmediatePropagation blockt diesen)
+      icon.addEventListener("click", function (e) {
+        if (dragged) { e.stopImmediatePropagation(); e.preventDefault(); dragged = false; }
+      }, true);
+      icon.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
+        hideNoteTip();
+        var r = icon.getBoundingClientRect();
+        var ox = e.clientX - r.left, oy = e.clientY - r.top;
+        var sx = e.clientX, sy = e.clientY, moved = false;
+        try { icon.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+        icon.classList.add("dragging");
+        function move(ev) {
+          var nx = Math.max(4, Math.min(ev.clientX - ox, window.innerWidth - icon.offsetWidth - 4));
+          // nicht unter die Titelleiste schiebbar
+          var ny = Math.max(deskMinY(), Math.min(ev.clientY - oy, window.innerHeight - icon.offsetHeight - 4));
+          icon.style.left = nx + "px"; icon.style.top = ny + "px";
+          if (Math.abs(ev.clientX - sx) > 4 || Math.abs(ev.clientY - sy) > 4) moved = true;
+        }
+        function up() {
+          icon.classList.remove("dragging");
+          icon.removeEventListener("pointermove", move);
+          icon.removeEventListener("pointerup", up);
+          icon.removeEventListener("pointercancel", up);
+          if (moved) { dragged = true; saveDeskPos(icon); }
+        }
+        icon.addEventListener("pointermove", move);
+        icon.addEventListener("pointerup", up);
+        icon.addEventListener("pointercancel", up);
+        e.preventDefault(); // kein Text-/Bild-Ziehen des Buttons
+      });
+    }
   }
 
   // Hinweis-Dialog mit einer OK-Taste (App-Design statt window.alert).
@@ -1088,29 +1382,181 @@
   // × und Escape schließen nur den Dialog.
   var confirmDlg = document.getElementById("dlg-confirm");
   var confirmPending = null;
-  document.querySelectorAll("form[data-confirm]").forEach(function (form) {
-    form.addEventListener("submit", function (e) {
-      if (!confirmDlg) { // Sicherheitsnetz, falls der Dialog mal fehlt
-        if (!window.confirm(form.dataset.confirm)) e.preventDefault();
-        return;
-      }
-      e.preventDefault();
-      confirmPending = form;
-      document.getElementById("dlg-confirm-text").textContent = form.dataset.confirm;
-      openDlg(confirmDlg);
+  // root-skopiert: Loeschen-Formulare (Zeilenmenue) und Freigabe-entziehen
+  // (Freigabe-Dialog) kommen beim Ordnerwechsel neu und muessen erneut binden.
+  function bindConfirmForms(root) {
+    root.querySelectorAll("form[data-confirm]").forEach(function (form) {
+      form.addEventListener("submit", function (e) {
+        if (!confirmDlg) { // Sicherheitsnetz, falls der Dialog mal fehlt
+          if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+          return;
+        }
+        e.preventDefault();
+        confirmPending = form;
+        document.getElementById("dlg-confirm-text").textContent = form.dataset.confirm;
+        openDlg(confirmDlg);
+      });
     });
-  });
+  }
+  bindConfirmForms(document);
   if (confirmDlg) {
     document.getElementById("dlg-confirm-cancel").addEventListener("click", function () {
       confirmDlg.close();
     });
     document.getElementById("dlg-confirm-ok").addEventListener("click", function () {
       confirmDlg.close();
+      var form = confirmPending;
+      confirmPending = null;
+      if (!form) return;
+      // form[data-ajax]: eigene Logik uebernimmt den Versand (z.B. Backup-
+      // Dialog, der offen bleiben und das Ergebnis inline zeigen will) statt
+      // der normalen vollen Seitennavigation.
+      if (form.dataset.ajax) form.dispatchEvent(new CustomEvent("relay-confirmed"));
       // submit() statt requestSubmit(): loest das submit-Event (und damit
       // diese Rueckfrage) nicht erneut aus
-      if (confirmPending) confirmPending.submit();
-      confirmPending = null;
+      else form.submit();
     });
     confirmDlg.addEventListener("close", function () { confirmPending = null; });
+  }
+
+  // --- Backup-Dialog: Formular per fetch senden, Dialog bleibt offen -----
+  // (Wartungssperre serverseitig, siehe routes/admin.js/maintenance.js) --
+  // waehrend des Laufs zeigt der Knopf "Backup läuft …", danach wird er zum
+  // "Schließen"-Knopf und das Ergebnis (Zeitpunkt, Dauer, Log) erscheint
+  // inline, statt dass man den Dialog neu oeffnen muss.
+  (function () {
+    var form = document.getElementById("backup-form");
+    var btn = document.getElementById("backup-run-btn");
+    var dlg = document.getElementById("dlg-backup");
+    if (!form || !btn || !dlg) return;
+    var result = document.getElementById("backup-result");
+    var badge = document.getElementById("backup-badge");
+    var meta = document.getElementById("backup-meta");
+    var log = document.getElementById("backup-log");
+    var running = false;
+
+    function showResult(data) {
+      result.hidden = false;
+      badge.className = "badge " + (data.ok ? "badge-ok" : "badge-err");
+      badge.textContent = data.ok ? "Erfolg" : "Fehler";
+      meta.textContent = data.atStr ? (data.atStr + " Uhr · Dauer " + data.durationStr) : "";
+      log.textContent = data.log;
+    }
+    function setDone() {
+      running = false;
+      btn.disabled = false;
+      btn.type = "button";
+      btn.textContent = "Schließen";
+    }
+    function resetButton() {
+      btn.disabled = false;
+      btn.type = "submit";
+      btn.textContent = "Backup ausführen";
+    }
+
+    btn.addEventListener("click", function () {
+      if (btn.type === "button") dlg.close();
+    });
+    // "×" oder Reopen mitten im Lauf: Knopf nur zuruecksetzen, wenn der Lauf
+    // schon fertig ist -- sonst wuerde ein zwischenzeitliches Schliessen den
+    // "Backup läuft"-Zustand verlieren, obwohl der fetch im Hintergrund weiterlaeuft.
+    dlg.addEventListener("close", function () { if (!running) resetButton(); });
+
+    form.addEventListener("relay-confirmed", function () {
+      running = true;
+      btn.disabled = true;
+      btn.textContent = "Backup läuft …";
+      fetch(form.action, { method: "POST", credentials: "same-origin",
+        headers: { "X-Requested-With": "fetch" } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) { showResult(data); setDone(); })
+        .catch(function () {
+          showResult({ ok: false, atStr: "", durationStr: "", log: "Backup fehlgeschlagen (Netzwerkfehler)." });
+          setDone();
+        });
+    });
+  })();
+
+  // --- AJAX-Ordnernavigation --------------------------------------------
+  // Ordnerwechsel, Breadcrumb und Sortierung tauschen nur die Liste (#page-
+  // Innenteil) und die Zeilen-Dialoge (#row-dialogs) aus. Titelleiste,
+  // Hintergrund, die Karte selbst und die Notiz-Icons bleiben stehen -> kein
+  // Neuaufbau, kein erneutes Einblenden, und schneller. #page/#row-dialogs
+  // bleiben als Container erhalten; nur ihr innerHTML wird ersetzt.
+  var pageEl = document.getElementById("page");
+  var rowDialogsEl = document.getElementById("row-dialogs");
+  if (pageEl && rowDialogsEl) {
+    var listPath = new URL(noteBaseUrl + "/").pathname; // BASE + "/"
+    var navToken = 0;
+
+    // Navigiert dieser Link INNERHALB der Liste (Ordner, Breadcrumb, Sort)?
+    // Nur solche fangen wir ab — /edit/ (Editor) und /download/ nicht.
+    function isListNav(a) {
+      if (!a || a.target === "_blank" || a.hasAttribute("download")) return false;
+      var u;
+      try { u = new URL(a.href); } catch (e) { return false; }
+      return u.origin === location.origin && u.pathname === listPath;
+    }
+
+    function rebindFolder() {
+      bindMenuButtons(pageEl);
+      bindRowMenuItemClose(pageEl);
+      bindDataDialog(pageEl);
+      bindTips(pageEl);
+      bindOwnOnly(pageEl);
+      if (bindNoteOpenFn) bindNoteOpenFn(pageEl);
+      bindConfirmForms(pageEl);
+      // Zeilen-Dialoge: Backdrop-Buchhaltung beim Schliessen + "Freigabe entziehen"
+      bindDialogClose(rowDialogsEl);
+      bindConfirmForms(rowDialogsEl);
+    }
+
+    function swapFolder(doc) {
+      // offene Menues/Dialoge zu, bevor ihre Knoten verschwinden
+      closeMenus();
+      while (dlgStack.length) dlgStack.pop().close();
+      if (dlgBackdrop) dlgBackdrop.classList.remove("open");
+      var newPage = doc.getElementById("page");
+      if (!newPage) return false; // kein Listen-Dokument (z.B. Login) -> Vollreload
+      var newRows = doc.getElementById("row-dialogs");
+      pageEl.innerHTML = newPage.innerHTML;
+      rowDialogsEl.innerHTML = newRows ? newRows.innerHTML : "";
+      pageEl.scrollTop = 0;
+      rebindFolder();
+      return true;
+    }
+
+    function navigateTo(url, push) {
+      var token = ++navToken;
+      fetch(url, { headers: { "X-Requested-With": "fetch" }, credentials: "same-origin" })
+        .then(function (r) {
+          if (!r.ok) throw new Error(r.status);
+          return Promise.all([r.text(), r.url]);
+        })
+        .then(function (res) {
+          if (token !== navToken) return; // eine neuere Navigation hat uebernommen
+          var doc = new DOMParser().parseFromString(res[0], "text/html");
+          if (!swapFolder(doc)) { location.assign(url); return; }
+          if (push) history.pushState({ relayNav: true }, "", res[1] || url);
+          var t = doc.querySelector("title");
+          if (t) document.title = t.textContent;
+        })
+        .catch(function () { location.assign(url); }); // Fehler -> normale Navigation
+    }
+
+    // Delegation auf dem BLEIBENDEN #page -> ueberlebt jeden innerHTML-Tausch
+    pageEl.addEventListener("click", function (e) {
+      if (e.defaultPrevented || e.button !== 0
+        || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target.closest("a");
+      if (!isListNav(a)) return;
+      e.preventDefault();
+      navigateTo(a.href, true);
+    });
+    // Ausgangs-URL in die History, damit der erste Zurueck-Schritt hierher fuehrt
+    history.replaceState({ relayNav: true }, "", location.href);
+    window.addEventListener("popstate", function () {
+      navigateTo(location.href, false);
+    });
   }
 })();

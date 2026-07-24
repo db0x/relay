@@ -13,11 +13,23 @@ const session = require("express-session");
 
 const { SESSION_SECRET, APP_NAME, BASE, VERSION } = require("./config");
 const { encPath } = require("./storage");
+const maintenance = require("./maintenance");
 
 const app = express();
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
+
+// Wartungssperre waehrend eines Backups (routes/admin.js /backup/run setzt sie):
+// blockiert WIRKLICH ALLES -- auch /static und die API -- damit rsync einen
+// konsistenten Stand kopiert. Ganz vorn, noch vor Session/Body-Parsing.
+app.use((req, res, next) => {
+  if (!maintenance.isActive()) return next();
+  if (req.path.startsWith(`${BASE}/api/`)) {
+    return res.status(503).json({ error: "backup running" });
+  }
+  res.status(503).render("maintenance", { appName: APP_NAME });
+});
 
 // statische Assets (SVGs, Bilder, CSS) aus backend/public/ unter /static.
 // no-cache + ETag: Browser/Voltage revalidieren immer (billiges 304), holen aber

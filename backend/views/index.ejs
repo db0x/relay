@@ -1,7 +1,15 @@
 <!doctype html><meta charset="utf-8"><title><%= appName %> — Dokumente</title>
+<%# Kritisch, MUSS vor dem externen CSS stehen: ohne deklariertes color-scheme
+    malt ein Dark-Mode-Browser beim Neuladen kurz seinen dunklen Standard-Canvas,
+    bevor das Hintergrundbild greift -> schwarzer Blitz. Die Grundfarbe ist der
+    Mittelton des Desktop-Bildes, damit der Moment vor dem Bild nahtlos wirkt. %>
+<meta name="color-scheme" content="light">
+<style>html{background:#375998;color-scheme:light}</style>
 <link rel="stylesheet" href="<%= base %>/static/css/index.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/vendor/codemirror.min.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/vendor/highlight-github.min.css?v=<%= v %>">
+<link rel="stylesheet" href="<%= base %>/static/vendor/coloris.min.css?v=<%= v %>">
+<script defer src="<%= base %>/static/vendor/coloris.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/vendor/codemirror.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/vendor/cm-xml.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/vendor/cm-markdown.min.js?v=<%= v %>"></script>
@@ -9,12 +17,68 @@
 <script defer src="<%= base %>/static/vendor/purify.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/vendor/highlight.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/js/index.js?v=<%= v %>"></script>
+<%# note.svg einmal als <symbol>, damit die Notiz-Icons per <use> eingebunden
+    und einzeln eingefaerbt werden koennen (als <img> ginge das nicht: dessen
+    Inhalt ist ein eigenes Dokument, das CSS des Hosts erreicht es nicht).
+    --note-body/--note-fold erben in den Schatten-Baum des <use> hinein; ohne
+    gesetzte Werte greifen die Standardwerte = das Pink der Originaldatei. %>
+<svg class="svg-sprite" width="0" height="0" aria-hidden="true" focusable="false">
+  <symbol id="note-ico" viewBox="0 0 64 64">
+    <g transform="matrix(2.8754969,0,0,3.07989,8.9960249,7.36088)">
+      <path fill="var(--note-body,#fab9ff)"
+            d="M 13.833333,0 H 2.1666669 C 1.5203329,0 0.99999994,0.5352 0.99999994,1.2 V 10 L 6.9999999,16 H 13.833333 C 14.479667,16 15,15.4648 15,14.8 V 1.2 C 15,0.5352 14.479667,0 13.833333,0 Z"/>
+      <path fill="var(--note-fold,#ff7afe)"
+            d="M 0.99999994,10 H 6.2499999 c 0.414375,0 0.75,0.335625 0.75,0.75 V 16 Z"/>
+      <g transform="translate(-1.008916,1.1659163)" fill="#ffffff">
+        <path d="M 6.2186028,7.2917672 H 7.0556964 V 5.7014077 L 7.7532742,6.4986394 8.4508533,5.7014077 V 7.2917672 H 9.2879468 V 4.5014534 H 8.4508533 L 7.7532742,5.2986851 7.0556964,4.5014534 H 6.2186028"/>
+        <path d="M 10.404072,4.5014534 V 6.175642 H 9.7064944 l 0.9766096,1.1161252 h 0.279032 L 11.938744,6.175642 H 11.241165 V 4.5014534 Z"/>
+        <path d="m 5.3940427,3.3853282 c -0.3096034,0 -0.5705967,0.2649288 -0.5705967,0.579317 V 7.828574 c 0,0.3143887 0.2609933,0.5793184 0.5705967,0.5793184 h 7.2297443 c 0.309606,0 0.570599,-0.2649297 0.570599,-0.5793184 V 3.9646452 c 0,-0.3143882 -0.260993,-0.579317 -0.570599,-0.579317 z M 5.6605395,4.2224218 H 12.357291 V 7.5707974 H 5.6605395 Z"/>
+      </g>
+    </g>
+  </symbol>
+</svg>
 <header class="topbar">
+    <div class="topbar-left">
     <%# Klick auf Logo/Name fuehrt zurueck zur Startseite ("Meine Dateien") %>
     <a class="brand" href="<%= base %>/" data-tip="Zur Startseite" aria-label="Zur Startseite">
       <img src="<%= base %>/static/img/logo.svg" alt="" width="28" height="28">
       <span><%= appName %></span>
     </a>
+    <%# Werkzeugleiste (Neu erstellen / Hochladen / Neuer Ordner) in der Titelleiste %>
+    <section class="toolbar" aria-label="Aktionen">
+      <div class="create-group" role="group" aria-label="Neue Datei erstellen">
+        <button type="button" class="create-btn" data-create="docx"
+                data-tip="Neues Textdokument" aria-label="Neues Textdokument">
+          <span class="create-zoom"><img src="<%= base %>/static/img/docx.svg" alt="" width="48" height="48"></span>
+        </button>
+        <button type="button" class="create-btn" data-create="xlsx"
+                data-tip="Neue Tabelle" aria-label="Neue Tabelle">
+          <span class="create-zoom"><img src="<%= base %>/static/img/xlsx.svg" alt="" width="48" height="48"></span>
+        </button>
+        <button type="button" class="create-btn" data-create="pptx"
+                data-tip="Neue Präsentation" aria-label="Neue Präsentation">
+          <span class="create-zoom"><img src="<%= base %>/static/img/pptx.svg" alt="" width="48" height="48"></span>
+        </button>
+        <button type="button" class="create-btn" id="note-new"
+                data-tip="Neue Notiz" aria-label="Neue Notiz">
+          <span class="create-zoom"><img src="<%= base %>/static/img/note.svg" alt="" width="48" height="48"></span>
+        </button>
+      </div>
+      <span class="tool-sep" aria-hidden="true"></span>
+      <%# ein Knopf: oeffnet die Dateiauswahl, die Auswahl laedt sofort hoch (index.js) %>
+      <form class="upload-form" action="<%= base %>/upload" method="post" enctype="multipart/form-data"
+            data-max-mb="<%= maxUploadMb %>">
+        <input type="hidden" name="dir" value="<%= curDir %>">
+        <input type="file" name="file" accept="<%= uploadAccept %>" hidden>
+        <button type="button" class="btn btn-secondary upload-btn" data-tip="Datei hochladen" aria-label="Datei hochladen">
+          <img class="btn-icon" src="<%= base %>/static/img/upload.svg" alt="" width="16" height="16"><span class="tool-label">Hochladen</span>
+        </button>
+      </form>
+      <button type="button" class="btn btn-secondary" data-dialog="dlg-mkdir" data-tip="Neuer Ordner" aria-label="Neuer Ordner">
+        <img class="btn-icon" src="<%= base %>/static/img/folder.svg" alt="" width="16" height="16"><span class="tool-label">Neuer Ordner</span>
+      </button>
+    </section>
+    </div>
     <div class="user">
       <% if (hasAvatar) { %>
       <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="32" height="32">
@@ -30,6 +94,7 @@
           <% if (isAdmin) { %>
           <button type="button" class="menu-item" data-dialog="dlg-users">Nutzerverwaltung</button>
           <button type="button" class="menu-item" data-dialog="dlg-settings">Einstellungen</button>
+          <button type="button" class="menu-item" data-dialog="dlg-backup">Backup</button>
           <% } %>
           <a class="menu-item" href="<%= base %>/logout">Abmelden</a>
           <div class="menu-version">Relay v<%= version %></div>
@@ -38,45 +103,38 @@
     </div>
   </header>
 
-<div class="page">
+<%# Frei platzierbare Notiz-Icons ("Desktop") — liegen als fixe Overlay-Ebene
+    neben der Liste, ordnerunabhaengig immer sichtbar. Gleiche Klasse/Daten wie
+    die Listen-Notizen -> Klick (oeffnen) und Hover (Vorschau) via index.js;
+    Position + Ziehen zusaetzlich in index.js. %>
+<div class="note-desktop" id="note-desktop" aria-label="Notiz-Ablage">
+  <% desktopNotes.forEach(function(n){ %>
+  <%# note-colored + --note-color nur bei eigener Farbe; sonst bleibt es beim
+      Standard-Pink aus dem <symbol>. note-dark kippt die Ecke auf "aufhellen" %>
+  <button type="button" class="note-open note-desk<%= n.color ? " note-colored" : "" %><%= n.dark ? " note-dark" : "" %>"
+          data-owner="<%= n.owner %>"
+          data-rel="<%= n.relpath %>" data-label="<%= n.label %>"
+          data-canedit="<%= n.canedit ? 1 : 0 %>"
+          <% if (n.color) { %>style="--note-color:<%= n.color %>"<% } %>
+          <% if (n.pos) { %>data-x="<%= n.pos.x %>" data-y="<%= n.pos.y %>"<% } %>
+          aria-label="Notiz: <%= n.label %>">
+    <svg class="note-ico" width="46" height="46" aria-hidden="true" focusable="false"><use href="#note-ico"/></svg>
+    <span class="note-desk-label"><%= n.label %></span>
+  </button>
+  <% }); %>
+</div>
+
+<%# Statusmeldungen: unten mittig auf dem Desktop (nicht mehr in der
+    Datei-Karte), blenden nach 2,5s von selbst aus (index.js) %>
+<% if (flashes.length) { %>
+<div class="flash-tray" id="flash-tray" aria-live="polite">
   <% flashes.forEach(function(f){ %>
   <div class="flash <%= f[0] %>"><%= f[1] %></div>
   <% }); %>
+</div>
+<% } %>
 
-  <section class="toolbar">
-    <div class="create-group" role="group" aria-label="Neue Datei erstellen">
-      <button type="button" class="create-btn" data-create="docx"
-              data-tip="Neues Textdokument" aria-label="Neues Textdokument">
-        <span class="create-zoom"><img src="<%= base %>/static/img/docx.svg" alt="" width="48" height="48"></span>
-      </button>
-      <button type="button" class="create-btn" data-create="xlsx"
-              data-tip="Neue Tabelle" aria-label="Neue Tabelle">
-        <span class="create-zoom"><img src="<%= base %>/static/img/xlsx.svg" alt="" width="48" height="48"></span>
-      </button>
-      <button type="button" class="create-btn" data-create="pptx"
-              data-tip="Neue Präsentation" aria-label="Neue Präsentation">
-        <span class="create-zoom"><img src="<%= base %>/static/img/pptx.svg" alt="" width="48" height="48"></span>
-      </button>
-      <button type="button" class="create-btn" id="note-new"
-              data-tip="Neue Notiz" aria-label="Neue Notiz">
-        <span class="create-zoom"><img src="<%= base %>/static/img/note.svg" alt="" width="48" height="48"></span>
-      </button>
-    </div>
-    <span class="tool-sep" aria-hidden="true"></span>
-    <%# ein Knopf: oeffnet die Dateiauswahl, die Auswahl laedt sofort hoch (index.js) %>
-    <form class="upload-form" action="<%= base %>/upload" method="post" enctype="multipart/form-data"
-          data-max-mb="<%= maxUploadMb %>">
-      <input type="hidden" name="dir" value="<%= curDir %>">
-      <input type="file" name="file" accept="<%= uploadAccept %>" hidden>
-      <button type="button" class="btn btn-secondary upload-btn">
-        <img class="btn-icon" src="<%= base %>/static/img/upload.svg" alt="" width="16" height="16">Hochladen
-      </button>
-    </form>
-    <button type="button" class="btn btn-secondary" data-dialog="dlg-mkdir">
-      <img class="btn-icon" src="<%= base %>/static/img/folder.svg" alt="" width="16" height="16">Neuer Ordner
-    </button>
-  </section>
-
+<div class="page" id="page"<% if (pageLayout) { %> data-x="<%= pageLayout.x %>" data-y="<%= pageLayout.y %>"<% } %>>
   <% if (crumbs.length > 1) { %>
   <nav class="crumbs">
     <% crumbs.forEach(function(c, i){ %>
@@ -109,7 +167,15 @@
         <tr<%- f.isOwner ? "" : ' class="row-foreign"' %>>
           <td class="col-name">
             <div class="file-cell">
+              <%# Notizen als <use> aufs <symbol> — nur so traegt das Icon die
+                  Farbe der Notiz (gleiche wie auf dem Desktop) %>
+              <% if (f.isNote) { %>
+              <svg class="ficon note-ico<%= f.noteColor ? " note-colored" : "" %><%= f.noteDark ? " note-dark" : "" %>"
+                   width="28" height="28" aria-hidden="true" focusable="false"
+                   <% if (f.noteColor) { %>style="--note-color:<%= f.noteColor %>"<% } %>><use href="#note-ico"/></svg>
+              <% } else { %>
               <img class="ficon" src="<%= base %>/static/img/<%= f.icon %>.svg" alt="" width="28" height="28">
+              <% } %>
               <span class="fname-wrap">
                 <% if (f.isDir) { %>
                 <a class="fname" href="<%= base %>/?p=<%= encodeURIComponent(f.relpath) %>"><%= f.label %></a>
@@ -204,7 +270,15 @@
     </label>
   </footer>
   <% } %>
+</div><%# Ende .page — Overlays (Dialoge, Tooltips, Backdrop) liegen BEWUSST
+         ausserhalb: .page ist position:fixed und damit ein Stacking-Context;
+         innerhalb wuerden Dialoge/Tooltips unter die Notiz-Icons/Topbar gedrueckt %>
 
+  <%# Pro-Datei-Dialoge (Freigeben/Verschieben) sind ordnerabhaengig und werden
+      beim Ordnerwechsel zusammen mit der Liste ausgetauscht (index.js: swapFolder).
+      Eigener Container -> gezielt ersetzbar; schlichtes div ohne Position aendert
+      nichts am Stacking (Dialoge nutzen show(), kein showModal). %>
+  <div id="row-dialogs">
   <% files.forEach(function(f, i){ if (!f.isOwner || f.isDir) return; %>
   <dialog id="dlg-share-<%= i %>" class="dialog">
     <header class="dialog-head">
@@ -288,6 +362,7 @@
     <% } %>
   </dialog>
   <% }); %>
+  </div><%# Ende #row-dialogs %>
 
   <%# Hover-Vorschau fuer Notizen in der Dateiliste (index.js befuellt) %>
   <div class="note-tip md-render" id="note-tip" aria-hidden="true"></div>
@@ -299,7 +374,10 @@
   <%# Markdown-Notiz-Editor: modaler Dialog, fuellt 70% der Seite (index.js) %>
   <dialog id="dlg-note" class="dialog dialog-note">
     <header class="dialog-head">
-      <img src="<%= base %>/static/img/note.svg" alt="" width="22" height="22">
+      <%# gleiches Icon wie auf dem Desktop — zeigt die im Fuss gewaehlte
+          Farbe sofort an (index.js setzt --note-color live) %>
+      <svg class="note-ico" id="note-dlg-ico" width="22" height="22"
+           aria-hidden="true" focusable="false"><use href="#note-ico"/></svg>
       <h2 id="dlg-note-title">Neue Notiz</h2>
       <form method="dialog">
         <button class="dialog-x" aria-label="Schließen">×</button>
@@ -414,6 +492,14 @@
           befuellt index.js beim Oeffnen aus den Notiz-Metadaten %>
       <div class="note-view-summary" id="note-view-summary" hidden></div>
       <div class="note-foot">
+        <%# Farbe des Notiz-Icons: dezent als kleiner Farbtupfer in der
+            Fusszeile. Coloris (vendor) macht aus dem Feld einen Farbwaehler;
+            leerer Wert = Standardfarbe. %>
+        <span class="note-color" id="note-color-wrap"
+              data-tip="Farbe der Notiz">
+          <input type="text" class="note-color-input" name="color" id="note-color"
+                 value="" autocomplete="off" aria-label="Farbe der Notiz">
+        </span>
         <span class="note-status" id="note-status" aria-live="polite"></span>
         <button class="btn btn-sm" id="note-save">Speichern</button>
       </div>
@@ -617,6 +703,35 @@
       </form>
     </section>
   </dialog>
+
+  <dialog id="dlg-backup" class="dialog dialog-xwide">
+    <header class="dialog-head">
+      <img src="<%= base %>/static/img/backup.svg" alt="" width="22" height="22">
+      <h2>Backup</h2>
+      <form method="dialog">
+        <button class="dialog-x" aria-label="Schließen">×</button>
+      </form>
+    </header>
+    <section class="account-section">
+      <p class="muted dialog-hint">Spiegelt alle Dokumente und die Nutzerdatenbank per rsync
+        in das BACKUP-Verzeichnis. Der bisherige Inhalt des Backups wird dabei durch den
+        aktuellen Stand ersetzt. Für die Dauer des Backups ist Relay für alle
+        (auch dich) kurz nicht erreichbar.</p>
+      <form class="stack-form" id="backup-form" action="<%= base %>/backup/run" method="post" data-ajax="1"
+            data-confirm="Backup ausführen? Relay ist währenddessen für alle kurz nicht erreichbar, und der bisherige Inhalt des Backup-Verzeichnisses wird durch den aktuellen Stand ersetzt.">
+        <button class="btn btn-sm" id="backup-run-btn">Backup ausführen</button>
+      </form>
+    </section>
+    <section class="account-section" id="backup-result" <%- lastBackup ? "" : "hidden" %>>
+      <h3>Letzter Lauf
+        <span class="badge <%= lastBackup && lastBackup.ok ? 'badge-ok' : 'badge-err' %>" id="backup-badge">
+          <%= lastBackup ? (lastBackup.ok ? "Erfolg" : "Fehler") : "" %>
+        </span>
+      </h3>
+      <p class="muted dialog-hint" id="backup-meta"><%= lastBackup ? `${lastBackup.atStr} Uhr · Dauer ${lastBackup.durationStr}` : "" %></p>
+      <pre class="backup-log" id="backup-log"><%= lastBackup ? lastBackup.log : "" %></pre>
+    </section>
+  </dialog>
   <% } %>
 
   <dialog id="dlg-account" class="dialog dialog-wide">
@@ -697,4 +812,3 @@
       </div>
     </details>
   </dialog>
-</div>

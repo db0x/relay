@@ -14,6 +14,7 @@ const notemeta = require("../notemeta");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
 const { BLANKS, BASE, DOCTYPE, MAX_UPLOAD_MB } = require("../config");
+const { formatDate, formatDuration } = require("../format");
 const { loginRequired } = require("./auth");
 
 const router = express.Router();
@@ -46,23 +47,48 @@ function formatSize(bytes) {
   return `${(kb / 1024).toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB`;
 }
 
-// Zeitstempel -> "05.07.2026, 14:30"
-function formatDate(ms) {
-  return new Date(ms).toLocaleString("de-DE", {
-    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
-  });
-}
-
-// ToDo-Badge fuer die Dateiliste — nur fuer Notizen mit aktivem ToDo-Schalter
-function todoFor(owner, relpath, isNote) {
-  if (!isNote) return null;
+// Notiz-Angaben fuer die Dateiliste, aus EINEM Meta-Zugriff: das ToDo-Badge
+// (nur bei aktivem Schalter) und die Icon-Farbe (dieselbe wie auf dem
+// Desktop — eine Notiz sieht ueberall gleich aus). "" = Standardfarbe.
+function noteInfoFor(owner, relpath, isNote) {
+  if (!isNote) return { todo: null, noteColor: "" };
   const m = notemeta.get(owner, relpath);
-  if (!m.isTodo) return null;
   const [y, mo, d] = (m.dueDate || "").split("-");
   return {
-    dueLabel: y ? `${d}.${mo}.${y}` : "",
-    overdue: !!m.dueDate && m.dueDate < new Date().toISOString().slice(0, 10),
+    todo: m.isTodo ? {
+      dueLabel: y ? `${d}.${mo}.${y}` : "",
+      overdue: !!m.dueDate && m.dueDate < new Date().toISOString().slice(0, 10),
+    } : null,
+    noteColor: m.color || "",
+    noteDark: notemeta.isDark(m.color),
   };
+}
+
+// Notiz-Icons fuer den "Desktop" (freie Bereiche neben der Liste): alle als
+// ToDo markierten Notizen — eigene UND geteilte — global (ordnerunabhaengig),
+// jeweils mit gemerkter Position (falls der Nutzer das Icon verschoben hat).
+function desktopNotesFor(me) {
+  const posRows = notemeta.desktopPositions(me);
+  const posOf = (owner, filename) => {
+    const r = posRows.find((p) => p.owner === owner && p.filename === filename);
+    return r ? { x: r.x, y: r.y } : null;
+  };
+  const out = [];
+  const add = (owner, filename, canedit, color) => {
+    if (!/\.md$/i.test(filename) || !fs.existsSync(pathFor(owner, filename))) return;
+    out.push({
+      owner, relpath: filename, label: labelFor(filename), canedit,
+      pos: posOf(owner, filename), color: color || "", dark: notemeta.isDark(color),
+    });
+  };
+  // eigene ToDo-Notizen (alle Ordner)
+  notemeta.listTodos(me).forEach((n) => add(me, n.filename, true, n.color));
+  // an mich freigegebene ToDo-Notizen
+  shares.listForUser(me).forEach((s) => {
+    const m = notemeta.get(s.owner, s.filename);
+    if (m.isTodo) add(s.owner, s.filename, s.perm === "edit", m.color);
+  });
+  return out;
 }
 
 // zurueck in den Ordner, aus dem eine Aktion kam (Formulare schicken `dir` mit)
@@ -125,7 +151,7 @@ router.get("/", loginRequired, (req, res) => {
       owner: me, ownerName: req.session.name, isOwner: true, perm: "owner",
       shares: sh,
       availableUsers: otherUsers.filter((u) => !sh.some((s) => s.target === u.username)),
-      todo: todoFor(me, relpath, m.isNote),
+      ...noteInfoFor(me, relpath, m.isNote),
     };
   });
 
@@ -139,7 +165,7 @@ router.get("/", loginRequired, (req, res) => {
       relpath: s.filename, isDir: false,
       owner: s.owner, ownerName: s.owner_name, isOwner: false, perm: s.perm,
       shares: [], availableUsers: [],
-      todo: todoFor(s.owner, s.filename, m.isNote),
+      ...noteInfoFor(s.owner, s.filename, m.isNote),
     };
   }).filter(Boolean);
 
@@ -190,6 +216,10 @@ router.get("/", loginRequired, (req, res) => {
     columns,
     crumbs,
     curDir: cur,
+    // frei platzierbare Notiz-Icons neben der Liste (ordnerunabhaengig sichtbar)
+    desktopNotes: desktopNotesFor(me),
+    // gemerkte Position der frei verschiebbaren Dokumentenliste (oder null)
+    pageLayout: notemeta.getLayout(me, "page"),
     allDirs: walkDirs(userDir).sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" })),
     user: req.session.name,
     me,
@@ -218,6 +248,13 @@ router.get("/", loginRequired, (req, res) => {
     email: row.email || "",
     emailError: (() => { const e = !!req.session.emailError; delete req.session.emailError; return e; })(),
     isAdmin: !!row.is_admin,
+    // letzter Backup-Lauf (nur Admins) fuer den Backup-Dialog: Zeitpunkt,
+    // Dauer, Erfolg + rsync-Log (routes/admin.js /backup/run)
+    lastBackup: (() => {
+      if (!row.is_admin) return null;
+      const b = settings.get("last_backup", null);
+      return b && { ...b, atStr: formatDate(b.at), durationStr: formatDuration(b.durationMs) };
+    })(),
     // Nutzerverwaltung (nur Admins): Avatar-Flag und belegter Speicherplatz je
     // Nutzer — Familienmassstab, das rekursive Aufsummieren ist billig genug
     allUsers: !row.is_admin ? [] : users.listUsers().map((u) => {
@@ -228,6 +265,17 @@ router.get("/", loginRequired, (req, res) => {
     }),
     api_token: row.api_token,
   });
+});
+
+// Position eines frei verschiebbaren UI-Elements merken (aktuell nur die
+// Dokumentenliste, key="page") — je Nutzer
+router.post("/desktop/layout", loginRequired, express.json(), (req, res) => {
+  const b = req.body || {};
+  const key = String(b.key || "");
+  const x = Number(b.x), y = Number(b.y);
+  if (key !== "page" || !Number.isFinite(x) || !Number.isFinite(y)) return res.sendStatus(400);
+  notemeta.setLayout(req.session.user, key, x, y);
+  res.sendStatus(204);
 });
 
 // --- Freigaben verwalten (nur eigene Dateien) ------------------------

@@ -222,6 +222,13 @@ locations are configurable via `DOCUMENTS_DIR` / `STATE_DIR` in `.env`
 needs local edits. DocumentServer data (DB, cache) lives in the Docker
 volumes `ds_db`, `ds_lib`, `ds_data` and survives restarts.
 
+**Backup**: set `BACKUP` in `.env` to a host directory; it's mounted into the
+backend container at `/data/backup`. Admins get a "Backup" entry in the
+menu with a single "Backup ausführen" action, which mirrors `documents/`
+and `state/` into it via `rsync -a --delete` (the backup directory always
+matches the current state — nothing removed at the source stays in the
+backup either).
+
 ## Security / status
 
 - **Login** (session cookie, valid 90 days) protects all browser routes

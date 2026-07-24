@@ -47,6 +47,7 @@ services:
       # So braucht ein Server-Deployment keine Aenderung an dieser Datei.
       - ${DOCUMENTS_DIR:-./documents}:/data/documents
       - ${STATE_DIR:-./state}:/data/state               # Nutzerdatenbank (users.db)
+      - ${BACKUP:-./backup}:/data/backup                # Ziel fuer "Backup ausfuehren" (Admin-Menue, rsync)
     # im LAN erreichbar; Browser-Routen sind per Login geschuetzt
     ports: ["${BIND_ADDR:-0.0.0.0}:${UI_PORT:-5001}:5000"]
     depends_on: [documentserver]

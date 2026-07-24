@@ -1,45 +1,62 @@
 // Startet den OnlyOffice-Editor. Die JWT-signierte Config liefert der Server
 // als JSON in <script id="editor-config">; hier nur noch auslesen und starten.
 //
-// Fehlerbehandlung: der DocumentServer speichert erst ~10s nachdem der letzte
-// Bearbeiter geschlossen hat (Callback schreibt die Datei, mtime aendert sich
-// erst dann). Wer in diesem Fenster oeffnet, bekommt noch den Key der gerade
-// schliessenden Session — der DS lehnt ab und der Editor bliebe stumm im
-// Lade-Skelett haengen. Ein einmaliger Reload holt die Config mit frischem
-// Key; hilft auch das nicht, gibt es eine sichtbare Meldung statt des Skeletts.
-//
-// Watchdog: manchmal haengt der Editor STILL im Skelett, ohne onError/
-// onOutdatedVersion zu feuern (~15% der Oeffnungen) — dann greift die
-// Event-Behandlung nicht. Bleibt onDocumentReady zu lange aus, loesen wir
-// denselben einmaligen Reload aus (was der Nutzer sonst von Hand macht).
+// Ladehaenger-Behandlung: Der DocumentServer haelt eine gerade geschlossene
+// Bearbeitungs-Session ~10s offen (Speicher-Fenster). Wer in diesem Fenster
+// oeffnet, bekommt den gleichen (mtime-basierten) Key wie die schliessende
+// Session -> der Editor bleibt STILL im Lade-Skelett haengen, oft OHNE ein
+// onError/onOutdatedVersion zu feuern (~15% der Oeffnungen). Deshalb ein
+// Watchdog: kommt onDocumentReady nicht rechtzeitig, laedt die Seite EINMAL
+// neu (frische mtime -> korrekter Key). Hilft auch das nicht, gibt es eine
+// sichtbare Meldung statt des ewigen Skeletts.
 (function () {
-  var retryKey = "relay-edit-retry:" + location.pathname;
+  // Ist dies bereits der Retry-Versuch? (edit.js haengt beim Neuladen
+  // "?relay-retry" an -> die /edit-Route vergibt dann einen FRISCHEN Key.)
+  function isRetry() { return new URLSearchParams(location.search).has("relay-retry"); }
 
-  function fail(msg) {
+  function showBox(html) {
     var div = document.createElement("div");
     div.className = "edit-error";
-    var p = document.createElement("p");
-    p.textContent = msg;
+    div.innerHTML = html;
+    var ed = document.getElementById("editor");
+    if (ed && ed.replaceWith) ed.replaceWith(div);
+    else document.body.appendChild(div);
+  }
+  function fail(msg) {
+    showBox("<p></p>");
+    document.querySelector(".edit-error p").textContent = msg;
     var a = document.createElement("a");
-    a.href = location.href;
-    a.textContent = "Nochmal versuchen";
-    div.appendChild(p);
-    div.appendChild(a);
-    document.getElementById("editor").replaceWith(div);
+    a.href = location.href; a.textContent = "Nochmal versuchen";
+    document.querySelector(".edit-error").appendChild(a);
   }
 
-  // ein Reload-Versuch pro Editor-Seite; der Marker verhindert Reload-Schleifen
-  function retryOnce(msg) {
-    if (!sessionStorage.getItem(retryKey)) {
-      sessionStorage.setItem(retryKey, "1");
-      location.reload();
-    } else {
-      sessionStorage.removeItem(retryKey);
-      fail(msg);
-    }
+  // Neu laden MIT frischem Key (?relay-retry). Ist schon der Retry-Versuch
+  // haengengeblieben, geben wir mit sichtbarer Meldung auf (keine Endlosschleife).
+  function goRetry(failMsg) {
+    stopWatchdog();
+    if (isRetry()) { fail(failMsg); return; }
+    var url = new URL(location.href);
+    url.searchParams.set("relay-retry", "1");
+    showBox("<p>Der Editor reagiert nicht — wird neu geladen…</p>");
+    setTimeout(function () { location.replace(url.toString()); }, 500);
   }
+
+  // --- Watchdog: ZUERST scharf schalten, damit ein Fehler weiter unten die
+  // Erholung nicht verhindert. Kommt onDocumentReady nicht -> goRetry.
+  var watchdog = null;
+  function stopWatchdog() { if (watchdog) { clearTimeout(watchdog); watchdog = null; } }
+  function armWatchdog(ms) {
+    stopWatchdog();
+    watchdog = setTimeout(function () {
+      watchdog = null;
+      console.warn("[relay] Editor-Watchdog: onDocumentReady blieb aus -> Retry (frischer Key)");
+      goRetry("Der Editor blieb im Ladebildschirm hängen.");
+    }, ms);
+  }
+  armWatchdog(18000); // Grundzeit; nach onAppReady auf 8s verkuerzt
 
   if (typeof DocsAPI === "undefined") {
+    stopWatchdog();
     fail("Der DocumentServer ist nicht erreichbar (api.js konnte nicht geladen werden).");
     return;
   }
@@ -72,37 +89,25 @@
   // alle Nutzer (id, name, image) fuer onRequestUsers — kommt vom Backend
   var relayUsers = JSON.parse(document.getElementById("relay-users").textContent);
 
-  // Watchdog gegen stille Ladehaenger: feuert onDocumentReady nicht binnen
-  // WATCHDOG_MS, gilt der Start als haengen geblieben -> einmaliger Reload.
-  // 25s ist grosszuegig genug, dass es normale (auch groessere) Ladevorgaenge
-  // nie faelschlich abbricht.
-  var WATCHDOG_MS = 25000;
-  var watchdog = setTimeout(function () {
-    watchdog = null;
-    retryOnce("Der Editor blieb im Ladebildschirm hängen.");
-  }, WATCHDOG_MS);
-  function stopWatchdog() { if (watchdog) { clearTimeout(watchdog); watchdog = null; } }
-
-  function restartWatchdog(ms) { stopWatchdog(); watchdog = setTimeout(function () {
-    watchdog = null; retryOnce("Der Editor blieb im Ladebildschirm hängen.");
-  }, ms); }
-
   cfg.events = {
-    // Editor laeuft -> Watchdog stoppen und Retry-Marker aufraeumen
-    onDocumentReady: function () { stopWatchdog(); sessionStorage.removeItem(retryKey); },
-    // Anwendung geladen, aber Dokument evtl. noch nicht -> Fenster verkuerzen,
-    // damit ein Doc-Ladehaenger schneller erkannt wird (statt bis 25s zu warten)
-    onAppReady: function () { if (watchdog) restartWatchdog(12000); },
-    // Datei wurde nach dem Rendern dieser Seite gespeichert -> Key veraltet
-    onOutdatedVersion: function () {
+    // Editor laeuft -> Watchdog stoppen; ein etwaiges "?relay-retry" aus der
+    // URL putzen (kuenftige Reloads nutzen wieder den normalen Key/Co-Editing)
+    onDocumentReady: function () {
       stopWatchdog();
-      retryOnce("Das Dokument wurde zwischenzeitlich gespeichert.");
+      if (isRetry()) {
+        var url = new URL(location.href);
+        url.searchParams.delete("relay-retry");
+        history.replaceState(null, "", url.toString());
+      }
     },
+    // Anwendung geladen, aber Dokument evtl. noch nicht -> Fenster verkuerzen,
+    // damit ein Doc-Ladehaenger schneller erkannt wird
+    onAppReady: function () { if (watchdog) armWatchdog(8000); },
+    // Datei wurde nach dem Rendern dieser Seite gespeichert -> Key veraltet
+    onOutdatedVersion: function () { goRetry("Das Dokument wurde zwischenzeitlich gespeichert."); },
     onError: function (e) {
-      stopWatchdog();
       var detail = e && e.data && e.data.errorDescription;
-      retryOnce("Das Dokument konnte nicht geöffnet werden" +
-        (detail ? ": " + detail : "."));
+      goRetry("Das Dokument konnte nicht geöffnet werden" + (detail ? ": " + detail : "."));
     },
     // Editor fragt Name + Avatar zu Nutzer-IDs an (Co-Editing-Cursor,
     // Kommentare, Versionshistorie) — aus der eingebetteten Nutzerliste
