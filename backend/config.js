@@ -38,6 +38,8 @@ function dsFetchUrl(dsUrl) {
 module.exports = {
   BASE: base,
   DOCS: "/data/documents",                        // Wurzel der Nutzer-Dateien
+  STATE_DIR: process.env.STATE_DIR || "/data/state", // Nutzerdatenbank + Avatare
+  BACKUP_DIR: "/data/backup",                     // Ziel fuer "Backup ausfuehren" (rsync)
   PUBLIC_DS: publicDs,
   dsFetchUrl,
   HOST_INTERNAL: process.env.HOST_INTERNAL,       // DocumentServer -> uns

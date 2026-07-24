@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="4">
+<title><%= appName %> – Backup läuft</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; margin: 0; background: #f4f4f5; color: #1f2328;
+  }
+  @media (prefers-color-scheme: dark) { body { background: #18181b; color: #e4e4e7; } }
+  .box { text-align: center; padding: 2rem; max-width: 26rem; }
+  h1 { font-size: 1.15rem; margin: 0 0 .5rem; }
+  p { opacity: .7; margin: 0; font-size: .9rem; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <h1><%= appName %> – Backup läuft …</h1>
+    <p>Ein Admin sichert gerade Dokumente und Datenbank. Das dauert normalerweise
+      nur kurz — diese Seite lädt sich automatisch neu.</p>
+  </div>
+</body>
+</html>

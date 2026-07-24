@@ -1,12 +1,17 @@
 // Nutzerverwaltung (nur Admins): Nutzer anlegen, Admin-Rechte, sperren/entsperren, loeschen.
 const fs = require("fs");
+const path = require("path");
+const util = require("util");
+const execFile = util.promisify(require("child_process").execFile);
 const express = require("express");
 
 const users = require("../users");
 const settings = require("../settings");
 const doclang = require("../doclang");
+const maintenance = require("../maintenance");
 const { secureFilename, dirFor } = require("../storage");
-const { BASE } = require("../config");
+const { BASE, DOCS, STATE_DIR, BACKUP_DIR } = require("../config");
+const { formatDate, formatDuration } = require("../format");
 
 const router = express.Router();
 
@@ -116,6 +121,74 @@ router.post("/users/delete", adminRequired, (req, res) => {
     req.flash("ok", `${row.display_name} wurde mitsamt allen Dateien gelöscht.`);
   }
   res.redirect(`${BASE}/`);
+});
+
+// Rsync-Log wird komplett in SQLite (settings.js) abgelegt und im Dialog
+// angezeigt -- pro Lauf gedeckelt, damit ein Familienarchiv mit vielen
+// Dateien die DB nicht sprengt. Bei Kuerzung bleibt das ENDE erhalten (dort
+// steht die --stats-Zusammenfassung, die wichtigste Info bei vielen Dateien).
+const MAX_LOG = 20000;
+function capLog(text) {
+  return text.length > MAX_LOG
+    ? `… (gekürzt, letzte ${MAX_LOG} Zeichen) …\n` + text.slice(-MAX_LOG)
+    : text;
+}
+
+// Backup: Dokumente und Nutzerdatenbank per rsync ins BACKUP-Volume spiegeln
+// (--delete: das Backup entspricht danach exakt dem aktuellen Stand). Waehrend
+// des Laufs greift die globale Wartungssperre (maintenance.js/app.js) --
+// niemand darf lesen oder schreiben, sonst waere die Kopie inkonsistent.
+// rsync laeuft asynchron (execFile, nicht -Sync), blockiert also nicht schon
+// selbst den Event-Loop; die Sperre ist eine bewusste Zusatzmassnahme.
+// -v/--stats liefern das Log, das der Admin danach im Dialog sieht (settings
+// "last_backup": Zeitpunkt, Dauer, Erfolg, Log) -- zeitliche Einordnung plus
+// Nachvollziehbarkeit, was genau kopiert/geloescht wurde.
+//
+// Der Backup-Dialog (index.js) ruft diese Route per fetch mit
+// X-Requested-With:fetch auf, damit er waehrend des Laufs offen bleiben und
+// danach das Ergebnis inline zeigen kann -- eine normale Formular-Anfrage
+// (kein JS bzw. Fallback) bekommt weiterhin Flash+Redirect wie jede andere
+// Admin-Aktion.
+router.post("/backup/run", adminRequired, async (req, res) => {
+  const ajax = req.get("X-Requested-With") === "fetch";
+  const respond = (payload) => {
+    if (ajax) return res.json(payload);
+    req.flash(payload.ok ? "ok" : "err", payload.flashMsg);
+    res.redirect(`${BASE}/`);
+  };
+
+  if (maintenance.isActive()) {
+    const msg = "Backup läuft bereits.";
+    return respond({ ok: false, atStr: "", durationStr: "", log: msg, flashMsg: msg });
+  }
+  maintenance.start();
+  const startedAt = Date.now();
+  let log = "";
+  let ok = true;
+  let errMsg = "";
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const opts = { maxBuffer: 8 * 1024 * 1024 };
+    const r1 = await execFile("rsync",
+      ["-a", "--delete", "-v", "--stats", DOCS + "/", path.join(BACKUP_DIR, "documents") + "/"], opts);
+    log += "== Dokumente ==\n" + r1.stdout;
+    const r2 = await execFile("rsync",
+      ["-a", "--delete", "-v", "--stats", STATE_DIR + "/", path.join(BACKUP_DIR, "state") + "/"], opts);
+    log += "\n== Datenbank ==\n" + r2.stdout;
+  } catch (e) {
+    ok = false;
+    errMsg = e.message || String(e);
+    log += "\n== Fehler ==\n" + (e.stderr || errMsg);
+  } finally {
+    maintenance.stop();
+  }
+  const durationMs = Date.now() - startedAt;
+  log = capLog(log);
+  settings.set("last_backup", { at: startedAt, durationMs, ok, log });
+  respond({
+    ok, atStr: formatDate(startedAt), durationStr: formatDuration(durationMs), log,
+    flashMsg: ok ? "Backup abgeschlossen." : "Backup fehlgeschlagen: " + errMsg,
+  });
 });
 
 module.exports = { router };

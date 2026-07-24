@@ -14,6 +14,7 @@ const notemeta = require("../notemeta");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
 const { BLANKS, BASE, DOCTYPE, MAX_UPLOAD_MB } = require("../config");
+const { formatDate, formatDuration } = require("../format");
 const { loginRequired } = require("./auth");
 
 const router = express.Router();
@@ -44,13 +45,6 @@ function formatSize(bytes) {
   const kb = bytes / 1024;
   if (kb < 1024) return `${kb.toLocaleString("de-DE", { maximumFractionDigits: 1 })} KB`;
   return `${(kb / 1024).toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB`;
-}
-
-// Zeitstempel -> "05.07.2026, 14:30"
-function formatDate(ms) {
-  return new Date(ms).toLocaleString("de-DE", {
-    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
-  });
 }
 
 // Notiz-Angaben fuer die Dateiliste, aus EINEM Meta-Zugriff: das ToDo-Badge
@@ -254,6 +248,13 @@ router.get("/", loginRequired, (req, res) => {
     email: row.email || "",
     emailError: (() => { const e = !!req.session.emailError; delete req.session.emailError; return e; })(),
     isAdmin: !!row.is_admin,
+    // letzter Backup-Lauf (nur Admins) fuer den Backup-Dialog: Zeitpunkt,
+    // Dauer, Erfolg + rsync-Log (routes/admin.js /backup/run)
+    lastBackup: (() => {
+      if (!row.is_admin) return null;
+      const b = settings.get("last_backup", null);
+      return b && { ...b, atStr: formatDate(b.at), durationStr: formatDuration(b.durationMs) };
+    })(),
     // Nutzerverwaltung (nur Admins): Avatar-Flag und belegter Speicherplatz je
     // Nutzer — Familienmassstab, das rekursive Aufsummieren ist billig genug
     allUsers: !row.is_admin ? [] : users.listUsers().map((u) => {

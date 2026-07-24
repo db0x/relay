@@ -94,6 +94,7 @@
           <% if (isAdmin) { %>
           <button type="button" class="menu-item" data-dialog="dlg-users">Nutzerverwaltung</button>
           <button type="button" class="menu-item" data-dialog="dlg-settings">Einstellungen</button>
+          <button type="button" class="menu-item" data-dialog="dlg-backup">Backup</button>
           <% } %>
           <a class="menu-item" href="<%= base %>/logout">Abmelden</a>
           <div class="menu-version">Relay v<%= version %></div>
@@ -700,6 +701,35 @@
         </div>
         <button class="btn btn-sm dialog-submit">Speichern</button>
       </form>
+    </section>
+  </dialog>
+
+  <dialog id="dlg-backup" class="dialog dialog-xwide">
+    <header class="dialog-head">
+      <img src="<%= base %>/static/img/backup.svg" alt="" width="22" height="22">
+      <h2>Backup</h2>
+      <form method="dialog">
+        <button class="dialog-x" aria-label="Schließen">×</button>
+      </form>
+    </header>
+    <section class="account-section">
+      <p class="muted dialog-hint">Spiegelt alle Dokumente und die Nutzerdatenbank per rsync
+        in das BACKUP-Verzeichnis. Der bisherige Inhalt des Backups wird dabei durch den
+        aktuellen Stand ersetzt. Für die Dauer des Backups ist Relay für alle
+        (auch dich) kurz nicht erreichbar.</p>
+      <form class="stack-form" id="backup-form" action="<%= base %>/backup/run" method="post" data-ajax="1"
+            data-confirm="Backup ausführen? Relay ist währenddessen für alle kurz nicht erreichbar, und der bisherige Inhalt des Backup-Verzeichnisses wird durch den aktuellen Stand ersetzt.">
+        <button class="btn btn-sm" id="backup-run-btn">Backup ausführen</button>
+      </form>
+    </section>
+    <section class="account-section" id="backup-result" <%- lastBackup ? "" : "hidden" %>>
+      <h3>Letzter Lauf
+        <span class="badge <%= lastBackup && lastBackup.ok ? 'badge-ok' : 'badge-err' %>" id="backup-badge">
+          <%= lastBackup ? (lastBackup.ok ? "Erfolg" : "Fehler") : "" %>
+        </span>
+      </h3>
+      <p class="muted dialog-hint" id="backup-meta"><%= lastBackup ? `${lastBackup.atStr} Uhr · Dauer ${lastBackup.durationStr}` : "" %></p>
+      <pre class="backup-log" id="backup-log"><%= lastBackup ? lastBackup.log : "" %></pre>
     </section>
   </dialog>
   <% } %>
