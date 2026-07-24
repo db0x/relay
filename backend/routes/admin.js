@@ -169,11 +169,18 @@ router.post("/backup/run", adminRequired, async (req, res) => {
   try {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
     const opts = { maxBuffer: 8 * 1024 * 1024 };
+    // --no-owner/--no-group: -a versucht sonst chown auf Owner/Group der
+    // Quelle -- scheitert auf NFS-Zielen mit root_squash (das BACKUP-
+    // Verzeichnis kann eine NAS-Freigabe sein), weil der gesquashte Nutzer
+    // kein CAP_CHOWN hat. Fuer ein Backup sind die Metadaten irrelevant
+    // (im Container gehoert ohnehin alles root); Inhalt/Rechte/Zeiten
+    // bleiben ueber -a erhalten.
+    const rsyncArgs = ["-a", "--no-owner", "--no-group", "--delete", "-v", "--stats"];
     const r1 = await execFile("rsync",
-      ["-a", "--delete", "-v", "--stats", DOCS + "/", path.join(BACKUP_DIR, "documents") + "/"], opts);
+      [...rsyncArgs, DOCS + "/", path.join(BACKUP_DIR, "documents") + "/"], opts);
     log += "== Dokumente ==\n" + r1.stdout;
     const r2 = await execFile("rsync",
-      ["-a", "--delete", "-v", "--stats", STATE_DIR + "/", path.join(BACKUP_DIR, "state") + "/"], opts);
+      [...rsyncArgs, STATE_DIR + "/", path.join(BACKUP_DIR, "state") + "/"], opts);
     log += "\n== Datenbank ==\n" + r2.stdout;
   } catch (e) {
     ok = false;
