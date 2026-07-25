@@ -9,6 +9,10 @@ state/
 node_modules/
 npm-debug.log*
 
+# E2E-Tests: Artefakte der Läufe (Screenshots, Traces, HTML-Report)
+test-results/
+playwright-report/
+
 # Betriebssystem-/Editor-Reste
 .DS_Store
 *.swp

@@ -1,0 +1,14 @@
+{
+  "name": "relay-e2e",
+  "private": true,
+  "description": "End-to-end tests for Relay's own layer around OnlyOffice (login, user management, sharing)",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

@@ -1,0 +1,48 @@
+# End-to-end tests for Relay's own layer around OnlyOffice.
+#
+# The suite builds the backend image from backend/Dockerfile and runs it as a
+# throwaway container with an empty database (see tests/global-setup.js), so
+# the workflow needs nothing but Docker and Node — no DocumentServer, no
+# secrets, no persistent state.
+name: E2E
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Install test dependencies
+        working-directory: tests
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        working-directory: tests
+        run: npm test
+
+      # Bei rot: Report mit Screenshots und Traces der fehlgeschlagenen Tests
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/playwright-report/
+          retention-days: 14

@@ -229,6 +229,36 @@ and `state/` into it via `rsync -a --delete` (the backup directory always
 matches the current state — nothing removed at the source stays in the
 backup either).
 
+## Tests
+
+End-to-end tests (Playwright) live in `tests/` and cover **Relay's own layer**
+— login/session, user management and sharing — deliberately *not* OnlyOffice
+itself. They build the backend image and run it as a throwaway container with
+an empty database, so no DocumentServer and no secrets are needed:
+
+```bash
+cd tests
+npm install
+npm test                                  # builds the image, runs, cleans up
+npx playwright test sharing.spec.js       # single file
+npx playwright test --headed              # watch it click
+```
+
+Useful environment variables:
+
+| Variable | Effect |
+| --- | --- |
+| `RELAY_TEST_PORT` | host port of the throwaway container (default `5998`) |
+| `RELAY_TEST_BASE_URL` | test an already running instance instead of starting a container |
+| `RELAY_TEST_CHROMIUM` | path to an existing Chromium (skips Playwright's own download) |
+| `RELAY_TEST_KEEP=1` | keep the container after the run (to inspect logs/database) |
+
+Besides the happy paths, the suite asserts the **authorization rules** —
+a user cannot reach another user's file by URL, a recipient cannot delete a
+shared file, a non-admin cannot reach the admin routes. These checks bypass
+the UI (`page.request`) so they verify the server, not just a hidden button.
+CI runs the same suite on every push (`.github/workflows/e2e.yml`).
+
 ## Security / status
 
 - **Login** (session cookie, valid 90 days) protects all browser routes
