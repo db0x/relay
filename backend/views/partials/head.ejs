@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title><%= appName %> — Dokumente</title>
+<%# Kritisch, MUSS vor dem externen CSS stehen: ohne deklariertes color-scheme
+    malt ein Dark-Mode-Browser beim Neuladen kurz seinen dunklen Standard-Canvas,
+    bevor das Hintergrundbild greift -> schwarzer Blitz. Die Grundfarbe ist der
+    Mittelton des Desktop-Bildes, damit der Moment vor dem Bild nahtlos wirkt. %>
+<meta name="color-scheme" content="light">
+<style>html{background:#375998;color-scheme:light}</style>
+<link rel="stylesheet" href="<%= base %>/static/css/index.css?v=<%= v %>">
+<link rel="stylesheet" href="<%= base %>/static/vendor/codemirror.min.css?v=<%= v %>">
+<link rel="stylesheet" href="<%= base %>/static/vendor/highlight-github.min.css?v=<%= v %>">
+<link rel="stylesheet" href="<%= base %>/static/vendor/coloris.min.css?v=<%= v %>">
+<script defer src="<%= base %>/static/vendor/coloris.min.js?v=<%= v %>"></script>
+<script defer src="<%= base %>/static/vendor/codemirror.min.js?v=<%= v %>"></script>
+<script defer src="<%= base %>/static/vendor/cm-xml.min.js?v=<%= v %>"></script>
+<script defer src="<%= base %>/static/vendor/cm-markdown.min.js?v=<%= v %>"></script>
+<script defer src="<%= base %>/static/vendor/marked.min.js?v=<%= v %>"></script>
+<script defer src="<%= base %>/static/vendor/purify.min.js?v=<%= v %>"></script>
+<script defer src="<%= base %>/static/vendor/highlight.min.js?v=<%= v %>"></script>
+<script type="module" src="<%= base %>/static/js/index.js?v=<%= v %>"></script>

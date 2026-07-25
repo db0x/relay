@@ -1,0 +1,39 @@
+<dialog id="dlg-create" class="dialog">
+  <header class="dialog-head">
+    <img id="dlg-create-icon" src="<%= base %>/static/img/docx.svg" alt="" width="22" height="22">
+    <h2 id="dlg-create-title">Neue Datei</h2>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+  <form class="stack-form" action="<%= base %>/create" method="post">
+    <input type="hidden" name="dir" value="<%= curDir %>">
+    <input type="hidden" name="ext" id="dlg-create-ext" value="docx">
+    <label class="dialog-label" for="dlg-create-name" id="dlg-create-name-label">Name der Datei</label>
+    <input class="field" name="name" id="dlg-create-name"
+           placeholder="Name der neuen Datei" required autocomplete="off">
+    <label class="dialog-label" for="dlg-create-lang">Sprache des Dokuments</label>
+    <select class="field" name="lang" id="dlg-create-lang"
+            data-default="<%= docLangDefault %>">
+      <% docLangs.forEach(function(l){ %>
+      <option value="<%= l.code %>"<%= l.code === docLangDefault ? " selected" : "" %>><%= l.label %></option>
+      <% }); %>
+    </select>
+    <button class="btn btn-sm dialog-submit">Erstellen</button>
+  </form>
+</dialog>
+
+<dialog id="dlg-mkdir" class="dialog">
+  <header class="dialog-head">
+    <img src="<%= base %>/static/img/folder.svg" alt="" width="22" height="22">
+    <h2>Neuer Ordner</h2>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+  <form class="stack-form" action="<%= base %>/mkdir" method="post">
+    <input type="hidden" name="dir" value="<%= curDir %>">
+    <input class="field" name="name" placeholder="Name des Ordners" required autocomplete="off">
+    <button class="btn btn-sm dialog-submit">Anlegen</button>
+  </form>
+</dialog>
