@@ -1,5 +1,10 @@
 # Relay
 
+[![platform](https://img.shields.io/badge/platform-docker-2496ED?style=flat-square&logo=docker&logoColor=white)](docker-compose.yml)
+[![License](https://img.shields.io/badge/License-AGPL_v3-blue?style=flat-square)](LICENSE)
+[![editor](https://img.shields.io/badge/editor-OnlyOffice-FF6F3D?style=flat-square)](https://www.onlyoffice.com/)
+[![E2E Tests](https://img.shields.io/github/actions/workflow/status/db0x/relay/e2e.yml?branch=main&style=flat-square&logo=github&label=E2E%20Tests)](https://github.com/db0x/relay/actions/workflows/e2e.yml)
+
 Family document server for the home network: OnlyOffice editor in the browser,
 multiple users with login, per-user files and sharing between users. Auto-save
 to disk, JWT-secured between backend and DocumentServer.
