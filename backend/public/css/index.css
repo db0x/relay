@@ -499,6 +499,11 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* grauer Overlay-Hover funktioniert auf hellem UND dunklem Hintergrund */
 .note-desk:hover{background:rgba(127,127,127,.16)}
 .note-desk.dragging{cursor:grabbing;opacity:.85}
+/* Erledigte ToDo-Notizen bleiben liegen, treten aber zurueck — der Fortschritt
+   bleibt sichtbar und ein versehentliches Schliessen ist per Rechtsklick
+   sofort ruecknehmbar. Beim Hover wieder voll da, damit man sie sicher trifft. */
+.note-desk-done{opacity:.5}
+.note-desk-done:hover{opacity:1}
 .note-desk .note-ico{
   width:46px;height:46px;display:block;pointer-events:none;
   filter:drop-shadow(0 2px 4px rgba(16,24,40,.3));
@@ -659,6 +664,14 @@ a.crumb:hover{text-decoration:underline}
 .badge-soft{background:#f1f3f5;color:var(--muted)}
 .badge-todo{background:#fef3c7;color:#92400e}
 .badge-todo-over{background:#fdecec;color:#991b1b}
+/* Bearbeitungsstand einer Notiz (Offen/In Arbeit/Erledigt). Bewusst NICHT im
+   Bernstein-/Rot-Register der ToDo-Badges: beide stehen nebeneinander in
+   derselben Zeile und muessen auf einen Blick unterscheidbar bleiben.
+   ACHTUNG: Zwilling im Backend — STATUS_PILL in routes/notes.js faerbt die
+   Pillen des PDF-Exports mit genau diesen Werten. */
+.badge-status-open{background:#e8f0fe;color:#1a4fa0}
+.badge-status-wip{background:#ede9fe;color:#5b21b6}
+.badge-status-closed{background:#e7f6ec;color:#166534}
 .badge-ok{background:#e7f6ec;color:#166534}
 .badge-err{background:#fdecec;color:#991b1b}
 .account-section h3 .badge{margin-left:.4rem;vertical-align:middle}
@@ -812,11 +825,18 @@ a.crumb:hover{text-decoration:underline}
 }
 /* muss das display:flex oben schlagen, sonst ignoriert das Panel [hidden] */
 .menu-panel[hidden]{display:none}
+/* Kontextmenue der Desktop-Icons: haengt an keinem Knopf, sondern wird von
+   js/notes/status.js an die Mausposition gesetzt -> fixed statt absolute.
+   z-index ueber den Icons (die liegen als fixe Overlay-Ebene auf der Seite). */
+.note-status-menu{position:fixed;right:auto;top:auto;min-width:150px;z-index:46}
 .menu-item{
   display:block;width:100%;text-align:left;padding:.5rem .6rem;border:0;background:none;
   color:var(--ink);font:inherit;border-radius:7px;cursor:pointer;text-decoration:none;
 }
 .menu-item:hover{background:#f2f4f7}
+/* aktueller Stand im Kontextmenue der Notiz-Icons — MUSS nach .menu-item
+   stehen, dessen background:none wuerde es sonst ueberschreiben */
+.menu-item-active{background:#eef2ff;font-weight:600}
 .menu-version{
   color:var(--muted);font-size:.78rem;padding:.4rem .6rem .2rem;
   border-top:1px solid var(--line);margin-top:2px;

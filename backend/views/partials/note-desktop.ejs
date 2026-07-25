@@ -7,10 +7,11 @@
   <% desktopNotes.forEach(function(n){ %>
   <%# note-colored + --note-color nur bei eigener Farbe; sonst bleibt es beim
       Standard-Pink aus dem <symbol>. note-dark kippt die Ecke auf "aufhellen" %>
-  <button type="button" class="note-open note-desk<%= n.color ? " note-colored" : "" %><%= n.dark ? " note-dark" : "" %>"
+  <button type="button" class="note-open note-desk<%= n.color ? " note-colored" : "" %><%= n.dark ? " note-dark" : "" %><%= n.status === "closed" ? " note-desk-done" : "" %>"
           data-owner="<%= n.owner %>"
           data-rel="<%= n.relpath %>" data-label="<%= n.label %>"
           data-canedit="<%= n.canedit ? 1 : 0 %>"
+          data-status="<%= n.status %>"
           <% if (n.color) { %>style="--note-color:<%= n.color %>"<% } %>
           <% if (n.pos) { %>data-x="<%= n.pos.x %>" data-y="<%= n.pos.y %>"<% } %>
           aria-label="Notiz: <%= n.label %>">
@@ -18,4 +19,15 @@
     <span class="note-desk-label"><%= n.label %></span>
   </button>
   <% }); %>
+</div>
+
+<%# Kontextmenue der Desktop-Icons (Rechtsklick): Bearbeitungsstand wechseln.
+    EIN gemeinsames Panel statt eines pro Icon; die Klasse .menu-panel sorgt
+    dafuer, dass die vorhandenen Schliess-Wege (Klick daneben, Escape,
+    Scrollen) aus js/core/dialogs.js greifen. Befuellt/positioniert wird es
+    von js/notes/status.js. %>
+<div class="menu-panel note-status-menu" id="note-status-menu" role="menu" hidden>
+  <button type="button" class="menu-item" role="menuitemradio" data-status="open">Offen</button>
+  <button type="button" class="menu-item" role="menuitemradio" data-status="wip">In Arbeit</button>
+  <button type="button" class="menu-item" role="menuitemradio" data-status="closed">Erledigt</button>
 </div>

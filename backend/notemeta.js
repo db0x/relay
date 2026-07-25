@@ -1,7 +1,17 @@
-// Strukturierte Zusatzattribute einer Notiz (ToDo/Faelligkeit, Personen, Ort).
-// Bewusst getrennt von der .md — die soll reine Markdown bleiben. Muster wie
-// shares.js: eine Zeile pro (owner, filename).
+// Strukturierte Zusatzattribute einer Notiz (ToDo/Faelligkeit, Personen, Ort,
+// Farbe, Bearbeitungsstand). Bewusst getrennt von der .md — die soll reine
+// Markdown bleiben. Muster wie shares.js: eine Zeile pro (owner, filename).
 const { db } = require("./db");
+
+// Bearbeitungsstand einer Notiz — UNABHAENGIG vom ToDo-Schalter: auch eine
+// Notiz ohne ToDo hat einen Status. "open" ist der Default und wird wie die
+// Standardfarbe behandelt (nicht gespeichert, siehe set()).
+const STATUS = ["open", "wip", "closed"];
+const STATUS_DEFAULT = "open";
+function normalizeStatus(raw) {
+  const v = String(raw || "").trim().toLowerCase();
+  return STATUS.includes(v) ? v : STATUS_DEFAULT;
+}
 
 // people: {known: [username,...], extra: [Freitextname,...]} — known bleibt
 // eine Referenz auf den Nutzer (Anzeigename/Avatar werden live aufgeloest,
@@ -10,34 +20,54 @@ const { db } = require("./db");
 // aus note.svg, siehe --note-color in index.css).
 function get(owner, filename) {
   const row = db().prepare(
-    "SELECT is_todo, due_date, people, ort, color FROM note_meta WHERE owner=? AND filename=?"
+    "SELECT is_todo, due_date, people, ort, color, status FROM note_meta WHERE owner=? AND filename=?"
   ).get(owner, filename);
-  if (!row) return { isTodo: false, dueDate: "", people: { known: [], extra: [] }, ort: "", color: "" };
+  if (!row) {
+    return {
+      isTodo: false, dueDate: "", people: { known: [], extra: [] },
+      ort: "", color: "", status: STATUS_DEFAULT,
+    };
+  }
   return {
     isTodo: !!row.is_todo,
     dueDate: row.due_date || "",
     people: row.people ? JSON.parse(row.people) : { known: [], extra: [] },
     ort: row.ort || "",
     color: row.color || "",
+    status: normalizeStatus(row.status),
   };
 }
 
-// leeres Meta (kein ToDo, keine Personen, kein Ort) -> Zeile ganz loeschen
-// statt eine leere Zeile zu halten
-function set(owner, filename, { isTodo, dueDate, people, ort, color }) {
+// leeres Meta (kein ToDo, keine Personen, kein Ort, Standardfarbe, Status
+// "open") -> Zeile ganz loeschen statt eine Zeile zu halten, die nur
+// Vorgabewerte enthaelt
+function set(owner, filename, { isTodo, dueDate, people, ort, color, status }) {
   const known = (people && people.known) || [];
   const extra = (people && people.extra) || [];
-  if (!isTodo && !dueDate && !known.length && !extra.length && !ort && !color) {
+  const st = normalizeStatus(status);
+  if (!isTodo && !dueDate && !known.length && !extra.length && !ort && !color
+      && st === STATUS_DEFAULT) {
     remove(owner, filename);
     return;
   }
   db().prepare(
-    `INSERT INTO note_meta (owner, filename, is_todo, due_date, people, ort, color) VALUES (?,?,?,?,?,?,?)
+    `INSERT INTO note_meta (owner, filename, is_todo, due_date, people, ort, color, status)
+     VALUES (?,?,?,?,?,?,?,?)
      ON CONFLICT(owner, filename) DO UPDATE SET
        is_todo=excluded.is_todo, due_date=excluded.due_date,
-       people=excluded.people, ort=excluded.ort, color=excluded.color`
+       people=excluded.people, ort=excluded.ort, color=excluded.color,
+       status=excluded.status`
   ).run(owner, filename, isTodo ? 1 : 0, dueDate || null,
-    JSON.stringify({ known, extra }), ort || null, color || null);
+    JSON.stringify({ known, extra }), ort || null, color || null, st);
+}
+
+// Nur den Status wechseln (Kontextmenue der Desktop-Icons): ueber get+set,
+// damit die uebrigen Felder unangetastet bleiben UND die Aufraeumregel aus
+// set() automatisch greift (Status zurueck auf "open" bei sonst leerem Meta
+// -> Zeile faellt weg).
+function setStatus(owner, filename, status) {
+  const meta = get(owner, filename);
+  set(owner, filename, { ...meta, status: normalizeStatus(status) });
 }
 
 // Datei wurde umbenannt/verschoben: Meta UND Desktop-Positionen ziehen mit um
@@ -79,9 +109,12 @@ function isDark(color) {
 }
 
 // Alle ToDo-Notizen eines Besitzers (fuer die Desktop-Icons), je mit Farbe
+// und Status (erledigte Icons zeigt der Desktop gedaempft)
 function listTodos(owner) {
-  return db().prepare("SELECT filename, color FROM note_meta WHERE owner=? AND is_todo=1")
-    .all(owner).map((r) => ({ filename: r.filename, color: r.color || "" }));
+  return db().prepare("SELECT filename, color, status FROM note_meta WHERE owner=? AND is_todo=1")
+    .all(owner).map((r) => ({
+      filename: r.filename, color: r.color || "", status: normalizeStatus(r.status),
+    }));
 }
 
 // --- Desktop-Positionen der Notiz-Icons (je Betrachter) -----------------
@@ -108,6 +141,7 @@ function setLayout(username, key, x, y) {
 }
 
 module.exports = {
-  get, set, rename, remove, listTodos, isDark,
+  get, set, setStatus, rename, remove, listTodos, isDark,
+  STATUS, STATUS_DEFAULT, normalizeStatus,
   desktopPositions, setDesktopPos, getLayout, setLayout,
 };

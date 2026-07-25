@@ -1,6 +1,7 @@
-// Personen-Avatare, Fälligkeits-Label und die ToDo/Personen/Ort-Badges der
-// Notiz-Lese-Ansicht — gemeinsam genutzt vom Personen-Chip-Feld, der
+// Personen-Avatare, Fälligkeits-Label und die Status/ToDo/Personen/Ort-Badges
+// der Notiz-Lese-Ansicht — gemeinsam genutzt vom Personen-Chip-Feld, der
 // Dialog-Zusammenfassung UND dem Hover-Tooltip in der Dateiliste.
+import { statusBadge } from "./status.js";
 
 // Avatar (bekannt+Bild) bzw. Initialen-Kreis (bekannt ohne Bild) —
 // Freitext-Personen bekommen kein Rund; size in px
@@ -45,6 +46,11 @@ export function appendSummaryBadges(target, meta, knownByUsername, baseUrl, opts
   var known = (meta.people && meta.people.known) || [];
   var extra = (meta.people && meta.people.extra) || [];
   var count = 0;
+
+  // Der Bearbeitungsstand steht IMMER vorn — anders als die uebrigen Badges
+  // hat jede Notiz einen (Default "Offen"), er soll jederzeit ablesbar sein.
+  target.appendChild(statusBadge(meta.status));
+  count++;
 
   if (meta.isTodo) {
     var overdue = !!meta.dueDate && meta.dueDate < new Date().toISOString().slice(0, 10);

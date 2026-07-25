@@ -25,11 +25,14 @@ export function initNoteDialog(baseUrl) {
   var noteCM = null;    // CodeMirror-Instanz; ohne Vendor-JS bleibt die Textarea
   var noteTimer = null;
 
-  // ToDo/Personen/Ort — eigenes Formular-Stueck, laeuft aber ueber denselben
-  // Speichern-Button wie der Markdown-Inhalt (ein Submit pro Dialog)
+  // Status/ToDo/Personen/Ort — eigenes Formular-Stueck, laeuft aber ueber
+  // denselben Speichern-Button wie der Markdown-Inhalt (ein Submit pro Dialog).
+  // noteState ist der Bearbeitungsstand (Offen/In Arbeit/Erledigt) — NICHT zu
+  // verwechseln mit #note-status, der Markdown-Fehlerzeile in der Fusszeile.
   var noteTodo = document.getElementById("note-todo");
   var noteDue = document.getElementById("note-due");
   var noteOrt = document.getElementById("note-ort");
+  var noteState = document.getElementById("note-state");
   var noteMetaBaseline = "";
 
   // Farbe des Notiz-Icons — dezent als Farbtupfer in der Fusszeile, der
@@ -65,6 +68,7 @@ export function initNoteDialog(baseUrl) {
       people: people.getChips().map(function (c) { return c.username || ("~" + c.name); }),
       ort: noteOrt.value,
       color: noteColorValue(noteColorInput),
+      status: noteState.value,
     });
   }
 
@@ -109,6 +113,7 @@ export function initNoteDialog(baseUrl) {
 
   noteTodo.addEventListener("change", function () { updateDueVisibility(); onNoteChange(); });
   [noteDue, noteOrt].forEach(function (el) { el.addEventListener("input", onNoteChange); });
+  noteState.addEventListener("change", onNoteChange);
 
   var mdActions = createMarkdownActions(function () { return noteCM; });
 
@@ -156,7 +161,7 @@ export function initNoteDialog(baseUrl) {
     // selbst (das Panel im Lese-Modus zeigt nur an, aendert nichts)
     var metaEditable = editMode && noteCanEdit;
     noteTodo.disabled = !metaEditable;
-    [noteDue, noteOrt, document.getElementById("note-people-input"), noteColorInput]
+    [noteDue, noteOrt, noteState, document.getElementById("note-people-input"), noteColorInput]
       .forEach(function (el) { el.disabled = !metaEditable; });
     if (!metaEditable) people.hideDropdown();
     // Farbtupfer ist ein Bedienelement -> nur beim Bearbeiten; im Lese-Modus
@@ -248,7 +253,10 @@ export function initNoteDialog(baseUrl) {
   }
 
   function openNote(title, content, action, canEdit, startEdit, meta) {
-    meta = meta || { isTodo: false, dueDate: "", people: { known: [], extra: [] }, ort: "", color: "" };
+    meta = meta || {
+      isTodo: false, dueDate: "", people: { known: [], extra: [] },
+      ort: "", color: "", status: "open",
+    };
     ensureNoteEditor();
     noteCanEdit = canEdit;
     noteTitleEl.textContent = title;
@@ -284,6 +292,9 @@ export function initNoteDialog(baseUrl) {
     noteDue.value = meta.dueDate || "";
     updateDueVisibility();
     noteOrt.value = meta.ort || "";
+    // Unbekanntes/fehlendes zurueck auf den Default (wie normalizeStatus im Backend)
+    noteState.value = meta.status || "open";
+    if (!noteState.value) noteState.value = "open";
     noteColorInput.value = meta.color || "";
     onColorChanged();
     noteMetaBaseline = metaSnapshot();

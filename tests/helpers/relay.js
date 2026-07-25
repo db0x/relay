@@ -17,6 +17,16 @@ function uniqueName(prefix) {
   return `${prefix}${Date.now().toString(36)}${counter}`;
 }
 
+// index.js laeuft als ES-Modul, also ERST nach dem Parsen des DOM. Das
+// server-gerenderte Markup (Nutzername, Tabelle) ist vorher schon da — ein
+// Klick auf einen Knopf, dessen Handler noch nicht haengt, verpufft
+// wirkungslos und der Test wartet danach ewig auf ein Menue, das nie aufgeht.
+// `body.desk-ready` setzt index.js ganz am Ende seiner Initialisierung
+// (desktop-layout.js) — darauf zu warten macht die Klicks verlaesslich.
+async function waitAppReady(page) {
+  await page.locator("body.desk-ready").waitFor({ state: "attached" });
+}
+
 async function login(page, username, password) {
   await page.goto("/login");
   await page.fill("input[name=username]", username);
@@ -35,6 +45,7 @@ async function logout(page) {
 
 // Topbar-Menue oeffnen und einen Dialog daraus starten (z.B. "dlg-users").
 async function openMenuDialog(page, dialogId) {
+  await waitAppReady(page);
   await page.click(".menu-btn");
   await page.click(`[data-dialog="${dialogId}"]`);
   await expect(page.locator(`#${dialogId}`)).toBeVisible();
@@ -60,6 +71,7 @@ async function createUser(page, { username, display, password = "geheim123", adm
 // Der Datei-Input ist versteckt (ein Knopf loest ihn aus); setInputFiles
 // kommt damit klar, und das change-Event schickt das Formular selbst ab.
 async function uploadFile(page, filename, content = "Relay E2E") {
+  await waitAppReady(page);
   await Promise.all([
     page.waitForNavigation(),
     page.locator(".upload-form input[type=file]").setInputFiles({
@@ -70,13 +82,43 @@ async function uploadFile(page, filename, content = "Relay E2E") {
   ]);
 }
 
+// Neue Notiz anlegen. Der Titel ist die erste Markdown-Zeile — daraus baut
+// das Backend den Dateinamen ({uuid}-{Titel}.md), angezeigt wird nur der Titel.
+// todo:true setzt zusaetzlich den ToDo-Schalter (nur dann bekommt die Notiz
+// ein Icon auf dem Desktop).
+async function createNote(page, title, { todo = false } = {}) {
+  await waitAppReady(page);
+  await page.click("#note-new");
+  await expect(page.locator("#dlg-note")).toBeVisible();
+  // CodeMirror ersetzt die Textarea -> ueber den Editor tippen, nicht fill()
+  await page.click(".CodeMirror");
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type(`# ${title}\n\nInhalt.`);
+  if (todo) await page.locator("#note-details .switch-label").click();
+  await Promise.all([page.waitForNavigation(), page.click("#note-save")]);
+  return title;
+}
+
 // Die Tabellenzeile zu einem Dateinamen (fuer Zeilenmenue, Badges, Sichtbarkeit).
 function fileRow(page, filename) {
   return page.locator("table.files tbody tr").filter({ hasText: filename });
 }
 
+// Das Desktop-Icon einer ToDo-Notiz (Rechtsklick-Kontextmenue, Status-Optik).
+function deskIcon(page, title) {
+  return page.locator(".note-desk").filter({ hasText: title });
+}
+
+// Eine Notiz oeffnen (Listenzeile ODER Desktop-Icon sind beide .note-open).
+async function openNote(page, title) {
+  await waitAppReady(page);
+  await page.locator(".note-open").filter({ hasText: title }).first().click();
+  await expect(page.locator("#dlg-note")).toBeVisible();
+}
+
 // Zeilen-Kontextmenue oeffnen und einen Eintrag anklicken.
 async function openRowMenu(page, filename) {
+  await waitAppReady(page);
   const row = fileRow(page, filename);
   await row.locator(".row-menu-btn").click();
   return row;
@@ -156,7 +198,11 @@ module.exports = {
   logout,
   openMenuDialog,
   createUser,
+  waitAppReady,
   uploadFile,
+  createNote,
+  deskIcon,
+  openNote,
   fileRow,
   openRowMenu,
   shareFile,

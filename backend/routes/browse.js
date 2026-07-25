@@ -74,19 +74,22 @@ function desktopNotesFor(me) {
     return r ? { x: r.x, y: r.y } : null;
   };
   const out = [];
-  const add = (owner, filename, canedit, color) => {
+  // status: Erledigte Icons bleiben liegen, werden aber gedaempft dargestellt
+  // (index.css) — und das Kontextmenue braucht den aktuellen Wert
+  const add = (owner, filename, canedit, color, status) => {
     if (!/\.md$/i.test(filename) || !fs.existsSync(pathFor(owner, filename))) return;
     out.push({
       owner, relpath: filename, label: labelFor(filename), canedit,
       pos: posOf(owner, filename), color: color || "", dark: notemeta.isDark(color),
+      status: notemeta.normalizeStatus(status),
     });
   };
   // eigene ToDo-Notizen (alle Ordner)
-  notemeta.listTodos(me).forEach((n) => add(me, n.filename, true, n.color));
+  notemeta.listTodos(me).forEach((n) => add(me, n.filename, true, n.color, n.status));
   // an mich freigegebene ToDo-Notizen
   shares.listForUser(me).forEach((s) => {
     const m = notemeta.get(s.owner, s.filename);
-    if (m.isTodo) add(s.owner, s.filename, s.perm === "edit", m.color);
+    if (m.isTodo) add(s.owner, s.filename, s.perm === "edit", m.color, m.status);
   });
   return out;
 }

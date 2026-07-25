@@ -8,9 +8,9 @@ import { appendSummaryBadges } from "./summary.js";
 import { externalizeLinks, renderMarkdown, highlightCode } from "./markdown.js";
 
 // config: { baseUrl, openNote, knownByUsername }
-// Rueckgabe: { bindNoteOpen, hideNoteTip } — bindNoteOpen(root) ist root-skopiert
-// (nach einem Ordnerwechsel bindet swapFolder nur die neuen Listenzeilen; die
-// Desktop-Icons behalten ihre Bindung vom Erststart).
+// Rueckgabe: { bindNoteOpen, hideNoteTip, invalidateNote } — bindNoteOpen(root)
+// ist root-skopiert (nach einem Ordnerwechsel bindet swapFolder nur die neuen
+// Listenzeilen; die Desktop-Icons behalten ihre Bindung vom Erststart).
 export function initHoverPreview(config) {
   var baseUrl = config.baseUrl;
   var openNote = config.openNote;
@@ -24,6 +24,14 @@ export function initHoverPreview(config) {
     if (noteTip) noteTip.classList.remove("open");
   }
   window.addEventListener("scroll", hideNoteTip, true);
+
+  // Gecachten Eintrag verwerfen, wenn sich eine Notiz geaendert hat, OHNE dass
+  // die Seite neu geladen wurde. Genau das macht der Statuswechsel per
+  // Kontextmenue (status.js) — ohne diesen Aufruf zeigte die Vorschau
+  // hartnaeckig den alten Stand weiter.
+  function invalidateNote(owner, rel) {
+    delete noteTipCache[owner + "/" + rel];
+  }
 
   function bindNoteOpen(root) {
     root.querySelectorAll(".note-open").forEach(function (btn) {
@@ -105,5 +113,9 @@ export function initHoverPreview(config) {
     });
   }
 
-  return { bindNoteOpen: bindNoteOpen, hideNoteTip: hideNoteTip };
+  return {
+    bindNoteOpen: bindNoteOpen,
+    hideNoteTip: hideNoteTip,
+    invalidateNote: invalidateNote,
+  };
 }

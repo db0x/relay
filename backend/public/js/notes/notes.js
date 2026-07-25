@@ -3,6 +3,7 @@
 // Notiz-Dialog ueberhaupt im DOM steht.
 import { initNoteDialog } from "./note-dialog.js";
 import { initHoverPreview } from "./hover-preview.js";
+import { initStatusMenu } from "./status.js";
 import { initDesktopLayout } from "../desktop-layout.js";
 
 // Rueckgabe: bindNoteOpen(root) fuer die AJAX-Ordnernavigation (Rebind nach
@@ -23,6 +24,15 @@ export function initNotes() {
   // MUSS nach der Notiz-Bindung laufen (Icons sind .note-open), aber die
   // Reihenfolge Karte-vor-Icon-Layout kapselt initDesktopLayout selbst.
   initDesktopLayout({ baseUrl: baseUrl, hideNoteTip: hover.hideNoteTip });
+
+  // Rechtsklick auf ein Desktop-Icon: Bearbeitungsstand wechseln. Der Wechsel
+  // laeuft ohne Neuladen -> die Hover-Vorschau muss ihren Cache-Eintrag
+  // verwerfen, sonst zeigt sie weiter den alten Stand.
+  initStatusMenu({
+    baseUrl: baseUrl,
+    hideNoteTip: hover.hideNoteTip,
+    invalidateNote: hover.invalidateNote,
+  });
 
   return hover.bindNoteOpen;
 }
