@@ -1,5 +1,10 @@
 # Relay
 
+[![platform](https://img.shields.io/badge/platform-docker-2496ED?style=flat-square&logo=docker&logoColor=white)](docker-compose.yml)
+[![License](https://img.shields.io/badge/License-AGPL_v3-blue?style=flat-square)](LICENSE)
+[![editor](https://img.shields.io/badge/editor-OnlyOffice-FF6F3D?style=flat-square)](https://www.onlyoffice.com/)
+[![E2E Tests](https://img.shields.io/github/actions/workflow/status/db0x/relay/e2e.yml?branch=main&style=flat-square&logo=github&label=E2E%20Tests)](https://github.com/db0x/relay/actions/workflows/e2e.yml)
+
 Family document server for the home network: OnlyOffice editor in the browser,
 multiple users with login, per-user files and sharing between users. Auto-save
 to disk, JWT-secured between backend and DocumentServer.
@@ -228,6 +233,36 @@ menu with a single "Backup ausführen" action, which mirrors `documents/`
 and `state/` into it via `rsync -a --delete` (the backup directory always
 matches the current state — nothing removed at the source stays in the
 backup either).
+
+## Tests
+
+End-to-end tests (Playwright) live in `tests/` and cover **Relay's own layer**
+— login/session, user management and sharing — deliberately *not* OnlyOffice
+itself. They build the backend image and run it as a throwaway container with
+an empty database, so no DocumentServer and no secrets are needed:
+
+```bash
+cd tests
+npm install
+npm test                                  # builds the image, runs, cleans up
+npx playwright test sharing.spec.js       # single file
+npx playwright test --headed              # watch it click
+```
+
+Useful environment variables:
+
+| Variable | Effect |
+| --- | --- |
+| `RELAY_TEST_PORT` | host port of the throwaway container (default `5998`) |
+| `RELAY_TEST_BASE_URL` | test an already running instance instead of starting a container |
+| `RELAY_TEST_CHROMIUM` | path to an existing Chromium (skips Playwright's own download) |
+| `RELAY_TEST_KEEP=1` | keep the container after the run (to inspect logs/database) |
+
+Besides the happy paths, the suite asserts the **authorization rules** —
+a user cannot reach another user's file by URL, a recipient cannot delete a
+shared file, a non-admin cannot reach the admin routes. These checks bypass
+the UI (`page.request`) so they verify the server, not just a hidden button.
+CI runs the same suite on every push (`.github/workflows/e2e.yml`).
 
 ## Security / status
 

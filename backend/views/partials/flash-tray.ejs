@@ -1,0 +1,9 @@
+<%# Statusmeldungen: unten mittig auf dem Desktop (nicht mehr in der
+    Datei-Karte), blenden nach 2,5s von selbst aus (index.js) %>
+<% if (flashes.length) { %>
+<div class="flash-tray" id="flash-tray" aria-live="polite">
+  <% flashes.forEach(function(f){ %>
+  <div class="flash <%= f[0] %>"><%= f[1] %></div>
+  <% }); %>
+</div>
+<% } %>

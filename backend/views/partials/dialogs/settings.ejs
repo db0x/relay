@@ -1,0 +1,28 @@
+<% if (isAdmin) { %>
+<dialog id="dlg-settings" class="dialog dialog-xwide">
+  <header class="dialog-head">
+    <img src="<%= base %>/static/img/edit.svg" alt="" width="22" height="22">
+    <h2>Einstellungen</h2>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+  <section class="account-section">
+    <h3>Sprachen im „Neue Datei“-Dialog</h3>
+    <p class="muted dialog-hint">Nur angehakte Sprachen erscheinen in der Auswahl.
+      Deutsch (Deutschland) ist die Vorgabe und lässt sich nicht ausblenden.</p>
+    <form class="stack-form" action="<%= base %>/settings/langs" method="post">
+      <div class="lang-list">
+        <% settingsLangs.forEach(function(l){ %>
+        <label class="check">
+          <input type="checkbox" name="visible" value="<%= l.code %>"
+                 <%= l.hidden ? "" : "checked" %> <%= l.code === docLangDefault ? "disabled" : "" %>>
+          <%= l.label %>
+        </label>
+        <% }); %>
+      </div>
+      <button class="btn btn-sm dialog-submit">Speichern</button>
+    </form>
+  </section>
+</dialog>
+<% } %>

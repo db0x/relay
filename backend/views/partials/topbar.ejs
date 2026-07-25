@@ -1,0 +1,65 @@
+<header class="topbar">
+    <div class="topbar-left">
+    <%# Klick auf Logo/Name fuehrt zurueck zur Startseite ("Meine Dateien") %>
+    <a class="brand" href="<%= base %>/" data-tip="Zur Startseite" aria-label="Zur Startseite">
+      <img src="<%= base %>/static/img/logo.svg" alt="" width="28" height="28">
+      <span><%= appName %></span>
+    </a>
+    <%# Werkzeugleiste (Neu erstellen / Hochladen / Neuer Ordner) in der Titelleiste %>
+    <section class="toolbar" aria-label="Aktionen">
+      <div class="create-group" role="group" aria-label="Neue Datei erstellen">
+        <button type="button" class="create-btn" data-create="docx"
+                data-tip="Neues Textdokument" aria-label="Neues Textdokument">
+          <span class="create-zoom"><img src="<%= base %>/static/img/docx.svg" alt="" width="48" height="48"></span>
+        </button>
+        <button type="button" class="create-btn" data-create="xlsx"
+                data-tip="Neue Tabelle" aria-label="Neue Tabelle">
+          <span class="create-zoom"><img src="<%= base %>/static/img/xlsx.svg" alt="" width="48" height="48"></span>
+        </button>
+        <button type="button" class="create-btn" data-create="pptx"
+                data-tip="Neue Präsentation" aria-label="Neue Präsentation">
+          <span class="create-zoom"><img src="<%= base %>/static/img/pptx.svg" alt="" width="48" height="48"></span>
+        </button>
+        <button type="button" class="create-btn" id="note-new"
+                data-tip="Neue Notiz" aria-label="Neue Notiz">
+          <span class="create-zoom"><img src="<%= base %>/static/img/note.svg" alt="" width="48" height="48"></span>
+        </button>
+      </div>
+      <span class="tool-sep" aria-hidden="true"></span>
+      <%# ein Knopf: oeffnet die Dateiauswahl, die Auswahl laedt sofort hoch (js/files/upload.js) %>
+      <form class="upload-form" action="<%= base %>/upload" method="post" enctype="multipart/form-data"
+            data-max-mb="<%= maxUploadMb %>">
+        <input type="hidden" name="dir" value="<%= curDir %>">
+        <input type="file" name="file" accept="<%= uploadAccept %>" hidden>
+        <button type="button" class="btn btn-secondary upload-btn" data-tip="Datei hochladen" aria-label="Datei hochladen">
+          <img class="btn-icon" src="<%= base %>/static/img/upload.svg" alt="" width="16" height="16"><span class="tool-label">Hochladen</span>
+        </button>
+      </form>
+      <button type="button" class="btn btn-secondary" data-dialog="dlg-mkdir" data-tip="Neuer Ordner" aria-label="Neuer Ordner">
+        <img class="btn-icon" src="<%= base %>/static/img/folder.svg" alt="" width="16" height="16"><span class="tool-label">Neuer Ordner</span>
+      </button>
+    </section>
+    </div>
+    <div class="user">
+      <% if (hasAvatar) { %>
+      <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="32" height="32">
+      <% } %>
+      <span class="uname"><%= user %></span>
+      <div class="menu">
+        <button type="button" class="iconbtn menu-btn" aria-haspopup="true"
+                aria-expanded="false" aria-label="Menü" data-tip="Menü">
+          <img src="<%= base %>/static/img/open-menu.svg" alt="" width="16" height="16">
+        </button>
+        <div class="menu-panel" hidden>
+          <button type="button" class="menu-item" data-dialog="dlg-account">Mein Konto</button>
+          <% if (isAdmin) { %>
+          <button type="button" class="menu-item" data-dialog="dlg-users">Nutzerverwaltung</button>
+          <button type="button" class="menu-item" data-dialog="dlg-settings">Einstellungen</button>
+          <button type="button" class="menu-item" data-dialog="dlg-backup">Backup</button>
+          <% } %>
+          <a class="menu-item" href="<%= base %>/logout">Abmelden</a>
+          <div class="menu-version">Relay v<%= version %></div>
+        </div>
+      </div>
+    </div>
+  </header>

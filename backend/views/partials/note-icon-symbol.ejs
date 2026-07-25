@@ -1,0 +1,20 @@
+<%# note.svg einmal als <symbol>, damit die Notiz-Icons per <use> eingebunden
+    und einzeln eingefaerbt werden koennen (als <img> ginge das nicht: dessen
+    Inhalt ist ein eigenes Dokument, das CSS des Hosts erreicht es nicht).
+    --note-body/--note-fold erben in den Schatten-Baum des <use> hinein; ohne
+    gesetzte Werte greifen die Standardwerte = das Pink der Originaldatei. %>
+<svg class="svg-sprite" width="0" height="0" aria-hidden="true" focusable="false">
+  <symbol id="note-ico" viewBox="0 0 64 64">
+    <g transform="matrix(2.8754969,0,0,3.07989,8.9960249,7.36088)">
+      <path fill="var(--note-body,#fab9ff)"
+            d="M 13.833333,0 H 2.1666669 C 1.5203329,0 0.99999994,0.5352 0.99999994,1.2 V 10 L 6.9999999,16 H 13.833333 C 14.479667,16 15,15.4648 15,14.8 V 1.2 C 15,0.5352 14.479667,0 13.833333,0 Z"/>
+      <path fill="var(--note-fold,#ff7afe)"
+            d="M 0.99999994,10 H 6.2499999 c 0.414375,0 0.75,0.335625 0.75,0.75 V 16 Z"/>
+      <g transform="translate(-1.008916,1.1659163)" fill="#ffffff">
+        <path d="M 6.2186028,7.2917672 H 7.0556964 V 5.7014077 L 7.7532742,6.4986394 8.4508533,5.7014077 V 7.2917672 H 9.2879468 V 4.5014534 H 8.4508533 L 7.7532742,5.2986851 7.0556964,4.5014534 H 6.2186028"/>
+        <path d="M 10.404072,4.5014534 V 6.175642 H 9.7064944 l 0.9766096,1.1161252 h 0.279032 L 11.938744,6.175642 H 11.241165 V 4.5014534 Z"/>
+        <path d="m 5.3940427,3.3853282 c -0.3096034,0 -0.5705967,0.2649288 -0.5705967,0.579317 V 7.828574 c 0,0.3143887 0.2609933,0.5793184 0.5705967,0.5793184 h 7.2297443 c 0.309606,0 0.570599,-0.2649297 0.570599,-0.5793184 V 3.9646452 c 0,-0.3143882 -0.260993,-0.579317 -0.570599,-0.579317 z M 5.6605395,4.2224218 H 12.357291 V 7.5707974 H 5.6605395 Z"/>
+      </g>
+    </g>
+  </symbol>
+</svg>

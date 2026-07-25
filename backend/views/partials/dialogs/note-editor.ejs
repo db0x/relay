@@ -1,0 +1,139 @@
+<%# Hover-Vorschau fuer Notizen in der Dateiliste (js/notes/hover-preview.js befuellt) %>
+<div class="note-tip md-render" id="note-tip" aria-hidden="true"></div>
+
+<%# Markdown-Notiz-Editor: modaler Dialog, fuellt 70% der Seite (js/notes/note-dialog.js) %>
+<dialog id="dlg-note" class="dialog dialog-note">
+  <header class="dialog-head">
+    <%# gleiches Icon wie auf dem Desktop — zeigt die im Fuss gewaehlte
+        Farbe sofort an (js/notes/color.js setzt --note-color live) %>
+    <svg class="note-ico" id="note-dlg-ico" width="22" height="22"
+         aria-hidden="true" focusable="false"><use href="#note-ico"/></svg>
+    <h2 id="dlg-note-title">Neue Notiz</h2>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+  <form class="note-form" id="note-form" method="post" action="<%= base %>/notes/create">
+    <input type="hidden" name="dir" value="<%= curDir %>">
+    <div class="note-main">
+      <%# im Ansichtsmodus oben rechts: als PDF oeffnen + Bearbeiten %>
+      <div class="note-view-actions">
+        <button type="button" class="iconbtn" id="note-pdf"
+                data-tip="Als PDF öffnen" aria-label="Als PDF öffnen" hidden>
+          <img src="<%= base %>/static/img/pdf.svg" alt="" width="16" height="16">
+        </button>
+        <button type="button" class="iconbtn" id="note-edit"
+                data-tip="Bearbeiten" aria-label="Bearbeiten" hidden>
+          <img src="<%= base %>/static/img/edit.svg" alt="" width="16" height="16">
+        </button>
+      </div>
+      <div class="note-editor-pane">
+        <div class="note-toolbar" id="note-toolbar" role="toolbar" aria-label="Formatierung">
+          <button type="button" class="note-tb" data-md="bold" data-tip="Fett (Strg+B)" aria-label="Fett">
+            <img src="<%= base %>/static/img/toolbar/md-bold.svg" alt="" width="24" height="24">
+          </button>
+          <button type="button" class="note-tb" data-md="italic" data-tip="Kursiv (Strg+I)" aria-label="Kursiv">
+            <img src="<%= base %>/static/img/toolbar/md-italic.svg" alt="" width="24" height="24">
+          </button>
+          <button type="button" class="note-tb" data-md="strike" data-tip="Durchgestrichen" aria-label="Durchgestrichen">
+            <img src="<%= base %>/static/img/toolbar/md-strike.svg" alt="" width="24" height="24">
+          </button>
+          <span class="note-tb-sep" aria-hidden="true"></span>
+          <button type="button" class="note-tb" data-md="h1" data-tip="Überschrift 1" aria-label="Überschrift 1">
+            <img src="<%= base %>/static/img/toolbar/md-h1.svg" alt="" width="24" height="24">
+          </button>
+          <button type="button" class="note-tb" data-md="h2" data-tip="Überschrift 2" aria-label="Überschrift 2">
+            <img src="<%= base %>/static/img/toolbar/md-h2.svg" alt="" width="24" height="24">
+          </button>
+          <button type="button" class="note-tb" data-md="h3" data-tip="Überschrift 3" aria-label="Überschrift 3">
+            <img src="<%= base %>/static/img/toolbar/md-h3.svg" alt="" width="24" height="24">
+          </button>
+          <span class="note-tb-sep" aria-hidden="true"></span>
+          <button type="button" class="note-tb" data-md="ul" data-tip="Aufzählung" aria-label="Aufzählung">
+            <img src="<%= base %>/static/img/toolbar/md-ul.svg" alt="" width="24" height="24">
+          </button>
+          <button type="button" class="note-tb" data-md="ol" data-tip="Nummerierte Liste" aria-label="Nummerierte Liste">
+            <img src="<%= base %>/static/img/toolbar/md-ol.svg" alt="" width="24" height="24">
+          </button>
+          <button type="button" class="note-tb" data-md="task" data-tip="Checkliste" aria-label="Checkliste">
+            <img src="<%= base %>/static/img/toolbar/md-task.svg" alt="" width="24" height="24">
+          </button>
+          <button type="button" class="note-tb" data-md="quote" data-tip="Zitat" aria-label="Zitat">
+            <img src="<%= base %>/static/img/toolbar/md-quote.svg" alt="" width="24" height="24">
+          </button>
+          <span class="note-tb-sep" aria-hidden="true"></span>
+          <button type="button" class="note-tb" data-md="codeblock" data-tip="Code-Block" aria-label="Code-Block">
+            <img src="<%= base %>/static/img/toolbar/md-codeblock.svg" alt="" width="24" height="24">
+          </button>
+          <button type="button" class="note-tb" data-md="code" data-tip="Code" aria-label="Code">
+            <img src="<%= base %>/static/img/toolbar/md-code.svg" alt="" width="24" height="24">
+          </button>
+          <button type="button" class="note-tb" data-md="link" data-tip="Link" aria-label="Link">
+            <img src="<%= base %>/static/img/toolbar/md-link.svg" alt="" width="24" height="24">
+          </button>
+          <button type="button" class="note-tb" data-md="hr" data-tip="Trennlinie" aria-label="Trennlinie">
+            <img src="<%= base %>/static/img/toolbar/md-hr.svg" alt="" width="24" height="24">
+          </button>
+        </div>
+        <textarea class="note-text" name="md" spellcheck="false"
+                  aria-label="Markdown-Inhalt der Notiz"></textarea>
+      </div>
+      <div class="note-splitter" id="note-splitter" role="separator"
+           aria-orientation="vertical" aria-label="Aufteilung anpassen"></div>
+      <div class="note-preview md-render" id="note-preview" aria-label="Vorschau der Notiz"></div>
+    </div>
+    <%# Kompaktes, horizontales Edit-Panel — Icons (users/place) markieren die
+        Abschnitte wie in der Lese-Ansicht, alles fliesst in einer Zeile und
+        bricht bei Bedarf um (bewusst nicht in die Hoehe gestapelt) %>
+    <div class="note-details" id="note-details">
+      <span class="note-detail-group">
+        <label class="switch-label">
+          <input type="checkbox" id="note-todo" name="is_todo" value="1">
+          <span class="switch-ui" aria-hidden="true"></span>
+          <span class="switch-text">ToDo</span>
+        </label>
+        <input type="date" class="field field-sm" name="due_date" id="note-due"
+               aria-label="Fällig am" hidden>
+      </span>
+
+      <%# Personen: ein Chip-Feld mit Autocomplete aus den bekannten Nutzern
+          (data-known), das ebenso Freitext fuer Unbekannte annimmt (js/notes/people-chips.js).
+          Die versteckten Felder people_known/people_extra werden aus dem
+          Chip-Zustand synchronisiert. %>
+      <span class="note-detail-group note-people-field" id="note-people-field"
+            data-known="<%= JSON.stringify(knownUsers) %>">
+        <img class="note-summary-icon" src="<%= base %>/static/img/users.svg"
+             alt="Betroffene Personen" width="16" height="16">
+        <span class="chips" id="note-people-chips">
+          <input type="text" class="chips-input" id="note-people-input"
+                 aria-label="Betroffene Personen" placeholder="Person …" autocomplete="off">
+        </span>
+        <span id="note-people-hidden"></span>
+      </span>
+
+      <span class="note-detail-group">
+        <img class="note-summary-icon" src="<%= base %>/static/img/place.svg"
+             alt="Ort" width="16" height="16">
+        <input class="field field-sm" name="ort" id="note-ort"
+               aria-label="Ort" placeholder="Ort">
+      </span>
+    </div>
+    <%# Lese-Ansicht der Details: nur sichtbar, wenn etwas gesetzt ist —
+        befuellt js/notes/note-dialog.js beim Oeffnen aus den Notiz-Metadaten %>
+    <div class="note-view-summary" id="note-view-summary" hidden></div>
+    <div class="note-foot">
+      <%# Farbe des Notiz-Icons: dezent als kleiner Farbtupfer in der
+          Fusszeile. Coloris (vendor) macht aus dem Feld einen Farbwaehler;
+          leerer Wert = Standardfarbe. %>
+      <span class="note-color" id="note-color-wrap"
+            data-tip="Farbe der Notiz">
+        <input type="text" class="note-color-input" name="color" id="note-color"
+               value="" autocomplete="off" aria-label="Farbe der Notiz">
+      </span>
+      <span class="note-status" id="note-status" aria-live="polite"></span>
+      <button class="btn btn-sm" id="note-save">Speichern</button>
+    </div>
+  </form>
+  <%# unsichtbare Griffecke zum Skalieren (js/notes/note-dialog.js) %>
+  <div class="note-resize" id="note-resize" aria-hidden="true"></div>
+</dialog>

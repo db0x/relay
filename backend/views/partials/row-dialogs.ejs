@@ -1,0 +1,89 @@
+<%# Pro-Datei-Dialoge (Freigeben/Verschieben) sind ordnerabhaengig und werden
+    beim Ordnerwechsel zusammen mit der Liste ausgetauscht (js/folder-nav.js: swapFolder).
+    Eigener Container -> gezielt ersetzbar; schlichtes div ohne Position aendert
+    nichts am Stacking (Dialoge nutzen show(), kein showModal). %>
+<div id="row-dialogs">
+<% files.forEach(function(f, i){ if (!f.isOwner || f.isDir) return; %>
+<dialog id="dlg-share-<%= i %>" class="dialog">
+  <header class="dialog-head">
+    <img src="<%= base %>/static/img/share.svg" alt="" width="22" height="22">
+    <h2>„<%= f.label %>“ freigeben</h2>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+  <div class="sharebox">
+    <% if (f.shares.length) { %>
+    <span class="dialog-label">Bereits freigegeben für</span>
+    <ul class="share-list">
+      <% f.shares.forEach(function(s){ %>
+      <li>
+        <span><%= s.display_name %>
+          <span class="muted">· <%= s.perm === "edit" ? "Bearbeiten" : "Nur lesen" %></span>
+        </span>
+        <form class="unshare-form" action="<%= base %>/unshare/<%= encPath(f.relpath) %>" method="post"
+              data-confirm="Freigabe für <%= s.display_name %> entziehen?">
+          <input type="hidden" name="dir" value="<%= curDir %>">
+          <input type="hidden" name="target" value="<%= s.target %>">
+          <button class="btn btn-secondary btn-sm">entziehen</button>
+        </form>
+      </li>
+      <% }); %>
+    </ul>
+    <% } else { %>
+    <p class="muted">Noch für niemanden freigegeben.</p>
+    <% } %>
+
+    <% if (f.availableUsers.length) { %>
+    <%# Aktions-Button (dialog-action, nicht dialog-submit): die Vorauswahl
+        ist bereits gueltig, der Button darf nie ausgegraut sein %>
+    <form class="stack-form share-add" action="<%= base %>/share/<%= encPath(f.relpath) %>" method="post">
+      <input type="hidden" name="dir" value="<%= curDir %>">
+      <label class="dialog-label" for="share-target-<%= i %>">Freigeben für</label>
+      <select class="field" name="target" id="share-target-<%= i %>">
+        <% f.availableUsers.forEach(function(u){ %>
+        <option value="<%= u.username %>"><%= u.display_name %></option>
+        <% }); %>
+      </select>
+      <label class="dialog-label" for="share-perm-<%= i %>">Berechtigung</label>
+      <select class="field" name="perm" id="share-perm-<%= i %>">
+        <option value="edit">Bearbeiten</option>
+        <option value="view">Nur lesen</option>
+      </select>
+      <button class="btn btn-sm dialog-action">Freigeben</button>
+    </form>
+    <% } else { %>
+    <p class="muted">Alle anderen Nutzer haben bereits Zugriff.</p>
+    <% } %>
+  </div>
+</dialog>
+
+<dialog id="dlg-move-<%= i %>" class="dialog">
+  <header class="dialog-head">
+    <img src="<%= base %>/static/img/move.svg" alt="" width="22" height="22">
+    <h2>„<%= f.label %>“ verschieben</h2>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+  <% var moveTargets = allDirs.filter(function(d){ return d !== curDir; }); %>
+  <% if (curDir === "" && !moveTargets.length) { %>
+  <p class="muted dialog-hint">Es gibt noch keine Ordner — erst über „Neuer Ordner“ einen anlegen.</p>
+  <% } else { %>
+  <form class="stack-form" action="<%= base %>/move/<%= encPath(f.relpath) %>" method="post">
+    <input type="hidden" name="dir" value="<%= curDir %>">
+    <label class="dialog-label" for="move-to-<%= i %>">Zielordner</label>
+    <select class="field" name="to" id="move-to-<%= i %>">
+      <% if (curDir !== "") { %>
+      <option value="">Meine Dateien (oberste Ebene)</option>
+      <% } %>
+      <% moveTargets.forEach(function(d){ %>
+      <option value="<%= d %>"><%= d %></option>
+      <% }); %>
+    </select>
+    <button class="btn btn-sm dialog-action">Verschieben</button>
+  </form>
+  <% } %>
+</dialog>
+<% }); %>
+</div><%# Ende #row-dialogs %>

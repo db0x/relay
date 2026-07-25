@@ -1,0 +1,78 @@
+<dialog id="dlg-account" class="dialog dialog-wide">
+  <header class="dialog-head">
+    <% if (hasAvatar) { %>
+    <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="22" height="22">
+    <% } else { %>
+    <img src="<%= base %>/static/img/logo.svg" alt="" width="22" height="22">
+    <% } %>
+    <h2>Mein Konto <span class="muted">· <%= user %></span></h2>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+
+  <section class="account-section avatar-section">
+    <%# Avatar zentriert; der Stift unten rechts oeffnet die Dateiauswahl,
+        die Auswahl laedt sofort hoch (js/account/account-dialog.js) %>
+    <form id="avatar-upload" class="avatar-wrap" action="<%= base %>/avatar"
+          method="post" enctype="multipart/form-data">
+      <% if (hasAvatar) { %>
+      <img class="avatar-preview" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="Aktuelles Profilbild" width="96" height="96">
+      <% } else { %>
+      <div class="avatar-preview avatar-empty">kein Bild</div>
+      <% } %>
+      <input type="file" name="file" accept="image/png,image/jpeg,image/webp" hidden>
+      <button type="button" class="avatar-edit" data-tip="Profilbild ändern" aria-label="Profilbild ändern">
+        <img src="<%= base %>/static/img/edit.svg" alt="" width="14" height="14">
+      </button>
+    </form>
+  </section>
+
+  <section class="account-section">
+    <%# EIN Formular fuer die Profilfelder — EIN Speichern-Button %>
+    <form class="stack-form" action="<%= base %>/profile" method="post">
+      <label class="dialog-label" for="acc-display">Anzeigename</label>
+      <%# pattern verlangt mind. ein Nicht-Leerzeichen — "   " zaehlt nicht als Name %>
+      <input class="field" name="display" id="acc-display" value="<%= user %>" required maxlength="60"
+             pattern=".*\S.*" title="Der Anzeigename darf nicht leer sein."
+             placeholder="Anzeigename" autocomplete="name">
+      <label class="dialog-label" for="acc-email">E-Mail-Adresse · optional</label>
+      <%# leer erlaubt (entfernt die Adresse); wenn gefuellt, muss das Format
+          stimmen — gleiches Regex wie serverseitig in routes/auth.js %>
+      <input class="field<%= emailError ? " field-invalid" : "" %>" name="email" id="acc-email" type="email"
+             value="<%= email %>" placeholder="name@beispiel.de" maxlength="120"
+             autocomplete="email" pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+             title="Bitte eine gültige E-Mail-Adresse eingeben (oder das Feld leeren).">
+      <button class="btn btn-sm dialog-submit">Speichern</button>
+    </form>
+  </section>
+
+  <details class="account-section account-fold"<%- pwError ? " open" : "" %>>
+    <summary><h3>Passwort ändern</h3></summary>
+    <form class="stack-form" id="pw-form" action="<%= base %>/password" method="post">
+      <input class="field<%= pwError === "old" ? " field-invalid" : "" %>" name="old"
+             type="password" placeholder="Aktuelles Passwort"
+             autocomplete="current-password" required>
+      <input class="field<%= pwError === "new" ? " field-invalid" : "" %>" name="new1"
+             type="password" placeholder="Neues Passwort (min. 8 Zeichen)"
+             autocomplete="new-password" required minlength="8">
+      <input class="field<%= pwError === "new" ? " field-invalid" : "" %>" name="new2"
+             type="password" placeholder="Neues Passwort (wiederholen)"
+             autocomplete="new-password" required minlength="8">
+      <button class="btn btn-sm dialog-submit">Ändern</button>
+    </form>
+  </details>
+
+  <details class="account-section account-fold">
+    <summary><h3>API-Token <span class="muted">· für Sync / Skripte</span></h3></summary>
+    <div class="tokbox">
+      <code id="tok"><%= api_token %></code>
+      <div class="tokhint">Wie ein Passwort behandeln — nicht weitergeben.
+        Nutzung: <code>Authorization: Bearer &lt;token&gt;</code> gegen <code>/api/files</code>.</div>
+      <form class="reset-form" action="<%= base %>/token/reset" method="post"
+            data-confirm="Neues Token erzeugen? Bestehende Sync-Verbindungen mit dem alten Token funktionieren dann nicht mehr.">
+        <button class="btn btn-danger btn-sm">neu erzeugen</button>
+      </form>
+    </div>
+  </details>
+</dialog>

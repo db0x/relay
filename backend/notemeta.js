@@ -60,7 +60,7 @@ function remove(owner, filename) {
 // Versuch gescheitert: dunkle Ecken blieben unsichtbar). Sie wird darum hier
 // bestimmt und als Klasse `note-dark` ans Icon geschrieben; das Mischen macht
 // dann color-mix im CSS.
-// ACHTUNG: Zwilling im Frontend — isDarkNoteColor() in public/js/index.js.
+// ACHTUNG: Zwilling im Frontend — isDarkNoteColor() in public/js/notes/color.js.
 // Mass ist die WAHRGENOMMENE Helligkeit (OKLCH-L), nicht der RGB-Mittelwert:
 // ein sattes Blau ist deutlich dunkler als ein Gelb gleicher RGB-Summe.
 function lightness(hex) {

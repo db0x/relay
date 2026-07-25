@@ -1,0 +1,21 @@
+<%# Frei platzierbare Notiz-Icons ("Desktop") — liegen als fixe Overlay-Ebene
+    neben der Liste, ordnerunabhaengig immer sichtbar. Gleiche Klasse/Daten wie
+    die Listen-Notizen -> Klick (oeffnen) und Hover (Vorschau) via
+    js/notes/hover-preview.js; Position + Ziehen zusaetzlich in
+    js/desktop-layout.js. %>
+<div class="note-desktop" id="note-desktop" aria-label="Notiz-Ablage">
+  <% desktopNotes.forEach(function(n){ %>
+  <%# note-colored + --note-color nur bei eigener Farbe; sonst bleibt es beim
+      Standard-Pink aus dem <symbol>. note-dark kippt die Ecke auf "aufhellen" %>
+  <button type="button" class="note-open note-desk<%= n.color ? " note-colored" : "" %><%= n.dark ? " note-dark" : "" %>"
+          data-owner="<%= n.owner %>"
+          data-rel="<%= n.relpath %>" data-label="<%= n.label %>"
+          data-canedit="<%= n.canedit ? 1 : 0 %>"
+          <% if (n.color) { %>style="--note-color:<%= n.color %>"<% } %>
+          <% if (n.pos) { %>data-x="<%= n.pos.x %>" data-y="<%= n.pos.y %>"<% } %>
+          aria-label="Notiz: <%= n.label %>">
+    <svg class="note-ico" width="46" height="46" aria-hidden="true" focusable="false"><use href="#note-ico"/></svg>
+    <span class="note-desk-label"><%= n.label %></span>
+  </button>
+  <% }); %>
+</div>

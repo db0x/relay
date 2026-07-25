@@ -1,0 +1,35 @@
+<%# gemeinsamer Backdrop aller Dialoge — ::backdrop gibt es nur fuer modale
+    Dialoge, die hier bewusst nicht genutzt werden (siehe js/core/dialogs.js) %>
+<div class="dlg-backdrop" id="dlg-backdrop"></div>
+
+<%# Hinweis-Dialog (eine OK-Taste), z.B. "Datei zu gross" — befuellt von js/core/dialogs.js (showNotice) %>
+<dialog id="dlg-notice" class="dialog">
+  <header class="dialog-head" id="dlg-notice-head">
+    <img id="dlg-notice-icon" src="" alt="" width="22" height="22" hidden>
+    <h2 id="dlg-notice-title">Hinweis</h2>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+  <p class="confirm-text" id="dlg-notice-text"></p>
+  <div class="confirm-btns">
+    <form method="dialog">
+      <button class="btn btn-sm">Verstanden</button>
+    </form>
+  </div>
+</dialog>
+
+<%# gemeinsamer Bestaetigungs-Dialog fuer alle form[data-confirm] (js/core/confirm.js) %>
+<dialog id="dlg-confirm" class="dialog">
+  <header class="dialog-head">
+    <h2>Bitte bestätigen</h2>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Abbrechen">×</button>
+    </form>
+  </header>
+  <p class="confirm-text" id="dlg-confirm-text"></p>
+  <div class="confirm-btns">
+    <button type="button" class="btn btn-secondary btn-sm" id="dlg-confirm-cancel" autofocus>Abbrechen</button>
+    <button type="button" class="btn btn-danger btn-sm" id="dlg-confirm-ok">Bestätigen</button>
+  </div>
+</dialog>
