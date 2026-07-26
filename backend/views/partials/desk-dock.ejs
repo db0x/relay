@@ -1,0 +1,14 @@
+<%# Dock am unteren Rand: hier docken minimierte Ansichten an. Aktuell nur die
+    Dateiliste — weitere Ansichten kommen als zusaetzliche .dock-item dazu.
+    Liegt BEWUSST ausserhalb von #page: dessen Innenleben tauscht die
+    AJAX-Ordnernavigation aus, und beim Minimieren ist die Karte selbst weg.
+    Icons in derselben Groesse wie die Notiz-Icons auf dem Desktop (46px),
+    beschriftet nur per Tooltip (js/core/tooltips.js klappt ihn am unteren
+    Rand automatisch nach oben). Klick stellt wieder her (js/desktop-layout.js). %>
+<div class="desk-dock" id="desk-dock">
+  <button type="button" class="dock-item" id="page-restore"
+          data-tip="Meine Dateien" aria-label="Dateiliste wieder anzeigen"
+          <%= pageLayout && pageLayout.minimized ? "" : "hidden" %>>
+    <img src="<%= base %>/static/img/file-manager.svg" alt="" width="46" height="46">
+  </button>
+</div>

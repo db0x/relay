@@ -23,6 +23,10 @@ export function initDesktopLayout(config) {
   // MUSS vor dem Icon-Layout laufen, da dieses die Kartenposition ausliest.
   var page = document.getElementById("page");
   function placePage() {
+    // Eingeklappt hat die Karte keine Masse (display:none) — Rechnen wuerde
+    // die gemerkte Position mit offsetWidth 0 verfaelschen. Beim
+    // Wiederherstellen ruft restorePage() placePage() ohnehin nach.
+    if (isMinimized()) return;
     var vw = window.innerWidth, vh = window.innerHeight, w = page.offsetWidth, minY = deskMinY();
     var left, top;
     if (page.dataset.x !== undefined) {
@@ -36,6 +40,60 @@ export function initDesktopLayout(config) {
     page.style.left = left + "px"; page.style.top = top + "px";
     page.style.maxHeight = (vh - top - 16) + "px";
   }
+  // --- Minimieren / Wiederherstellen ------------------------------------
+  // Eingeklappt verschwindet die Karte und wird durch die Schaltflaeche unten
+  // links vertreten. Der Zustand wird zusammen mit der Position gemerkt
+  // (POST /desktop/layout) und beim naechsten Laden schon serverseitig
+  // gerendert — so blitzt die Karte nicht kurz auf.
+  var taskBtn = document.getElementById("page-restore");
+  function isMinimized() { return !!page && page.classList.contains("page-min"); }
+
+  function saveLayout(minimized) {
+    fetch(baseUrl + "/desktop/layout", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        key: "page",
+        x: parseFloat(page.style.left) || 0,
+        y: parseFloat(page.style.top) || 0,
+        minimized: !!minimized,
+      }),
+    }).catch(function () { /* Merken ist optional — die Ansicht stimmt trotzdem */ });
+  }
+
+  function minimizePage() {
+    if (!page || isMinimized()) return;
+    // Position VOR dem Ausblenden sichern: danach liefert die Karte keine
+    // brauchbaren Masse mehr
+    saveLayout(true);
+    page.classList.add("page-min");
+    if (taskBtn) taskBtn.hidden = false;
+  }
+
+  function restorePage() {
+    if (!page || !isMinimized()) return;
+    page.classList.remove("page-min");
+    if (taskBtn) taskBtn.hidden = true;
+    placePage(); // Fenster koennte inzwischen kleiner sein -> neu einpassen
+    saveLayout(false);
+  }
+
+  // Der Minimieren-Knopf sitzt IN der Karte und wird beim Ordnerwechsel
+  // mitgetauscht. Deshalb NICHT direkt binden, sondern delegiert auf dem
+  // bleibenden #page — so ueberlebt der Handler jeden innerHTML-Tausch
+  // (gleiches Muster wie die Navigationslinks in folder-nav.js).
+  if (page) {
+    page.addEventListener("click", function (e) {
+      if (e.target.closest("#page-minimize")) minimizePage();
+    });
+  }
+  if (taskBtn) {
+    // Klick schaltet um: eingeklappt -> wiederherstellen, sonst einklappen
+    taskBtn.addEventListener("click", function () {
+      if (isMinimized()) restorePage(); else minimizePage();
+    });
+  }
+
   if (page) {
     placePage();
     window.addEventListener("resize", placePage);
@@ -65,12 +123,7 @@ export function initDesktopLayout(config) {
         page.removeEventListener("pointermove", move);
         page.removeEventListener("pointerup", up);
         page.removeEventListener("pointercancel", up);
-        if (moved) {
-          fetch(baseUrl + "/desktop/layout", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key: "page", x: parseFloat(page.style.left) || 0, y: parseFloat(page.style.top) || 0 }),
-          }).catch(function () { /* Position merken ist optional */ });
-        }
+        if (moved) saveLayout(isMinimized());
       }
       page.addEventListener("pointermove", move);
       page.addEventListener("pointerup", up);
@@ -82,7 +135,9 @@ export function initDesktopLayout(config) {
   // freier Rand neben der Liste, von oben (unter der Topbar) nach unten
   function layoutDeskDefaults(icons) {
     if (!icons.length) return;
-    var pageEl = document.querySelector(".page");
+    // Ist die Karte eingeklappt, hat sie keine Masse (display:none) — dann
+    // wie ohne Karte rechnen, sonst klebten alle Icons am linken Rand.
+    var pageEl = document.querySelector(".page:not(.page-min)");
     var pr = pageEl ? pageEl.getBoundingClientRect() : { left: 0, right: window.innerWidth };
     var top0 = deskMinY() + 8;
     var iconW = 72, stepY = 74;

@@ -12,6 +12,12 @@
   --danger:#dc2626;
   --radius:14px;
   --radius-sm:9px;
+  /* Abstands-Raster der Dateikarte: --page-pad ist der Abstand zum Kartenrand
+     (alle vier Seiten), --page-gap der Abstand um die Trennlinien darin.
+     Zwei Werte statt frueher fuenf verschiedener — siehe .page/.page-head/
+     .files/.list-footer. */
+  --page-pad:22px;
+  --page-gap:12px;
 }
 
 *{box-sizing:border-box}
@@ -39,7 +45,11 @@ body{
   background:var(--card);
   border:1px solid var(--line);border-radius:var(--radius);
   box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
-  padding:24px 26px 28px;
+  /* Ein einziges Mass zum Kartenrand — auf ALLEN vier Seiten. Zusammen mit
+     den buendigen Aussenkanten der Tabelle (siehe .files th/td :first/:last-
+     child) stehen Titel, Spaltenkoepfe, Dateinamen und Fusszeile auf
+     derselben Linie. Abstaende INNERHALB der Karte laufen ueber --page-gap. */
+  padding:var(--page-pad);
   cursor:move; /* leere Bereiche = Greif-Flaeche zum Verschieben */
 }
 /* Beim Laden positioniert index.js Karte UND Notiz-Icons erst per JS. Bis
@@ -58,6 +68,50 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   .page,.note-desktop{transition:none}
 }
 .page.dragging{user-select:none}
+
+/* Titelleiste der Dateiliste: Icon, Titel, Minimieren-Knopf. Zugleich die
+   bequemste Greif-Flaeche zum Verschieben (der Knopf ist davon ausgenommen). */
+/* margin:0 — der Abstand UNTER der Trennlinie kommt aus dem padding-top der
+   Spaltenkoepfe (bzw. der Brotkrumen), damit er genauso gross ist wie der
+   darueber und nicht beides addiert wird. */
+.page-head{
+  display:flex;align-items:center;gap:.6rem;
+  margin:0;padding:0 0 var(--page-gap);border-bottom:1px solid var(--line-soft);
+}
+.page-head img{display:block;flex:0 0 auto}
+.page-title{
+  margin:0;flex:1;min-width:0;font-size:1rem;font-weight:600;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* etwas kleiner als die Topbar-Knoepfe — die Karte ist der ruhigere Bereich */
+.page-min-btn{width:28px;height:28px;flex:0 0 auto;cursor:pointer}
+
+/* Eingeklappt: die Karte verschwindet, vertreten durch die Schaltflaeche
+   unten links. display:none (nicht nur opacity), damit sie weder Platz noch
+   Klicks abfaengt — placePage() rechnet in dem Zustand bewusst nicht. */
+.page.page-min{display:none}
+
+/* Dock unten links: nimmt minimierte Ansichten auf (zunaechst die Dateiliste,
+   weitere folgen als zusaetzliche .dock-item). Ueber der Notiz-Icon-Ebene
+   (z-index 20), aber unter der Topbar (30). Bewusst ohne eigenen Hintergrund:
+   die Eintraege sollen wie die Notiz-Icons frei auf dem Desktop stehen. */
+.desk-dock{
+  position:fixed;left:14px;bottom:14px;z-index:25;
+  display:flex;align-items:flex-end;gap:4px;
+}
+/* Groesse und Verhalten wie ein Notiz-Icon (.note-desk) — nur ohne
+   Beschriftung: den Namen liefert der data-tip-Tooltip. */
+.dock-item{
+  display:grid;place-items:center;width:56px;height:56px;padding:5px;
+  border:0;border-radius:10px;background:none;cursor:pointer;font:inherit;
+  transition:background .12s ease;
+}
+.dock-item:hover{background:rgba(127,127,127,.16)}
+.dock-item img{
+  width:46px;height:46px;display:block;pointer-events:none;
+  filter:drop-shadow(0 2px 4px rgba(16,24,40,.3));
+}
+.dock-item[hidden]{display:none}
 /* interaktive Inhalte behalten ihren normalen Cursor (nicht den move-Cursor) */
 .page a,.page button,.page summary,.page label,.page .fname,.page .crumb{cursor:pointer}
 .page input,.page select,.page textarea{cursor:auto}
@@ -569,9 +623,11 @@ button.fname{
 }
 
 /* Fusszeile unter der Dateiliste: Filter "Nur eigene Dateien" */
+/* padding rechts/unten 0: der Schalter sitzt buendig zur Kartenkante wie die
+   Zeilenmenues darueber; nach unten sorgt die Kartenpolsterung fuer Abstand. */
 .list-footer{
   display:flex;justify-content:flex-end;align-items:center;
-  margin-top:.35rem;padding:.55rem .2rem 0;border-top:1px solid var(--line-soft);
+  margin-top:0;padding:var(--page-gap) 0 0;border-top:1px solid var(--line-soft);
 }
 .switch-label{
   display:inline-flex;align-items:center;gap:.55em;cursor:pointer;
@@ -620,7 +676,7 @@ button.fname{
 }
 
 /* Brotkrumen-Navigation in Unterordnern */
-.crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:.4em;margin:0 0 12px;font-size:.92rem}
+.crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:.4em;margin:var(--page-gap) 0 0;font-size:.92rem}
 .crumb{color:var(--brand);text-decoration:none}
 a.crumb:hover{text-decoration:underline}
 .crumb.current{color:var(--ink);font-weight:550}
@@ -631,7 +687,9 @@ a.crumb:hover{text-decoration:underline}
 .files{width:100%;border-collapse:collapse}
 .files th{
   text-align:left;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;
-  color:var(--muted);font-weight:600;padding:.5rem .7rem;border-bottom:1px solid var(--line);
+  color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);
+  /* oben --page-gap: spiegelt den Abstand ueber der Titelleisten-Trennlinie */
+  padding:var(--page-gap) .7rem .5rem;
 }
 .files th .sort{
   display:inline-flex;align-items:center;gap:.35em;color:inherit;text-decoration:none;
@@ -641,7 +699,17 @@ a.crumb:hover{text-decoration:underline}
 .files th .sort.active{color:var(--ink)}
 .files th .arrow{font-size:.85em}
 .files td{padding:.55rem .7rem;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+/* Aussenkanten der Tabelle buendig zum Kartenrand: die Zell-Polsterung
+   trennt nur die Spalten VONEINANDER. Ohne das staenden Dateinamen und
+   Zeilenmenues um .7rem eingerueckt gegenueber Titel und Fusszeile. */
+.files th:first-child,.files td:first-child{padding-left:0}
+.files th:last-child,.files td:last-child{padding-right:0}
 .files tbody tr:last-child td{border-bottom:0}
+/* Ohne Fusszeile (keine Freigaben) endet die Tabelle direkt am Kartenrand:
+   sonst summierten sich Zell-Polsterung und Kartenpolsterung zu einem
+   sichtbar groesseren Abstand als oben. MIT Fusszeile bleibt die Polsterung —
+   dort trennt sie die letzte Zeile von deren Trennlinie. */
+.page:not(:has(.list-footer)) .files tbody tr:last-child td{padding-bottom:0}
 .files tbody tr:hover{background:#f9fafb}
 .col-size,.col-date{white-space:nowrap;color:var(--muted);font-size:.86rem;width:1%}
 /* Namensspalte nimmt den Rest ein, waechst aber NICHT mit langen Namen mit
@@ -717,7 +785,9 @@ a.crumb:hover{text-decoration:underline}
    (wie native Tooltips), Ausblenden sofort. */
 [data-tip]::after{
   content:attr(data-tip);position:fixed;left:var(--tip-x,-9999px);top:var(--tip-y,0);
-  transform:translateX(-50%);z-index:40;
+  /* --tip-shift setzt core/tooltips.js auf -100%, wenn der Tooltip nach oben
+     klappen muss (Element am unteren Rand, z.B. im Dock) */
+  transform:translate(-50%,var(--tip-shift,0));z-index:40;
   /* kompakt wie nowrap, aber lange Dateinamen brechen ab Maximalbreite um,
      statt aus dem Viewport zu laufen */
   width:max-content;max-width:min(88vw,420px);overflow-wrap:anywhere;

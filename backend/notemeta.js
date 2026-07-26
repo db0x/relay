@@ -129,15 +129,21 @@ function setDesktopPos(username, owner, filename, x, y) {
 }
 
 // --- Freie Position anderer UI-Elemente je Nutzer (key -> x,y) -----------
+// minimized: das Element ist zum Taskleisten-Icon eingeklappt. Die Position
+// wird trotzdem mitgefuehrt, damit es beim Wiederherstellen dort auftaucht,
+// wo es zuletzt lag.
 function getLayout(username, key) {
-  const r = db().prepare("SELECT x, y FROM desktop_layout WHERE username=? AND key=?").get(username, key);
-  return r ? { x: r.x, y: r.y } : null;
+  const r = db().prepare(
+    "SELECT x, y, minimized FROM desktop_layout WHERE username=? AND key=?"
+  ).get(username, key);
+  return r ? { x: r.x, y: r.y, minimized: !!r.minimized } : null;
 }
-function setLayout(username, key, x, y) {
+function setLayout(username, key, x, y, minimized = false) {
   db().prepare(
-    `INSERT INTO desktop_layout (username, key, x, y) VALUES (?,?,?,?)
-     ON CONFLICT(username, key) DO UPDATE SET x=excluded.x, y=excluded.y`
-  ).run(username, key, x, y);
+    `INSERT INTO desktop_layout (username, key, x, y, minimized) VALUES (?,?,?,?,?)
+     ON CONFLICT(username, key) DO UPDATE SET
+       x=excluded.x, y=excluded.y, minimized=excluded.minimized`
+  ).run(username, key, x, y, minimized ? 1 : 0);
 }
 
 module.exports = {

@@ -86,18 +86,10 @@
         Abschnitte wie in der Lese-Ansicht, alles fliesst in einer Zeile und
         bricht bei Bedarf um (bewusst nicht in die Hoehe gestapelt) %>
     <div class="note-details" id="note-details">
-      <%# Bearbeitungsstand — unabhaengig vom ToDo-Schalter, jede Notiz hat
-          einen (Default "Offen"). ID bewusst "note-state": "note-status" ist
-          schon die Markdown-Fehlerzeile in der Fusszeile. %>
-      <span class="note-detail-group">
-        <select class="field field-sm" name="status" id="note-state"
-                aria-label="Bearbeitungsstand">
-          <option value="open">Offen</option>
-          <option value="wip">In Arbeit</option>
-          <option value="closed">Erledigt</option>
-        </select>
-      </span>
-
+      <%# Der Bearbeitungsstand wird hier BEWUSST nicht angeboten: er laesst
+          sich ausschliesslich ueber das Kontextmenue der Notiz-Icons
+          wechseln (js/notes/status.js). Angezeigt wird er trotzdem — als
+          Badge in der Lese-Ansicht (#note-view-summary). %>
       <span class="note-detail-group">
         <label class="switch-label">
           <input type="checkbox" id="note-todo" name="is_todo" value="1">

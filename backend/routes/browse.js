@@ -272,12 +272,14 @@ router.get("/", loginRequired, (req, res) => {
 
 // Position eines frei verschiebbaren UI-Elements merken (aktuell nur die
 // Dokumentenliste, key="page") — je Nutzer
+// minimized (optional) klappt die Karte zum Taskleisten-Icon ein. Position
+// wird immer mitgeschickt, damit sie beim Wiederherstellen erhalten bleibt.
 router.post("/desktop/layout", loginRequired, express.json(), (req, res) => {
   const b = req.body || {};
   const key = String(b.key || "");
   const x = Number(b.x), y = Number(b.y);
   if (key !== "page" || !Number.isFinite(x) || !Number.isFinite(y)) return res.sendStatus(400);
-  notemeta.setLayout(req.session.user, key, x, y);
+  notemeta.setLayout(req.session.user, key, x, y, b.minimized === true);
   res.sendStatus(204);
 });
 

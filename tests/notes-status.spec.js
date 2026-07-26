@@ -29,41 +29,62 @@ test.describe("Notiz-Status", () => {
   test("eine neue Notiz startet auf „Offen“", async ({ page }) => {
     await createNote(page, title);
     await openNote(page, title);
-    // Lese-Ansicht zeigt das Badge …
     await expect(page.locator(NOTE_STATUS_BADGE).first()).toHaveText("Offen");
-    // … und die Auswahlbox im Bearbeiten-Modus steht passend dazu
-    await page.click("#note-edit");
-    await expect(page.locator("#note-state")).toHaveValue("open");
   });
 
-  test("Status im Dialog wechseln und speichern bleibt erhalten", async ({ page }) => {
-    await createNote(page, title);
+  test("der Dialog bietet keine Moeglichkeit, den Status zu aendern", async ({ page }) => {
+    // Bewusste Entscheidung: der Bearbeitungsstand laeuft ausschliesslich
+    // ueber das Kontextmenue der Notiz-Icons. Der Dialog ZEIGT ihn nur.
+    await createNote(page, title, { todo: true });
+    await openNote(page, title);
+    await expect(page.locator(NOTE_STATUS_BADGE).first()).toBeVisible();
+    await page.click("#note-edit");
+    await expect(page.locator("#note-details select[name=status]")).toHaveCount(0);
+  });
+
+  test("Speichern der Notiz laesst den Status unangetastet", async ({ page }) => {
+    // Regression: das Formular schickt kein status-Feld mehr mit — wuerde der
+    // Server ihn trotzdem daraus lesen, setzte jedes Speichern ihn auf "open".
+    await createNote(page, title, { todo: true });
+    const icon = deskIcon(page, title);
+    await icon.click({ button: "right" });
+    await page.locator('#note-status-menu [data-status="wip"]').click();
+    await expect(icon).toHaveAttribute("data-status", "wip");
+
+    // Notiz oeffnen, Text aendern, speichern
     await openNote(page, title);
     await page.click("#note-edit");
-
-    await page.locator("#note-state").selectOption("wip");
-    // Die Statusaenderung allein muss den Speichern-Knopf freigeben
-    await expect(page.locator("#note-save")).toBeEnabled();
+    await page.click(".CodeMirror");
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("\n\nNachtrag.");
     await Promise.all([page.waitForNavigation(), page.click("#note-save")]);
     await expectFlash(page, "Notiz gespeichert");
 
-    await page.reload();
+    // Status hat ueberlebt — im Badge wie am Desktop-Icon
     await openNote(page, title);
     await expect(page.locator(NOTE_STATUS_BADGE).first()).toHaveText("In Arbeit");
+    await page.locator("#dlg-note .dialog-x").click();
+    await expect(deskIcon(page, title)).toHaveAttribute("data-status", "wip");
   });
 
-  test("Status ist unabhaengig vom ToDo-Schalter", async ({ page }) => {
-    // Notiz OHNE ToDo -> kein Desktop-Icon, aber sehr wohl ein Status
-    await createNote(page, title);
-    await openNote(page, title);
-    await page.click("#note-edit");
-    await expect(page.locator("#note-todo")).not.toBeChecked();
-    await page.locator("#note-state").selectOption("closed");
-    await Promise.all([page.waitForNavigation(), page.click("#note-save")]);
+  test("Status ueberlebt auch das Abwaehlen des ToDo-Schalters", async ({ page }) => {
+    // Beweist die Unabhaengigkeit der beiden Eigenschaften: ohne ToDo
+    // verschwindet zwar das Desktop-Icon, der Status bleibt aber bestehen.
+    await createNote(page, title, { todo: true });
+    const icon = deskIcon(page, title);
+    await icon.click({ button: "right" });
+    await page.locator('#note-status-menu [data-status="closed"]').click();
+    await expect(icon).toHaveAttribute("data-status", "closed");
 
     await openNote(page, title);
+    await page.click("#note-edit");
+    await page.locator("#note-details .switch-label").click(); // ToDo aus
+    await Promise.all([page.waitForNavigation(), page.click("#note-save")]);
+
+    await expect(deskIcon(page, title)).toHaveCount(0); // kein Icon mehr …
+    await openNote(page, title);
+    // … aber der Status steht weiterhin
     await expect(page.locator(NOTE_STATUS_BADGE).first()).toHaveText("Erledigt");
-    await expect(deskIcon(page, title)).toHaveCount(0); // weiterhin kein ToDo
   });
 
   test("Rechtsklick auf das Desktop-Icon wechselt den Status", async ({ page }) => {

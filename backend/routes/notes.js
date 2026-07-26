@@ -47,9 +47,11 @@ function metaFromBody(body) {
     people: { known, extra },
     ort: String(body.ort || "").trim(),
     color: noteColor(body.color),
-    // Bearbeitungsstand, unabhaengig vom ToDo-Schalter; alles Unbekannte
-    // faellt auf "open" zurueck (notemeta.normalizeStatus)
-    status: notemeta.normalizeStatus(body.status),
+    // ACHTUNG: KEIN status hier. Der Bearbeitungsstand wird ausschliesslich
+    // ueber POST /notes/status (Kontextmenue der Notiz-Icons) gesetzt — das
+    // Notiz-Formular kennt kein solches Feld. Wuerde er hier aus dem Body
+    // gelesen, setzte jedes Speichern ihn stillschweigend auf "open" zurueck;
+    // die Aufrufer geben ihn deshalb explizit mit (siehe unten).
   };
 }
 
@@ -72,7 +74,9 @@ router.post("/notes/create", loginRequired, (req, res) => {
   const p = pathFor(req.session.user, fid);
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, md);
-  notemeta.set(req.session.user, fid, metaFromBody(req.body));
+  // frisch angelegte Notizen starten auf dem Default-Status ("open")
+  notemeta.set(req.session.user, fid,
+    { ...metaFromBody(req.body), status: notemeta.STATUS_DEFAULT });
   req.flash("ok", "Notiz gespeichert.");
   res.redirect(`${BASE}/?p=${encodeURIComponent(NOTES_DIR)}`);
 });
@@ -141,7 +145,11 @@ router.post("/notes/save/:owner/*", loginRequired, (req, res) => {
       }
     }
   }
-  notemeta.set(owner, newFid, metaFromBody(req.body));
+  // Bearbeitungsstand unangetastet uebernehmen: das Formular kennt ihn nicht
+  // (er laeuft ueber POST /notes/status). NACH einem evtl. Umbenennen lesen —
+  // notemeta.rename hat die Zeile dann schon auf newFid umgezogen.
+  const keepStatus = notemeta.get(owner, newFid).status;
+  notemeta.set(owner, newFid, { ...metaFromBody(req.body), status: keepStatus });
   const dir = securePath(req.body.dir || "") || "";
   req.flash("ok", "Notiz gespeichert.");
   res.redirect(dir ? `${BASE}/?p=${encodeURIComponent(dir)}` : `${BASE}/`);
