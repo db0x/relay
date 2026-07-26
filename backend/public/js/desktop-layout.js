@@ -1,140 +1,14 @@
-// Frei platzierbares "Desktop"-Layout: die Dokumentenliste (.page-Karte) und
-// die Notiz-Icons lassen sich beide frei ziehen; Positionen werden gemerkt
-// (POST /desktop/layout bzw. /notes/desktop). Beide teilen sich dieselbe
-// Ziehmechanik und Untergrenze (nie hinter der Titelleiste).
+// "Desktop"-Layout: die frei platzierbaren Notiz-Icons neben den Fenstern.
+// Die Fenster selbst (Dateiliste, Board) laufen ueber die generische Mechanik
+// in core/window.js — hier bleibt nur, was die Icons betrifft.
 //
 // config: { baseUrl, hideNoteTip } — hideNoteTip blendet die Notiz-Hover-
 // Vorschau aus, sobald ein Icon gezogen wird.
+import { deskMinY } from "./core/window.js";
+
 export function initDesktopLayout(config) {
   var baseUrl = config.baseUrl;
   var hideNoteTip = config.hideNoteTip;
-
-  // Untergrenze fuer alle frei platzierten Elemente: unter der Titelleiste,
-  // damit nichts hinter ihr verschwindet
-  function deskMinY() {
-    var tb = document.querySelector(".topbar");
-    return (tb ? tb.getBoundingClientRect().bottom : 0) + 6;
-  }
-
-  // --- Frei verschiebbare Dokumentenliste (die .page-Karte) -------------
-  // position:fixed; index.js setzt Position (Default zentriert unter der
-  // Titelleiste) und max-height, damit lange Listen INNEN scrollen. Ziehen
-  // aus nicht-interaktiven Bereichen; Position wird gemerkt (POST /desktop/layout).
-  // MUSS vor dem Icon-Layout laufen, da dieses die Kartenposition ausliest.
-  var page = document.getElementById("page");
-  function placePage() {
-    // Eingeklappt hat die Karte keine Masse (display:none) — Rechnen wuerde
-    // die gemerkte Position mit offsetWidth 0 verfaelschen. Beim
-    // Wiederherstellen ruft restorePage() placePage() ohnehin nach.
-    if (isMinimized()) return;
-    var vw = window.innerWidth, vh = window.innerHeight, w = page.offsetWidth, minY = deskMinY();
-    var left, top;
-    if (page.dataset.x !== undefined) {
-      left = parseFloat(page.dataset.x); top = parseFloat(page.dataset.y);
-    } else {
-      left = Math.round((vw - w) / 2); top = minY + 10;
-    }
-    // stets zu einem grossen Teil sichtbar und nie hinter der Titelleiste
-    left = Math.max(140 - w, Math.min(left, vw - 140));
-    top = Math.max(minY, Math.min(top, vh - 160));
-    page.style.left = left + "px"; page.style.top = top + "px";
-    page.style.maxHeight = (vh - top - 16) + "px";
-  }
-  // --- Minimieren / Wiederherstellen ------------------------------------
-  // Eingeklappt verschwindet die Karte; vertreten wird sie durch den
-  // Umschalter in der Topbar, der IMMER da ist und beide Richtungen schaltet.
-  // Der Zustand wird zusammen mit der Position gemerkt (POST /desktop/layout)
-  // und beim naechsten Laden schon serverseitig gerendert — so blitzt die
-  // Karte nicht kurz auf.
-  var toggleBtn = document.getElementById("page-toggle");
-  function isMinimized() { return !!page && page.classList.contains("page-min"); }
-  // aria-pressed spiegelt den Zustand (CSS daempft das Icon bei "false")
-  function syncToggle() {
-    if (toggleBtn) toggleBtn.setAttribute("aria-pressed", isMinimized() ? "false" : "true");
-  }
-
-  function saveLayout(minimized) {
-    fetch(baseUrl + "/desktop/layout", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({
-        key: "page",
-        x: parseFloat(page.style.left) || 0,
-        y: parseFloat(page.style.top) || 0,
-        minimized: !!minimized,
-      }),
-    }).catch(function () { /* Merken ist optional — die Ansicht stimmt trotzdem */ });
-  }
-
-  function minimizePage() {
-    if (!page || isMinimized()) return;
-    // Position VOR dem Ausblenden sichern: danach liefert die Karte keine
-    // brauchbaren Masse mehr
-    saveLayout(true);
-    page.classList.add("page-min");
-    syncToggle();
-  }
-
-  function restorePage() {
-    if (!page || !isMinimized()) return;
-    page.classList.remove("page-min");
-    syncToggle();
-    placePage(); // Fenster koennte inzwischen kleiner sein -> neu einpassen
-    saveLayout(false);
-  }
-
-  // Der Minimieren-Knopf sitzt IN der Karte und wird beim Ordnerwechsel
-  // mitgetauscht. Deshalb NICHT direkt binden, sondern delegiert auf dem
-  // bleibenden #page — so ueberlebt der Handler jeden innerHTML-Tausch
-  // (gleiches Muster wie die Navigationslinks in folder-nav.js).
-  if (page) {
-    page.addEventListener("click", function (e) {
-      if (e.target.closest("#page-minimize")) minimizePage();
-    });
-  }
-  if (toggleBtn) {
-    // Klick schaltet um: eingeklappt -> wiederherstellen, sonst einklappen
-    toggleBtn.addEventListener("click", function () {
-      if (isMinimized()) restorePage(); else minimizePage();
-    });
-  }
-
-  if (page) {
-    placePage();
-    window.addEventListener("resize", placePage);
-
-    var pageDragSkip = "a,button,input,select,textarea,label,summary,"
-      + ".fname,.row-menu,.share-badge,[data-dialog],[data-create],th .sort";
-    page.addEventListener("pointerdown", function (e) {
-      if (e.button !== 0) return;
-      // nur aus nicht-interaktiven Flaechen ziehen (Klicks auf Inhalte bleiben)
-      if (e.target.closest(pageDragSkip)) return;
-      // interne Scrollleiste nicht als Ziehen kapern
-      if (e.clientX > page.getBoundingClientRect().right - 16) return;
-      var r = page.getBoundingClientRect();
-      var ox = e.clientX - r.left, oy = e.clientY - r.top, moved = false;
-      try { page.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
-      page.classList.add("dragging");
-      function move(ev) {
-        var vw = window.innerWidth, vh = window.innerHeight, w = page.offsetWidth, minY = deskMinY();
-        var left = Math.max(140 - w, Math.min(ev.clientX - ox, vw - 140));
-        var top = Math.max(minY, Math.min(ev.clientY - oy, vh - 160));
-        page.style.left = left + "px"; page.style.top = top + "px";
-        page.style.maxHeight = (vh - top - 16) + "px";
-        moved = true;
-      }
-      function up() {
-        page.classList.remove("dragging");
-        page.removeEventListener("pointermove", move);
-        page.removeEventListener("pointerup", up);
-        page.removeEventListener("pointercancel", up);
-        if (moved) saveLayout(isMinimized());
-      }
-      page.addEventListener("pointermove", move);
-      page.addEventListener("pointerup", up);
-      page.addEventListener("pointercancel", up);
-    });
-  }
 
   // Standard-Platzierung ohne gemerkte Position: abwechselnd linker/rechter
   // freier Rand neben der Liste, von oben (unter der Topbar) nach unten

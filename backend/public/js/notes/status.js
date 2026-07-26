@@ -32,10 +32,41 @@ export function statusBadge(value) {
   return el;
 }
 
-// "Erledigt"-Icons bleiben auf dem Desktop liegen, treten aber optisch zurueck
-function paintDeskIcon(icon, value) {
-  icon.dataset.status = value;
-  icon.classList.toggle("note-desk-done", value === "closed");
+// "Erledigt"-Icons bleiben liegen, treten aber optisch zurueck.
+// Gilt fuer JEDE Darstellung derselben Notiz — Desktop-Icon und Board-Karte
+// koennen gleichzeitig sichtbar sein und muessen denselben Stand zeigen.
+function paintNoteIcons(owner, rel, value) {
+  document.querySelectorAll(".note-open").forEach(function (el) {
+    if (el.dataset.owner !== owner || el.dataset.rel !== rel) return;
+    el.dataset.status = value;
+    el.classList.toggle("note-desk-done", value === "closed");
+  });
+}
+
+// Status setzen: EIN Weg fuer Kontextmenue und Board. Aktualisiert nach
+// Erfolg alle Darstellungen der Notiz und verwirft den Vorschau-Cache
+// (die Hover-Vorschau ginge sonst weiter vom alten Stand aus).
+// Rueckgabe: Promise, das bei Misserfolg abgelehnt wird — der Aufrufer kann
+// dann seine optimistische Darstellung zuruecknehmen.
+export function setNoteStatus(config) {
+  var owner = config.owner, rel = config.rel, status = config.status;
+  return fetch(config.baseUrl + "/notes/status", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ owner: owner, filename: rel, status: status }),
+  }).then(function (r) {
+    if (!r.ok) throw new Error(r.status);
+    paintNoteIcons(owner, rel, status);
+    if (config.invalidateNote) config.invalidateNote(owner, rel);
+    // Wer sonst noch von dieser Notiz abhaengt, sortiert sich selbst um
+    // (das Board hoert darauf). Ereignis statt Rueckruf: so muessen Board
+    // und Kontextmenue nicht in einer bestimmten Reihenfolge starten.
+    document.dispatchEvent(new CustomEvent("relay-note-status", {
+      detail: { owner: owner, rel: rel, status: status },
+    }));
+    return status;
+  });
 }
 
 // Kontextmenue der Desktop-Icons. EIN gemeinsames Panel (#note-status-menu)
@@ -70,7 +101,9 @@ export function initStatusMenu(config) {
     menu.style.top = top + "px";
   }
 
-  document.querySelectorAll(".note-desk").forEach(function (icon) {
+  // Alles, was eine Notiz mit Status darstellt: Desktop-Icons UND Board-Karten.
+  // Die Listenzeilen (.fname.note-open) tragen kein data-status und bleiben aussen vor.
+  document.querySelectorAll(".note-open[data-status]").forEach(function (icon) {
     icon.addEventListener("contextmenu", function (e) {
       // Nur-lesende Freigaben duerfen den Status nicht aendern -> gar nicht
       // erst ein Menue anbieten (der Server lehnt es ohnehin ab)
@@ -90,27 +123,12 @@ export function initStatusMenu(config) {
       if (!icon) return;
       var status = btn.dataset.status;
       if (status === icon.dataset.status) return; // nichts zu tun
-      fetch(baseUrl + "/notes/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          owner: icon.dataset.owner, filename: icon.dataset.rel, status: status,
-        }),
-      })
-        .then(function (r) {
-          if (!r.ok) throw new Error(r.status);
-          // an Ort und Stelle aktualisieren: die Karte und die uebrigen Icons
-          // sollen nicht neu aufgebaut werden (wie beim Ordnerwechsel)
-          paintDeskIcon(icon, status);
-          // Die Hover-Vorschau haelt Inhalt+Metadaten gecacht und wuerde ohne
-          // das hier weiter den alten Status zeigen — sie geht bisher davon
-          // aus, dass jede Aenderung die Seite neu laedt.
-          invalidateNote(icon.dataset.owner, icon.dataset.rel);
-        })
-        .catch(function () {
-          showNotice("Fehler", "Der Status konnte nicht geändert werden.", { danger: true });
-        });
+      setNoteStatus({
+        baseUrl: baseUrl, owner: icon.dataset.owner, rel: icon.dataset.rel,
+        status: status, invalidateNote: invalidateNote,
+      }).catch(function () {
+        showNotice("Fehler", "Der Status konnte nicht geändert werden.", { danger: true });
+      });
     });
   });
 }

@@ -28,7 +28,8 @@ test.describe("Dateiliste minimieren", () => {
   });
 
   test("die Titelleiste zeigt Titel und Minimieren-Knopf", async ({ page }) => {
-    await expect(page.locator(".page-head .page-title")).toHaveText("Meine Dateien");
+    // auf #page eingegrenzt: seit dem Notiz-Board gibt es mehr als ein Fenster
+    await expect(page.locator("#page .page-head .page-title")).toHaveText("Meine Dateien");
     await expect(page.locator(MIN_BTN)).toBeVisible();
   });
 

@@ -19,6 +19,12 @@
               aria-pressed="<%= pageLayout && pageLayout.minimized ? "false" : "true" %>">
         <img src="<%= base %>/static/img/file-manager.svg" alt="" width="26" height="26">
       </button>
+      <%# Umschalter fuer das Notiz-Board (gleiche Mechanik, eigener Schluessel) %>
+      <button type="button" class="view-btn" id="board-toggle"
+              data-tip="Notiz-Board" aria-label="Notiz-Board anzeigen oder ausblenden"
+              aria-pressed="<%= boardLayout && !boardLayout.minimized ? "true" : "false" %>">
+        <img src="<%= base %>/static/img/board.svg" alt="" width="26" height="26">
+      </button>
       <div class="create-group" role="group" aria-label="Neue Datei erstellen">
         <button type="button" class="create-btn" data-create="docx"
                 data-tip="Neues Textdokument" aria-label="Neues Textdokument">

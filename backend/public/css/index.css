@@ -95,6 +95,69 @@ body:not(.desk-ready) .note-desktop{opacity:0}
    noch Klicks abfaengt — placePage() rechnet in dem Zustand bewusst nicht. */
 .page.page-min{display:none}
 
+/* --- Notiz-Board -------------------------------------------------------
+   Zweites Fenster nach demselben Muster wie die Dateiliste (.page), nur mit
+   drei Status-Spalten als Inhalt. Etwas schmaler als die Dateiliste und mit
+   eigener Mindesthoehe, damit die Spalten auch leer als Ablageflaeche
+   erkennbar sind. */
+.page.board{width:min(760px,calc(100% - 32px))}
+.board-cols{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:var(--page-gap);
+  margin-top:var(--page-gap);
+}
+.board-col{
+  display:flex;flex-direction:column;min-width:0;
+  border:1px solid var(--line-soft);border-radius:var(--radius-sm);
+  background:#fafbfc;transition:background .12s ease,border-color .12s ease;
+}
+/* Spalte unter dem Zeiger waehrend des Ziehens */
+.board-col-over{background:#eef4ff;border-color:var(--brand)}
+.board-col-head{
+  display:flex;align-items:center;gap:.4em;margin:0;
+  padding:.5rem .6rem;border-bottom:1px solid var(--line-soft);
+  font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;
+}
+.board-col-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board-col-count{
+  flex:0 0 auto;min-width:1.5em;padding:.05em .4em;border-radius:999px;
+  background:var(--line-soft);color:var(--muted);text-align:center;
+}
+/* Ablageflaeche: waechst mit, hat aber immer Platz fuer eine Karte */
+.board-drop{
+  flex:1;display:flex;flex-wrap:wrap;align-content:flex-start;gap:2px;
+  padding:.5rem;min-height:104px;
+}
+/* Karten sind Notiz-Icons wie auf dem Desktop — gleiche Groesse, gleicher
+   Schatten; nur ordnen sie sich hier im Fluss statt frei zu liegen. */
+.board-card{
+  display:flex;flex-direction:column;align-items:center;gap:3px;width:78px;
+  padding:5px 2px;border:0;border-radius:10px;background:none;
+  cursor:grab;touch-action:none;font:inherit;color:var(--ink);
+  transition:background .12s ease;
+}
+.board-card:hover{background:rgba(127,127,127,.12)}
+.board-card .note-ico{
+  width:46px;height:46px;display:block;pointer-events:none;
+  filter:drop-shadow(0 1px 3px rgba(16,24,40,.22));
+}
+.board-card-label{
+  max-width:100%;font-size:.71rem;line-height:1.35;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;
+}
+.board-card .badge{pointer-events:none;font-size:.65rem}
+/* gezogene Karte liegt ueber allem und faengt keine Treffer mehr ab */
+.board-card-dragging{
+  cursor:grabbing;opacity:.9;position:relative;z-index:5;pointer-events:none;
+  transition:none;
+}
+/* nur-lesend freigegeben: nicht ziehbar (der Server lehnt es ohnehin ab) */
+.board-card-fixed{cursor:pointer}
+.board-empty{
+  margin:auto;padding:.4rem;color:var(--muted);font-size:.78rem;
+  text-align:center;pointer-events:none;
+}
+
 /* interaktive Inhalte behalten ihren normalen Cursor (nicht den move-Cursor) */
 .page a,.page button,.page summary,.page label,.page .fname,.page .crumb{cursor:pointer}
 .page input,.page select,.page textarea{cursor:auto}
@@ -547,9 +610,11 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 
 /* Frei platzierbare Notiz-Icons ("Desktop") neben der Liste --------------
    Overlay-Ebene ueber die ganze Seite, laesst Klicks durch (pointer-events:
-   none); nur die Icons selbst fangen Zeiger ab. Unter der Topbar (z-index 30)
-   und den Dialogen (60), aber ueber der Seite. */
-.note-desktop{position:fixed;inset:0;z-index:20;pointer-events:none}
+   none); nur die Icons selbst fangen Zeiger ab.
+   Ebene BEWUSST unter den Fenstern (.page, z-index ab 10): Icons liegen auf
+   dem Desktop, Fenster darueber — sonst schauen sie durch ein Fenster
+   hindurch, das ueber ihnen liegt. */
+.note-desktop{position:fixed;inset:0;z-index:5;pointer-events:none}
 .note-desk{
   position:fixed;pointer-events:auto;
   display:flex;flex-direction:column;align-items:center;gap:3px;width:76px;

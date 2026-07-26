@@ -1,8 +1,11 @@
 // Einstiegspunkt der Startseite: Bootstrap + Verdrahtung aller Module.
 // Läuft als ES-Modul (type="module"), daher automatisch erst nach dem
 // Parsen des DOM und nur einmal ausgewertet.
+import { BASE_URL } from "./core/base.js";
+import { createWindow } from "./core/window.js";
 import { initDialogCore } from "./core/dialogs.js";
 import { initTooltips } from "./core/tooltips.js";
+import { initBoard } from "./board.js";
 import { initConfirmDialog } from "./core/confirm.js";
 import { initFormWatch } from "./core/form-watch.js";
 import { initAccountDialog } from "./account/account-dialog.js";
@@ -40,9 +43,26 @@ initAccountDialog();
 initCreateFileDialog();
 initUpload();
 initOwnFilter();
+
+// Fenster des "Desktops" — jedes mit eigenem Schluessel in desktop_layout.
+// MUESSEN vor initNotes() stehen: das Standard-Layout der Notiz-Icons richtet
+// sich nach der Lage der Dateiliste, die hier erst gesetzt wird.
+createWindow({
+  el: document.getElementById("page"),
+  toggleBtn: document.getElementById("page-toggle"),
+  minBtn: "#page-minimize", key: "page", baseUrl: BASE_URL,
+});
+createWindow({
+  el: document.getElementById("board"),
+  toggleBtn: document.getElementById("board-toggle"),
+  minBtn: "#board-minimize", key: "board", baseUrl: BASE_URL,
+  cascade: 1, // versetzt zur Dateiliste starten, solange keine Lage gemerkt ist
+});
+
 // notes-Modul MUSS vor der Ordnernavigation initialisiert sein: die
 // zurueckgegebene bindNoteOpen-Funktion wird beim Rebind nach einem
 // Ordnerwechsel gebraucht.
-var bindNoteOpen = initNotes();
+var notes = initNotes();
+initBoard({ baseUrl: BASE_URL, notes: notes });
 initBackupDialog();
-initFolderNav({ bindNoteOpen: bindNoteOpen });
+initFolderNav({ bindNoteOpen: notes && notes.bindNoteOpen });

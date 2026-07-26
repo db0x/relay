@@ -1,0 +1,61 @@
+<%# Notiz-Board: dasselbe Fenster-Muster wie die Dateiliste (frei verschiebbar,
+    Titelleiste mit Minimieren-Knopf, Umschalter in der Topbar) — die Mechanik
+    steckt in js/core/window.js, hier nur der Inhalt.
+
+    Drei Spalten nach Bearbeitungsstand. Die Notizen sind dieselben .note-open-
+    Elemente wie auf dem Desktop (Klick oeffnet, Hover zeigt die Vorschau);
+    Ziehen zwischen den Spalten setzt den Status (js/board.js).
+
+    Ohne gemerkte Lage startet das Board EINGEKLAPPT: es ist die Zweitansicht,
+    die soll sich nicht ungefragt vor die Dateiliste legen. %>
+<% const boardCols = [
+     { key: "open", label: "Offen" },
+     { key: "wip", label: "In Arbeit" },
+     { key: "closed", label: "Erledigt" },
+   ]; %>
+<div class="page board<%= !boardLayout || boardLayout.minimized ? " page-min" : "" %>" id="board"
+     <% if (boardLayout) { %>data-x="<%= boardLayout.x %>" data-y="<%= boardLayout.y %>"<% } %>>
+  <header class="page-head">
+    <img src="<%= base %>/static/img/board.svg" alt="" width="22" height="22">
+    <h2 class="page-title">Notiz-Board</h2>
+    <button type="button" class="iconbtn page-min-btn" id="board-minimize"
+            data-tip="Minimieren" aria-label="Notiz-Board minimieren">
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+        <rect x="2" y="6.2" width="10" height="1.6" rx=".8" fill="currentColor"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="board-cols">
+    <% boardCols.forEach(function(col){ %>
+    <%# data-status: js/board.js liest daraus, welcher Stand beim Ablegen
+        gesetzt wird — die Spalte IST das Ziel. %>
+    <section class="board-col" data-status="<%= col.key %>">
+      <h3 class="board-col-head">
+        <span class="board-col-title"><%= col.label %></span>
+        <span class="board-col-count"><%= boardNotes[col.key].length %></span>
+      </h3>
+      <div class="board-drop">
+        <% boardNotes[col.key].forEach(function(n){ %>
+        <button type="button"
+                class="note-open board-card<%= n.color ? " note-colored" : "" %><%= n.dark ? " note-dark" : "" %><%= n.status === "closed" ? " note-desk-done" : "" %>"
+                data-owner="<%= n.owner %>" data-rel="<%= n.relpath %>"
+                data-label="<%= n.label %>" data-canedit="<%= n.canedit ? 1 : 0 %>"
+                data-status="<%= n.status %>" data-due="<%= n.dueDate %>"
+                <% if (n.color) { %>style="--note-color:<%= n.color %>"<% } %>
+                aria-label="Notiz: <%= n.label %>">
+          <svg class="note-ico" width="46" height="46" aria-hidden="true" focusable="false"><use href="#note-ico"/></svg>
+          <span class="board-card-label"><%= n.label %></span>
+          <% if (n.isTodo && n.dueLabel) { %>
+          <span class="badge badge-todo<%= n.overdue ? " badge-todo-over" : "" %>"><%= n.dueLabel %></span>
+          <% } %>
+        </button>
+        <% }); %>
+        <% if (!boardNotes[col.key].length) { %>
+        <p class="board-empty">nichts hier</p>
+        <% } %>
+      </div>
+    </section>
+    <% }); %>
+  </div>
+</div>
