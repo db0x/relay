@@ -5,8 +5,20 @@
       <img src="<%= base %>/static/img/logo.svg" alt="" width="28" height="28">
       <span><%= appName %></span>
     </a>
-    <%# Werkzeugleiste (Neu erstellen / Hochladen / Neuer Ordner) in der Titelleiste %>
+    <%# Werkzeugleiste (Ansicht / Neu erstellen / Hochladen / Neuer Ordner) %>
     <section class="toolbar" aria-label="Aktionen">
+      <%# Eine durchgehende Icon-Reihe: Ansicht-Umschalter und die Erstellen-
+          Icons sollen als EINE Gruppe gleichartiger Symbole lesbar sein —
+          gleicher Abstand, kein Trenner dazwischen. %>
+      <div class="tool-icons">
+      <%# Umschalter fuer die Dateiliste: immer da, aria-pressed spiegelt, ob
+          das Fenster gerade offen ist (js/desktop-layout.js). Serverseitig
+          vorbelegt, damit der Zustand ohne Aufblitzen stimmt. %>
+      <button type="button" class="view-btn" id="page-toggle"
+              data-tip="Meine Dateien" aria-label="Dateiliste anzeigen oder ausblenden"
+              aria-pressed="<%= pageLayout && pageLayout.minimized ? "false" : "true" %>">
+        <img src="<%= base %>/static/img/file-manager.svg" alt="" width="26" height="26">
+      </button>
       <div class="create-group" role="group" aria-label="Neue Datei erstellen">
         <button type="button" class="create-btn" data-create="docx"
                 data-tip="Neues Textdokument" aria-label="Neues Textdokument">
@@ -25,19 +37,11 @@
           <span class="create-zoom"><img src="<%= base %>/static/img/note.svg" alt="" width="48" height="48"></span>
         </button>
       </div>
-      <span class="tool-sep" aria-hidden="true"></span>
-      <%# ein Knopf: oeffnet die Dateiauswahl, die Auswahl laedt sofort hoch (js/files/upload.js) %>
-      <form class="upload-form" action="<%= base %>/upload" method="post" enctype="multipart/form-data"
-            data-max-mb="<%= maxUploadMb %>">
-        <input type="hidden" name="dir" value="<%= curDir %>">
-        <input type="file" name="file" accept="<%= uploadAccept %>" hidden>
-        <button type="button" class="btn btn-secondary upload-btn" data-tip="Datei hochladen" aria-label="Datei hochladen">
-          <img class="btn-icon" src="<%= base %>/static/img/upload.svg" alt="" width="16" height="16"><span class="tool-label">Hochladen</span>
-        </button>
-      </form>
-      <button type="button" class="btn btn-secondary" data-dialog="dlg-mkdir" data-tip="Neuer Ordner" aria-label="Neuer Ordner">
-        <img class="btn-icon" src="<%= base %>/static/img/folder.svg" alt="" width="16" height="16"><span class="tool-label">Neuer Ordner</span>
-      </button>
+      </div><%# Ende .tool-icons %>
+      <%# "Hochladen" und "Neuer Ordner" sitzen NICHT hier, sondern in der
+          Titelleiste des Dateifensters (partials/file-list.ejs): sie wirken
+          auf den gerade angezeigten Ordner und gehoeren damit zu dieser
+          Ansicht — nicht in die globale Werkzeugleiste. %>
     </section>
     </div>
     <div class="user">

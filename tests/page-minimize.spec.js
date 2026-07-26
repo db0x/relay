@@ -12,8 +12,8 @@ const {
 const { BASE_URL } = require("./test-env");
 
 const PAGE = "#page";
-const MIN_BTN = "#page-minimize";
-const TASK_BTN = "#page-restore";
+const MIN_BTN = "#page-minimize";   // Knopf IN der Titelleiste des Fensters
+const TOGGLE = "#page-toggle";      // Umschalter in der Topbar (immer sichtbar)
 
 test.describe("Dateiliste minimieren", () => {
   let user;
@@ -30,67 +30,60 @@ test.describe("Dateiliste minimieren", () => {
   test("die Titelleiste zeigt Titel und Minimieren-Knopf", async ({ page }) => {
     await expect(page.locator(".page-head .page-title")).toHaveText("Meine Dateien");
     await expect(page.locator(MIN_BTN)).toBeVisible();
-    // solange die Karte offen ist, gibt es keine Taskleisten-Schaltflaeche
-    await expect(page.locator(TASK_BTN)).toBeHidden();
   });
 
-  test("Minimieren blendet die Karte aus und zeigt das Icon unten links", async ({ page }) => {
+  test("der Umschalter in der Topbar ist immer da und zeigt den Zustand", async ({ page }) => {
+    const toggle = page.locator(TOGGLE);
+    await expect(toggle).toBeVisible();
+    // reines Icon mit Tooltip statt Beschriftung
+    await expect(toggle).toHaveAttribute("data-tip", "Meine Dateien");
+    await expect(toggle).toHaveText("");
+    // Fenster offen -> gedrueckt
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+
+    await page.click(MIN_BTN);
+    await expect(toggle).toBeVisible(); // bleibt sichtbar, anders als frueher das Dock
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("Minimieren blendet die Karte aus", async ({ page }) => {
     await expect(page.locator(PAGE)).toBeVisible();
     await page.click(MIN_BTN);
     await expect(page.locator(PAGE)).toBeHidden();
-    await expect(page.locator(TASK_BTN)).toBeVisible();
   });
 
-  test("das Dock-Icon traegt seinen Namen als Tooltip, der nach oben klappt", async ({ page }) => {
-    await page.click(MIN_BTN);
-    const icon = page.locator(TASK_BTN);
-    await expect(icon).toHaveAttribute("data-tip", "Meine Dateien");
-    // kein sichtbarer Beschriftungstext am Icon selbst
-    await expect(icon).toHaveText("");
-
-    await icon.hover();
-    // Regression: Tooltips sitzen normalerweise UNTER dem Element — am unteren
-    // Bildschirmrand waere er ausserhalb des Sichtbereichs. core/tooltips.js
-    // klappt ihn dort nach oben (--tip-shift).
-    const shift = await icon.evaluate((el) => el.style.getPropertyValue("--tip-shift"));
-    expect(shift).toBe("-100%");
-    const tipY = await icon.evaluate((el) => parseFloat(el.style.getPropertyValue("--tip-y")));
-    const box = await icon.boundingBox();
-    expect(tipY).toBeLessThanOrEqual(box.y); // oberhalb des Icons verankert
-  });
-
-  test("Klick auf das Icon stellt die Karte wieder her", async ({ page }) => {
-    await page.click(MIN_BTN);
+  test("der Umschalter schaltet in beide Richtungen", async ({ page }) => {
+    const toggle = page.locator(TOGGLE);
+    // zu …
+    await toggle.click();
     await expect(page.locator(PAGE)).toBeHidden();
-
-    await page.click(TASK_BTN);
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    // … und wieder auf
+    await toggle.click();
     await expect(page.locator(PAGE)).toBeVisible();
-    await expect(page.locator(TASK_BTN)).toBeHidden();
-    // die Liste ist danach normal bedienbar
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("table.files")).toBeVisible();
   });
 
   test("der minimierte Zustand ueberlebt einen Reload", async ({ page }) => {
     await page.click(MIN_BTN);
-    await expect(page.locator(TASK_BTN)).toBeVisible();
-
     await page.reload();
     await waitAppReady(page);
     await expect(page.locator(PAGE)).toBeHidden();
-    await expect(page.locator(TASK_BTN)).toBeVisible();
+    await expect(page.locator(TOGGLE)).toHaveAttribute("aria-pressed", "false");
 
     // und das Wiederherstellen wird ebenso gemerkt
-    await page.click(TASK_BTN);
+    await page.click(TOGGLE);
     await expect(page.locator(PAGE)).toBeVisible();
     await page.reload();
     await waitAppReady(page);
     await expect(page.locator(PAGE)).toBeVisible();
-    await expect(page.locator(TASK_BTN)).toBeHidden();
+    await expect(page.locator(TOGGLE)).toHaveAttribute("aria-pressed", "true");
   });
 
   test("der Zustand haengt am Nutzer, nicht am Browser", async ({ page, browser }) => {
     await page.click(MIN_BTN);
-    await expect(page.locator(TASK_BTN)).toBeVisible();
+    await expect(page.locator(PAGE)).toBeHidden();
 
     // frischer Browser-Kontext, gleicher Nutzer -> weiterhin eingeklappt
     const ctx = await browser.newContext({ baseURL: BASE_URL });
@@ -98,7 +91,7 @@ test.describe("Dateiliste minimieren", () => {
     await login(other, user.username, user.password);
     await waitAppReady(other);
     await expect(other.locator(PAGE)).toBeHidden();
-    await expect(other.locator(TASK_BTN)).toBeVisible();
+    await expect(other.locator(TOGGLE)).toHaveAttribute("aria-pressed", "false");
     await ctx.close();
   });
 
@@ -109,7 +102,7 @@ test.describe("Dateiliste minimieren", () => {
 
     await page.click(MIN_BTN);
     await expect(page.locator(PAGE)).toBeHidden();
-    await page.click(TASK_BTN);
+    await page.click(TOGGLE);
     await expect(fileRow(page, filename)).toBeVisible();
   });
 
@@ -131,6 +124,6 @@ test.describe("Dateiliste minimieren", () => {
 
     await page.click(MIN_BTN);
     await expect(page.locator(PAGE)).toBeHidden();
-    await expect(page.locator(TASK_BTN)).toBeVisible();
+    await expect(page.locator(TOGGLE)).toHaveAttribute("aria-pressed", "false");
   });
 });

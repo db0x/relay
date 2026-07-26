@@ -41,12 +41,17 @@ export function initDesktopLayout(config) {
     page.style.maxHeight = (vh - top - 16) + "px";
   }
   // --- Minimieren / Wiederherstellen ------------------------------------
-  // Eingeklappt verschwindet die Karte und wird durch die Schaltflaeche unten
-  // links vertreten. Der Zustand wird zusammen mit der Position gemerkt
-  // (POST /desktop/layout) und beim naechsten Laden schon serverseitig
-  // gerendert — so blitzt die Karte nicht kurz auf.
-  var taskBtn = document.getElementById("page-restore");
+  // Eingeklappt verschwindet die Karte; vertreten wird sie durch den
+  // Umschalter in der Topbar, der IMMER da ist und beide Richtungen schaltet.
+  // Der Zustand wird zusammen mit der Position gemerkt (POST /desktop/layout)
+  // und beim naechsten Laden schon serverseitig gerendert — so blitzt die
+  // Karte nicht kurz auf.
+  var toggleBtn = document.getElementById("page-toggle");
   function isMinimized() { return !!page && page.classList.contains("page-min"); }
+  // aria-pressed spiegelt den Zustand (CSS daempft das Icon bei "false")
+  function syncToggle() {
+    if (toggleBtn) toggleBtn.setAttribute("aria-pressed", isMinimized() ? "false" : "true");
+  }
 
   function saveLayout(minimized) {
     fetch(baseUrl + "/desktop/layout", {
@@ -67,13 +72,13 @@ export function initDesktopLayout(config) {
     // brauchbaren Masse mehr
     saveLayout(true);
     page.classList.add("page-min");
-    if (taskBtn) taskBtn.hidden = false;
+    syncToggle();
   }
 
   function restorePage() {
     if (!page || !isMinimized()) return;
     page.classList.remove("page-min");
-    if (taskBtn) taskBtn.hidden = true;
+    syncToggle();
     placePage(); // Fenster koennte inzwischen kleiner sein -> neu einpassen
     saveLayout(false);
   }
@@ -87,9 +92,9 @@ export function initDesktopLayout(config) {
       if (e.target.closest("#page-minimize")) minimizePage();
     });
   }
-  if (taskBtn) {
+  if (toggleBtn) {
     // Klick schaltet um: eingeklappt -> wiederherstellen, sonst einklappen
-    taskBtn.addEventListener("click", function () {
+    toggleBtn.addEventListener("click", function () {
       if (isMinimized()) restorePage(); else minimizePage();
     });
   }
