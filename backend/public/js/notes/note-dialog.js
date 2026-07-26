@@ -26,7 +26,10 @@ export function initNoteDialog(baseUrl) {
   var noteTimer = null;
 
   // ToDo/Personen/Ort — eigenes Formular-Stueck, laeuft aber ueber denselben
-  // Speichern-Button wie der Markdown-Inhalt (ein Submit pro Dialog)
+  // Speichern-Button wie der Markdown-Inhalt (ein Submit pro Dialog).
+  // Der Bearbeitungsstand gehoert bewusst NICHT dazu: er wird ausschliesslich
+  // ueber das Kontextmenue der Notiz-Icons gewechselt (status.js) und hier nur
+  // als Badge in der Lese-Ansicht angezeigt.
   var noteTodo = document.getElementById("note-todo");
   var noteDue = document.getElementById("note-due");
   var noteOrt = document.getElementById("note-ort");
@@ -248,7 +251,10 @@ export function initNoteDialog(baseUrl) {
   }
 
   function openNote(title, content, action, canEdit, startEdit, meta) {
-    meta = meta || { isTodo: false, dueDate: "", people: { known: [], extra: [] }, ort: "", color: "" };
+    meta = meta || {
+      isTodo: false, dueDate: "", people: { known: [], extra: [] },
+      ort: "", color: "", status: "open",
+    };
     ensureNoteEditor();
     noteCanEdit = canEdit;
     noteTitleEl.textContent = title;

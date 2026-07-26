@@ -3,14 +3,17 @@
 // Notiz-Dialog ueberhaupt im DOM steht.
 import { initNoteDialog } from "./note-dialog.js";
 import { initHoverPreview } from "./hover-preview.js";
+import { initStatusMenu } from "./status.js";
 import { initDesktopLayout } from "../desktop-layout.js";
+import { BASE_URL } from "../core/base.js";
 
-// Rueckgabe: bindNoteOpen(root) fuer die AJAX-Ordnernavigation (Rebind nach
-// einem Ordnerwechsel), oder null, wenn keine Notiz-UI vorhanden ist.
+// Rueckgabe: { bindNoteOpen, invalidateNote, hideNoteTip } — bindNoteOpen fuer
+// die AJAX-Ordnernavigation (Rebind nach einem Ordnerwechsel), der Rest fuer
+// Module, die Notizen veraendern (Board). null, wenn keine Notiz-UI da ist.
 export function initNotes() {
   var noteForm = document.getElementById("note-form");
   if (!noteForm) return null;
-  var baseUrl = noteForm.action.replace(/\/notes\/create$/, "");
+  var baseUrl = BASE_URL;
 
   var dialog = initNoteDialog(baseUrl);
   var hover = initHoverPreview({
@@ -24,5 +27,18 @@ export function initNotes() {
   // Reihenfolge Karte-vor-Icon-Layout kapselt initDesktopLayout selbst.
   initDesktopLayout({ baseUrl: baseUrl, hideNoteTip: hover.hideNoteTip });
 
-  return hover.bindNoteOpen;
+  // Rechtsklick auf ein Desktop-Icon: Bearbeitungsstand wechseln. Der Wechsel
+  // laeuft ohne Neuladen -> die Hover-Vorschau muss ihren Cache-Eintrag
+  // verwerfen, sonst zeigt sie weiter den alten Stand.
+  initStatusMenu({
+    baseUrl: baseUrl,
+    hideNoteTip: hover.hideNoteTip,
+    invalidateNote: hover.invalidateNote,
+  });
+
+  return {
+    bindNoteOpen: hover.bindNoteOpen,
+    invalidateNote: hover.invalidateNote,
+    hideNoteTip: hover.hideNoteTip,
+  };
 }

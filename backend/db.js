@@ -51,6 +51,7 @@ function db() {
       people   TEXT,
       ort      TEXT,
       color    TEXT,   -- '#rrggbb' fuer das Notiz-Icon; NULL = Standardfarbe
+      status   TEXT,   -- 'open' | 'wip' | 'closed'; NULL = 'open' (Default)
       PRIMARY KEY (owner, filename)
     );
 
@@ -69,10 +70,11 @@ function db() {
     -- Frei verschiebbare UI-Elemente je Nutzer (z.B. key='page' fuer die
     -- Dokumentenliste). notemeta.js: getLayout/setLayout.
     CREATE TABLE IF NOT EXISTS desktop_layout (
-      username TEXT NOT NULL,
-      key      TEXT NOT NULL,
-      x        REAL NOT NULL,
-      y        REAL NOT NULL,
+      username  TEXT NOT NULL,
+      key       TEXT NOT NULL,
+      x         REAL NOT NULL,
+      y         REAL NOT NULL,
+      minimized INTEGER NOT NULL DEFAULT 0, -- eingeklappt zum Taskleisten-Icon
       PRIMARY KEY (username, key)
     );
   `);
@@ -84,10 +86,18 @@ function db() {
     _db.exec("ALTER TABLE users ADD COLUMN locked INTEGER NOT NULL DEFAULT 0");
   if (!cols.includes("email"))
     _db.exec("ALTER TABLE users ADD COLUMN email TEXT"); // optional, NULL = nicht gepflegt
-  // note_meta.color kam mit den farbigen Notiz-Icons dazu
+  // note_meta.color kam mit den farbigen Notiz-Icons dazu, status mit dem
+  // Bearbeitungsstand (Offen/In Arbeit/Erledigt). Beide vertragen NULL:
+  // Altbestand liest sich als Standardfarbe bzw. als "open".
   const metaCols = _db.prepare("PRAGMA table_info(note_meta)").all().map((c) => c.name);
   if (!metaCols.includes("color"))
     _db.exec("ALTER TABLE note_meta ADD COLUMN color TEXT");
+  if (!metaCols.includes("status"))
+    _db.exec("ALTER TABLE note_meta ADD COLUMN status TEXT");
+  // desktop_layout.minimized kam mit dem Minimieren der Dateiliste dazu
+  const layoutCols = _db.prepare("PRAGMA table_info(desktop_layout)").all().map((c) => c.name);
+  if (!layoutCols.includes("minimized"))
+    _db.exec("ALTER TABLE desktop_layout ADD COLUMN minimized INTEGER NOT NULL DEFAULT 0");
   return _db;
 }
 

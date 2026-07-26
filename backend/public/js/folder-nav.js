@@ -8,6 +8,7 @@ import { bindMenuButtons, bindRowMenuItemClose, bindDataDialog, bindDialogClose,
 import { bindTips } from "./core/tooltips.js";
 import { bindConfirmForms } from "./core/confirm.js";
 import { bindOwnOnly } from "./files/own-filter.js";
+import { bindUpload } from "./files/upload.js";
 
 // config: { bindNoteOpen } — bindNoteOpen(root) aus dem Notiz-Modul, oder
 // null, wenn keine Notiz-UI vorhanden ist.
@@ -38,11 +39,23 @@ export function initFolderNav(config) {
     bindDataDialog(pageEl);
     bindTips(pageEl);
     bindOwnOnly(pageEl);
+    bindUpload(pageEl); // Upload-Formular sitzt jetzt im Fensterkopf
     if (bindNoteOpen) bindNoteOpen(pageEl);
     bindConfirmForms(pageEl);
     // Zeilen-Dialoge: Backdrop-Buchhaltung beim Schliessen + "Freigabe entziehen"
     bindDialogClose(rowDialogsEl);
     bindConfirmForms(rowDialogsEl);
+  }
+
+  // Formulare, die in einen Ordner schreiben (Hochladen, Neuer Ordner, Neue
+  // Datei), schicken den Zielordner als verstecktes dir-Feld mit. Die Dialoge
+  // dlg-create/dlg-mkdir liegen AUSSERHALB von #page und werden beim
+  // Ordnerwechsel darum nicht mitgetauscht — ohne dieses Nachziehen behielten
+  // sie den Ordner vom Seitenaufbau und legten alles in der Wurzel an.
+  function syncDirFields(dir) {
+    document.querySelectorAll('input[name="dir"]').forEach(function (inp) {
+      inp.value = dir;
+    });
   }
 
   function swapFolder(doc) {
@@ -53,6 +66,8 @@ export function initFolderNav(config) {
     var newRows = doc.getElementById("row-dialogs");
     pageEl.innerHTML = newPage.innerHTML;
     rowDialogsEl.innerHTML = newRows ? newRows.innerHTML : "";
+    pageEl.dataset.dir = newPage.dataset.dir || "";
+    syncDirFields(pageEl.dataset.dir);
     pageEl.scrollTop = 0;
     rebindFolder();
     return true;

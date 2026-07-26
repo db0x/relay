@@ -19,6 +19,10 @@ const { loginRequired } = require("./auth");
 
 const router = express.Router();
 
+// Fenster des "Desktops", deren Lage/Zustand je Nutzer gemerkt wird
+// (desktop_layout). Neue Ansicht -> hier eintragen.
+const WINDOW_KEYS = ["page", "board"];
+
 // Dateiendung -> Typ-Icon in /static/img/ (verwandte Formate teilen sich eins)
 function iconFor(name) {
   const ext = (name.split(".").pop() || "").toLowerCase();
@@ -74,21 +78,65 @@ function desktopNotesFor(me) {
     return r ? { x: r.x, y: r.y } : null;
   };
   const out = [];
-  const add = (owner, filename, canedit, color) => {
+  // status: Erledigte Icons bleiben liegen, werden aber gedaempft dargestellt
+  // (index.css) — und das Kontextmenue braucht den aktuellen Wert
+  const add = (owner, filename, canedit, color, status) => {
     if (!/\.md$/i.test(filename) || !fs.existsSync(pathFor(owner, filename))) return;
     out.push({
       owner, relpath: filename, label: labelFor(filename), canedit,
       pos: posOf(owner, filename), color: color || "", dark: notemeta.isDark(color),
+      status: notemeta.normalizeStatus(status),
     });
   };
   // eigene ToDo-Notizen (alle Ordner)
-  notemeta.listTodos(me).forEach((n) => add(me, n.filename, true, n.color));
+  notemeta.listTodos(me).forEach((n) => add(me, n.filename, true, n.color, n.status));
   // an mich freigegebene ToDo-Notizen
   shares.listForUser(me).forEach((s) => {
     const m = notemeta.get(s.owner, s.filename);
-    if (m.isTodo) add(s.owner, s.filename, s.perm === "edit", m.color);
+    if (m.isTodo) add(s.owner, s.filename, s.perm === "edit", m.color, m.status);
   });
   return out;
+}
+
+// Notizen fuers Board: ALLE sichtbaren (eigene + freigegebene), unabhaengig
+// vom ToDo-Schalter — jede Notiz hat einen Bearbeitungsstand. Gruppiert nach
+// Status, damit das Template nur noch ausgeben muss.
+//
+// Sortierung je Spalte: faellige ToDos zuerst (naechster Termin oben), dann
+// alles uebrige alphabetisch. So springt das Dringende ins Auge.
+function boardNotesFor(me) {
+  const seen = new Set();
+  const cols = { open: [], wip: [], closed: [] };
+  const add = (owner, filename, canedit) => {
+    const key = `${owner}/${filename}`;
+    if (seen.has(key)) return;                              // Doppel vermeiden
+    if (!/\.md$/i.test(filename)) return;
+    if (!fs.existsSync(pathFor(owner, filename))) return;   // verwaiste Freigabe
+    seen.add(key);
+    const m = notemeta.get(owner, filename);
+    const [y, mo, d] = (m.dueDate || "").split("-");
+    cols[m.status].push({
+      owner, relpath: filename, label: labelFor(filename), canedit,
+      color: m.color || "", dark: notemeta.isDark(m.color), status: m.status,
+      isTodo: m.isTodo, dueDate: m.dueDate || "",
+      dueLabel: y ? `${d}.${mo}.${y}` : "",
+      overdue: !!m.dueDate && m.dueDate < new Date().toISOString().slice(0, 10),
+    });
+  };
+  // eigene Notizen: ueber alle Ordner hinweg (das Board ist ordnerunabhaengig)
+  walkFiles(dirFor(me)).forEach((rel) => add(me, rel, true));
+  // an mich freigegebene Notizen
+  shares.listForUser(me).forEach((s) => add(s.owner, s.filename, s.perm === "edit"));
+
+  const byName = (a, b) => a.label.localeCompare(b.label, "de", { sensitivity: "base" });
+  Object.values(cols).forEach((list) => list.sort((a, b) => {
+    // datierte ToDos ganz nach oben, nach Termin; danach der Rest nach Titel
+    if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate) || byName(a, b);
+    if (a.dueDate) return -1;
+    if (b.dueDate) return 1;
+    return byName(a, b);
+  }));
+  return cols;
 }
 
 // zurueck in den Ordner, aus dem eine Aktion kam (Formulare schicken `dir` mit)
@@ -220,6 +268,10 @@ router.get("/", loginRequired, (req, res) => {
     desktopNotes: desktopNotesFor(me),
     // gemerkte Position der frei verschiebbaren Dokumentenliste (oder null)
     pageLayout: notemeta.getLayout(me, "page"),
+    // Notiz-Board: alle sichtbaren Notizen nach Bearbeitungsstand gruppiert,
+    // plus die gemerkte Fensterlage (Default: eingeklappt, siehe board.ejs)
+    boardNotes: boardNotesFor(me),
+    boardLayout: notemeta.getLayout(me, "board"),
     allDirs: walkDirs(userDir).sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" })),
     user: req.session.name,
     me,
@@ -269,12 +321,17 @@ router.get("/", loginRequired, (req, res) => {
 
 // Position eines frei verschiebbaren UI-Elements merken (aktuell nur die
 // Dokumentenliste, key="page") — je Nutzer
+// minimized (optional) klappt die Karte zum Taskleisten-Icon ein. Position
+// wird immer mitgeschickt, damit sie beim Wiederherstellen erhalten bleibt.
 router.post("/desktop/layout", loginRequired, express.json(), (req, res) => {
   const b = req.body || {};
   const key = String(b.key || "");
   const x = Number(b.x), y = Number(b.y);
-  if (key !== "page" || !Number.isFinite(x) || !Number.isFinite(y)) return res.sendStatus(400);
-  notemeta.setLayout(req.session.user, key, x, y);
+  // Whitelist statt freier Schluessel: jedes Fenster des Desktops hat einen
+  // festen Namen (js/core/window.js). Weitere Ansichten hier ergaenzen.
+  if (!WINDOW_KEYS.includes(key) || !Number.isFinite(x) || !Number.isFinite(y))
+    return res.sendStatus(400);
+  notemeta.setLayout(req.session.user, key, x, y, b.minimized === true);
   res.sendStatus(204);
 });
 

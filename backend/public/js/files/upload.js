@@ -15,8 +15,11 @@ function iconForName(name) {
   return map[ext] || null;
 }
 
-export function initUpload() {
-  var uploadForm = document.querySelector(".upload-form");
+// root-skopiert: Das Upload-Formular sitzt in der Titelleiste des
+// Dateifensters und wird beim Ordnerwechsel mitgetauscht (folder-nav.js) —
+// ohne erneutes Binden verpufft die Dateiauswahl nach der ersten Navigation.
+export function bindUpload(root) {
+  var uploadForm = root.querySelector(".upload-form");
   if (!uploadForm) return;
   var uploadInput = uploadForm.querySelector("input[type=file]");
   uploadForm.querySelector(".upload-btn").addEventListener("click", function () {
@@ -46,4 +49,8 @@ export function initUpload() {
     }
     uploadForm.submit();
   });
+}
+
+export function initUpload() {
+  bindUpload(document);
 }

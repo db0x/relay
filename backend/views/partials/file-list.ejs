@@ -1,4 +1,43 @@
-<div class="page" id="page"<% if (pageLayout) { %> data-x="<%= pageLayout.x %>" data-y="<%= pageLayout.y %>"<% } %>>
+<%# page-min schon serverseitig setzen: so ist die Karte beim Laden gar nicht
+    erst da, statt kurz aufzublitzen und dann von JS eingeklappt zu werden. %>
+<%# data-dir: der gerade angezeigte Ordner. Die AJAX-Ordnernavigation liest ihn
+    nach dem Tausch aus und zieht die versteckten dir-Felder der Dialoge
+    ausserhalb von #page nach (js/folder-nav.js: syncDirFields). %>
+<div class="page<%= pageLayout && pageLayout.minimized ? " page-min" : "" %>" id="page" data-dir="<%= curDir %>"<% if (pageLayout) { %> data-x="<%= pageLayout.x %>" data-y="<%= pageLayout.y %>"<% } %>>
+  <%# Titelleiste: zugleich Greif-Flaeche zum Verschieben (der Minimieren-Knopf
+      ist ein <button> und damit von der Zieh-Logik ausgenommen, siehe
+      pageDragSkip in js/desktop-layout.js) %>
+  <header class="page-head">
+    <img src="<%= base %>/static/img/file-manager.svg" alt="" width="22" height="22">
+    <h2 class="page-title">Meine Dateien</h2>
+    <%# Aktionen, die auf den GERADE angezeigten Ordner wirken. Sie stehen
+        bewusst hier statt in der Topbar — und weil sie damit innerhalb von
+        #page liegen, tauscht die AJAX-Ordnernavigation sie beim Ordnerwechsel
+        mit aus; das versteckte dir-Feld zeigt so immer auf den richtigen
+        Ordner (siehe syncDirFields in js/folder-nav.js fuer die Dialoge,
+        die ausserhalb liegen). %>
+    <div class="page-actions">
+      <%# ein Knopf: oeffnet die Dateiauswahl, die Auswahl laedt sofort hoch (js/files/upload.js) %>
+      <form class="upload-form" action="<%= base %>/upload" method="post" enctype="multipart/form-data"
+            data-max-mb="<%= maxUploadMb %>">
+        <input type="hidden" name="dir" value="<%= curDir %>">
+        <input type="file" name="file" accept="<%= uploadAccept %>" hidden>
+        <button type="button" class="btn btn-secondary btn-sm upload-btn" data-tip="Datei hochladen" aria-label="Datei hochladen">
+          <img class="btn-icon" src="<%= base %>/static/img/upload.svg" alt="" width="16" height="16"><span class="tool-label">Hochladen</span>
+        </button>
+      </form>
+      <button type="button" class="btn btn-secondary btn-sm" data-dialog="dlg-mkdir" data-tip="Neuer Ordner" aria-label="Neuer Ordner">
+        <img class="btn-icon" src="<%= base %>/static/img/folder.svg" alt="" width="16" height="16"><span class="tool-label">Neuer Ordner</span>
+      </button>
+    </div>
+    <button type="button" class="iconbtn page-min-btn" id="page-minimize"
+            data-tip="Minimieren" aria-label="Dateiliste minimieren">
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+        <rect x="2" y="6.2" width="10" height="1.6" rx=".8" fill="currentColor"/>
+      </svg>
+    </button>
+  </header>
+
   <% if (crumbs.length > 1) { %>
   <nav class="crumbs">
     <% crumbs.forEach(function(c, i){ %>

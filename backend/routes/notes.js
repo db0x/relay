@@ -47,6 +47,11 @@ function metaFromBody(body) {
     people: { known, extra },
     ort: String(body.ort || "").trim(),
     color: noteColor(body.color),
+    // ACHTUNG: KEIN status hier. Der Bearbeitungsstand wird ausschliesslich
+    // ueber POST /notes/status (Kontextmenue der Notiz-Icons) gesetzt — das
+    // Notiz-Formular kennt kein solches Feld. Wuerde er hier aus dem Body
+    // gelesen, setzte jedes Speichern ihn stillschweigend auf "open" zurueck;
+    // die Aufrufer geben ihn deshalb explizit mit (siehe unten).
   };
 }
 
@@ -69,7 +74,9 @@ router.post("/notes/create", loginRequired, (req, res) => {
   const p = pathFor(req.session.user, fid);
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, md);
-  notemeta.set(req.session.user, fid, metaFromBody(req.body));
+  // frisch angelegte Notizen starten auf dem Default-Status ("open")
+  notemeta.set(req.session.user, fid,
+    { ...metaFromBody(req.body), status: notemeta.STATUS_DEFAULT });
   req.flash("ok", "Notiz gespeichert.");
   res.redirect(`${BASE}/?p=${encodeURIComponent(NOTES_DIR)}`);
 });
@@ -86,6 +93,22 @@ router.get("/notes/meta/:owner/*", loginRequired, (req, res) => {
   const owner = req.params.owner, fid = req.params[0];
   if (!accessFor(req.session.user, owner, fid)) return res.sendStatus(404);
   res.json(notemeta.get(owner, fid));
+});
+
+// Bearbeitungsstand wechseln (Kontextmenue der Desktop-Icons). Bewusst
+// strenger als das Positionsmerken: die Position ist eine reine Ansichtssache
+// des Betrachters, der Status gehoert zur Notiz — nur-lesende Freigaben
+// duerfen ihn deshalb NICHT aendern.
+router.post("/notes/status", loginRequired, express.json(), (req, res) => {
+  const b = req.body || {};
+  const owner = String(b.owner || ""), filename = String(b.filename || "");
+  const status = String(b.status || "");
+  if (!owner || !filename || !notemeta.STATUS.includes(status)) return res.sendStatus(400);
+  const acc = accessFor(req.session.user, owner, filename);
+  if (!acc) return res.sendStatus(404);
+  if (acc !== "owner" && acc !== "edit") return res.sendStatus(403);
+  notemeta.setStatus(owner, filename, status);
+  res.json({ status });
 });
 
 // Position eines Notiz-Icons auf dem "Desktop" merken (je Betrachter)
@@ -122,7 +145,11 @@ router.post("/notes/save/:owner/*", loginRequired, (req, res) => {
       }
     }
   }
-  notemeta.set(owner, newFid, metaFromBody(req.body));
+  // Bearbeitungsstand unangetastet uebernehmen: das Formular kennt ihn nicht
+  // (er laeuft ueber POST /notes/status). NACH einem evtl. Umbenennen lesen —
+  // notemeta.rename hat die Zeile dann schon auf newFid umgezogen.
+  const keepStatus = notemeta.get(owner, newFid).status;
+  notemeta.set(owner, newFid, { ...metaFromBody(req.body), status: keepStatus });
   const dir = securePath(req.body.dir || "") || "";
   req.flash("ok", "Notiz gespeichert.");
   res.redirect(dir ? `${BASE}/?p=${encodeURIComponent(dir)}` : `${BASE}/`);
@@ -138,6 +165,16 @@ const embedJson = (o) => JSON.stringify(o).replace(/</g, "\\u003c");
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
+
+// Beschriftung und Farben des Status-Badges fuer den PDF-Export.
+// ACHTUNG: Zwilling im Frontend — NOTE_STATUS in public/js/notes/status.js
+// (gleiche Labels) und .badge-status-* in index.css (gleiche Farben).
+// Bewusst NICHT das Bernstein der ToDo-Pille: beide stehen nebeneinander.
+const STATUS_PILL = {
+  open: { label: "Offen", bg: "#e8f0fe", fg: "#1a4fa0" },
+  wip: { label: "In Arbeit", bg: "#ede9fe", fg: "#5b21b6" },
+  closed: { label: "Erledigt", bg: "#e7f6ec", fg: "#166534" },
+};
 
 // Metadaten-Badges fuers PDF als GRAFIK: dieselben Pillen wie in der UI
 // (ToDo farbig, Personen mit Avatar/Initialen, Ort) werden als SVG aufgebaut
@@ -184,6 +221,10 @@ async function metaBadgeImage(meta) {
   };
 
   const pills = [];
+  // Bearbeitungsstand zuerst — gleiche Reihenfolge und Farben wie die Badges
+  // in der Oberflaeche. ACHTUNG: Zwilling im Frontend (public/js/notes/status.js).
+  const stPill = STATUS_PILL[meta.status] || STATUS_PILL.open;
+  pills.push(textPill([{ t: stPill.label, bold: true }], stPill.bg, stPill.fg));
   if (meta.isTodo) {
     const overdue = !!meta.dueDate && meta.dueDate < new Date().toISOString().slice(0, 10);
     const [y, mo, d] = (meta.dueDate || "").split("-");
@@ -203,6 +244,8 @@ async function metaBadgeImage(meta) {
     pills.push(personPill({ name: n, avatar: null, initial: (n.trim()[0] || "?").toUpperCase() }));
   if (meta.ort) pills.push(textPill([{ t: "Ort: ", bold: true }, { t: meta.ort, bold: false }], "#f1f3f5", "#1a1a1a"));
 
+  // Seit dem Status-Badge steht immer mindestens eine Pille an — die Pruefung
+  // bleibt als Sicherheitsnetz stehen (pdfHtmlDoc kommt mit null klar).
   if (!pills.length) return null;
 
   // Flow-Layout: Pillen fliessen nebeneinander und brechen bei MAXW um

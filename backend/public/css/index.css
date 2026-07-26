@@ -12,6 +12,12 @@
   --danger:#dc2626;
   --radius:14px;
   --radius-sm:9px;
+  /* Abstands-Raster der Dateikarte: --page-pad ist der Abstand zum Kartenrand
+     (alle vier Seiten), --page-gap der Abstand um die Trennlinien darin.
+     Zwei Werte statt frueher fuenf verschiedener — siehe .page/.page-head/
+     .files/.list-footer. */
+  --page-pad:22px;
+  --page-gap:12px;
 }
 
 *{box-sizing:border-box}
@@ -39,7 +45,11 @@ body{
   background:var(--card);
   border:1px solid var(--line);border-radius:var(--radius);
   box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
-  padding:24px 26px 28px;
+  /* Ein einziges Mass zum Kartenrand — auf ALLEN vier Seiten. Zusammen mit
+     den buendigen Aussenkanten der Tabelle (siehe .files th/td :first/:last-
+     child) stehen Titel, Spaltenkoepfe, Dateinamen und Fusszeile auf
+     derselben Linie. Abstaende INNERHALB der Karte laufen ueber --page-gap. */
+  padding:var(--page-pad);
   cursor:move; /* leere Bereiche = Greif-Flaeche zum Verschieben */
 }
 /* Beim Laden positioniert index.js Karte UND Notiz-Icons erst per JS. Bis
@@ -58,6 +68,96 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   .page,.note-desktop{transition:none}
 }
 .page.dragging{user-select:none}
+
+/* Titelleiste der Dateiliste: Icon, Titel, Minimieren-Knopf. Zugleich die
+   bequemste Greif-Flaeche zum Verschieben (der Knopf ist davon ausgenommen). */
+/* margin:0 — der Abstand UNTER der Trennlinie kommt aus dem padding-top der
+   Spaltenkoepfe (bzw. der Brotkrumen), damit er genauso gross ist wie der
+   darueber und nicht beides addiert wird. */
+.page-head{
+  display:flex;align-items:center;gap:.6rem;
+  margin:0;padding:0 0 var(--page-gap);border-bottom:1px solid var(--line-soft);
+}
+.page-head img{display:block;flex:0 0 auto}
+.page-title{
+  margin:0;flex:1;min-width:0;font-size:1rem;font-weight:600;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* Ordner-Aktionen (Hochladen, Neuer Ordner) rechts im Fensterkopf, mit etwas
+   Abstand vor dem Minimieren-Knopf — der gehoert zum Fenster, nicht zum Inhalt */
+.page-actions{display:flex;align-items:center;gap:.4rem;flex:0 0 auto;margin-right:.2rem}
+.page-actions .upload-form{display:flex;align-items:center}
+/* etwas kleiner als die Topbar-Knoepfe — die Karte ist der ruhigere Bereich */
+.page-min-btn{width:28px;height:28px;flex:0 0 auto;cursor:pointer}
+
+/* Eingeklappt: die Karte verschwindet, vertreten durch den Umschalter in der
+   Topbar (.view-btn). display:none (nicht nur opacity), damit sie weder Platz
+   noch Klicks abfaengt — placePage() rechnet in dem Zustand bewusst nicht. */
+.page.page-min{display:none}
+
+/* --- Notiz-Board -------------------------------------------------------
+   Zweites Fenster nach demselben Muster wie die Dateiliste (.page), nur mit
+   drei Status-Spalten als Inhalt. Etwas schmaler als die Dateiliste und mit
+   eigener Mindesthoehe, damit die Spalten auch leer als Ablageflaeche
+   erkennbar sind. */
+.page.board{width:min(760px,calc(100% - 32px))}
+.board-cols{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:var(--page-gap);
+  margin-top:var(--page-gap);
+}
+.board-col{
+  display:flex;flex-direction:column;min-width:0;
+  border:1px solid var(--line-soft);border-radius:var(--radius-sm);
+  background:#fafbfc;transition:background .12s ease,border-color .12s ease;
+}
+/* Spalte unter dem Zeiger waehrend des Ziehens */
+.board-col-over{background:#eef4ff;border-color:var(--brand)}
+.board-col-head{
+  display:flex;align-items:center;gap:.4em;margin:0;
+  padding:.5rem .6rem;border-bottom:1px solid var(--line-soft);
+  font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;
+}
+.board-col-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board-col-count{
+  flex:0 0 auto;min-width:1.5em;padding:.05em .4em;border-radius:999px;
+  background:var(--line-soft);color:var(--muted);text-align:center;
+}
+/* Ablageflaeche: waechst mit, hat aber immer Platz fuer eine Karte */
+.board-drop{
+  flex:1;display:flex;flex-wrap:wrap;align-content:flex-start;gap:2px;
+  padding:.5rem;min-height:104px;
+}
+/* Karten sind Notiz-Icons wie auf dem Desktop — gleiche Groesse, gleicher
+   Schatten; nur ordnen sie sich hier im Fluss statt frei zu liegen. */
+.board-card{
+  display:flex;flex-direction:column;align-items:center;gap:3px;width:78px;
+  padding:5px 2px;border:0;border-radius:10px;background:none;
+  cursor:grab;touch-action:none;font:inherit;color:var(--ink);
+  transition:background .12s ease;
+}
+.board-card:hover{background:rgba(127,127,127,.12)}
+.board-card .note-ico{
+  width:46px;height:46px;display:block;pointer-events:none;
+  filter:drop-shadow(0 1px 3px rgba(16,24,40,.22));
+}
+.board-card-label{
+  max-width:100%;font-size:.71rem;line-height:1.35;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;
+}
+.board-card .badge{pointer-events:none;font-size:.65rem}
+/* gezogene Karte liegt ueber allem und faengt keine Treffer mehr ab */
+.board-card-dragging{
+  cursor:grabbing;opacity:.9;position:relative;z-index:5;pointer-events:none;
+  transition:none;
+}
+/* nur-lesend freigegeben: nicht ziehbar (der Server lehnt es ohnehin ab) */
+.board-card-fixed{cursor:pointer}
+.board-empty{
+  margin:auto;padding:.4rem;color:var(--muted);font-size:.78rem;
+  text-align:center;pointer-events:none;
+}
+
 /* interaktive Inhalte behalten ihren normalen Cursor (nicht den move-Cursor) */
 .page a,.page button,.page summary,.page label,.page .fname,.page .crumb{cursor:pointer}
 .page input,.page select,.page textarea{cursor:auto}
@@ -177,6 +277,9 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .toolbar{
   display:flex;gap:.35rem;align-items:center;
 }
+/* Ansicht-Umschalter + Erstellen-Icons als EINE Reihe gleichartiger Symbole:
+   derselbe enge Abstand wie zwischen den Erstellen-Icons, kein Trenner. */
+.tool-icons{display:flex;align-items:center;gap:.1rem}
 .create-group{display:flex;gap:.1rem}
 /* Erstellen: pure Icons statt Buttons — beim Hover hebt sich das gewaehlte
    Icon ab (leichter Zoom + Untergrund), damit die Auswahl sichtbar ist */
@@ -207,6 +310,27 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .create-btn:hover .create-zoom::after,
 .create-btn:focus-visible .create-zoom::after{background-color:#f2f4f7}
 .create-btn:hover,.create-btn:focus-visible{background:var(--line-soft)}
+/* Ansicht-Umschalter (Dateiliste ein/aus): gleiche Optik wie die
+   Erstellen-Icons, aber ohne Plus-Overlay. Der Zoom liegt aus demselben Grund
+   wie dort auf dem Bild statt auf dem Knopf — ein transform auf dem Knopf
+   machte ihn zum Bezugsrahmen des position:fixed-Tooltips. */
+.view-btn{
+  width:40px;height:40px;padding:0;border:0;background:none;cursor:pointer;
+  display:grid;place-items:center;border-radius:10px;
+  transition:background .12s ease;
+}
+/* 26px statt der 30px der Erstellen-Icons — NICHT willkuerlich: file-manager.svg
+   fuellt seine Box zu 93% aus, die Dokument-Icons nur zu 80%. Bei gleicher Box
+   waere das Ordner-Icon sichtbar klobiger; so sind die GEZEICHNETEN Hoehen
+   gleich (je ~24px) und die Reihe wirkt einheitlich. */
+.view-btn img{width:26px;height:26px;transition:transform .12s ease}
+.view-btn:hover,.view-btn:focus-visible{background:var(--line-soft)}
+.view-btn:hover img,.view-btn:focus-visible img{transform:scale(1.12)}
+.view-btn:active img{transform:scale(1.04)}
+/* Bewusst KEINE optische Unterscheidung nach aria-pressed: das Icon sieht bei
+   offenem wie bei ausgeblendetem Fenster gleich aus (Nutzerwunsch). Das
+   Attribut bleibt fuer Screenreader gesetzt. */
+
 .tool-sep{width:1px;height:26px;background:var(--line);margin:0 .3rem;flex:0 0 auto}
 .upload-form{display:flex;align-items:center}
 
@@ -486,9 +610,11 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 
 /* Frei platzierbare Notiz-Icons ("Desktop") neben der Liste --------------
    Overlay-Ebene ueber die ganze Seite, laesst Klicks durch (pointer-events:
-   none); nur die Icons selbst fangen Zeiger ab. Unter der Topbar (z-index 30)
-   und den Dialogen (60), aber ueber der Seite. */
-.note-desktop{position:fixed;inset:0;z-index:20;pointer-events:none}
+   none); nur die Icons selbst fangen Zeiger ab.
+   Ebene BEWUSST unter den Fenstern (.page, z-index ab 10): Icons liegen auf
+   dem Desktop, Fenster darueber — sonst schauen sie durch ein Fenster
+   hindurch, das ueber ihnen liegt. */
+.note-desktop{position:fixed;inset:0;z-index:5;pointer-events:none}
 .note-desk{
   position:fixed;pointer-events:auto;
   display:flex;flex-direction:column;align-items:center;gap:3px;width:76px;
@@ -499,6 +625,11 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* grauer Overlay-Hover funktioniert auf hellem UND dunklem Hintergrund */
 .note-desk:hover{background:rgba(127,127,127,.16)}
 .note-desk.dragging{cursor:grabbing;opacity:.85}
+/* Erledigte ToDo-Notizen bleiben liegen, treten aber zurueck — der Fortschritt
+   bleibt sichtbar und ein versehentliches Schliessen ist per Rechtsklick
+   sofort ruecknehmbar. Beim Hover wieder voll da, damit man sie sicher trifft. */
+.note-desk-done{opacity:.5}
+.note-desk-done:hover{opacity:1}
 .note-desk .note-ico{
   width:46px;height:46px;display:block;pointer-events:none;
   filter:drop-shadow(0 2px 4px rgba(16,24,40,.3));
@@ -564,9 +695,11 @@ button.fname{
 }
 
 /* Fusszeile unter der Dateiliste: Filter "Nur eigene Dateien" */
+/* padding rechts/unten 0: der Schalter sitzt buendig zur Kartenkante wie die
+   Zeilenmenues darueber; nach unten sorgt die Kartenpolsterung fuer Abstand. */
 .list-footer{
   display:flex;justify-content:flex-end;align-items:center;
-  margin-top:.35rem;padding:.55rem .2rem 0;border-top:1px solid var(--line-soft);
+  margin-top:0;padding:var(--page-gap) 0 0;border-top:1px solid var(--line-soft);
 }
 .switch-label{
   display:inline-flex;align-items:center;gap:.55em;cursor:pointer;
@@ -615,7 +748,7 @@ button.fname{
 }
 
 /* Brotkrumen-Navigation in Unterordnern */
-.crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:.4em;margin:0 0 12px;font-size:.92rem}
+.crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:.4em;margin:var(--page-gap) 0 0;font-size:.92rem}
 .crumb{color:var(--brand);text-decoration:none}
 a.crumb:hover{text-decoration:underline}
 .crumb.current{color:var(--ink);font-weight:550}
@@ -626,7 +759,9 @@ a.crumb:hover{text-decoration:underline}
 .files{width:100%;border-collapse:collapse}
 .files th{
   text-align:left;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;
-  color:var(--muted);font-weight:600;padding:.5rem .7rem;border-bottom:1px solid var(--line);
+  color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);
+  /* oben --page-gap: spiegelt den Abstand ueber der Titelleisten-Trennlinie */
+  padding:var(--page-gap) .7rem .5rem;
 }
 .files th .sort{
   display:inline-flex;align-items:center;gap:.35em;color:inherit;text-decoration:none;
@@ -636,7 +771,17 @@ a.crumb:hover{text-decoration:underline}
 .files th .sort.active{color:var(--ink)}
 .files th .arrow{font-size:.85em}
 .files td{padding:.55rem .7rem;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+/* Aussenkanten der Tabelle buendig zum Kartenrand: die Zell-Polsterung
+   trennt nur die Spalten VONEINANDER. Ohne das staenden Dateinamen und
+   Zeilenmenues um .7rem eingerueckt gegenueber Titel und Fusszeile. */
+.files th:first-child,.files td:first-child{padding-left:0}
+.files th:last-child,.files td:last-child{padding-right:0}
 .files tbody tr:last-child td{border-bottom:0}
+/* Ohne Fusszeile (keine Freigaben) endet die Tabelle direkt am Kartenrand:
+   sonst summierten sich Zell-Polsterung und Kartenpolsterung zu einem
+   sichtbar groesseren Abstand als oben. MIT Fusszeile bleibt die Polsterung —
+   dort trennt sie die letzte Zeile von deren Trennlinie. */
+.page:not(:has(.list-footer)) .files tbody tr:last-child td{padding-bottom:0}
 .files tbody tr:hover{background:#f9fafb}
 .col-size,.col-date{white-space:nowrap;color:var(--muted);font-size:.86rem;width:1%}
 /* Namensspalte nimmt den Rest ein, waechst aber NICHT mit langen Namen mit
@@ -659,6 +804,14 @@ a.crumb:hover{text-decoration:underline}
 .badge-soft{background:#f1f3f5;color:var(--muted)}
 .badge-todo{background:#fef3c7;color:#92400e}
 .badge-todo-over{background:#fdecec;color:#991b1b}
+/* Bearbeitungsstand einer Notiz (Offen/In Arbeit/Erledigt). Bewusst NICHT im
+   Bernstein-/Rot-Register der ToDo-Badges: beide stehen nebeneinander in
+   derselben Zeile und muessen auf einen Blick unterscheidbar bleiben.
+   ACHTUNG: Zwilling im Backend — STATUS_PILL in routes/notes.js faerbt die
+   Pillen des PDF-Exports mit genau diesen Werten. */
+.badge-status-open{background:#e8f0fe;color:#1a4fa0}
+.badge-status-wip{background:#ede9fe;color:#5b21b6}
+.badge-status-closed{background:#e7f6ec;color:#166534}
 .badge-ok{background:#e7f6ec;color:#166534}
 .badge-err{background:#fdecec;color:#991b1b}
 .account-section h3 .badge{margin-left:.4rem;vertical-align:middle}
@@ -704,7 +857,9 @@ a.crumb:hover{text-decoration:underline}
    (wie native Tooltips), Ausblenden sofort. */
 [data-tip]::after{
   content:attr(data-tip);position:fixed;left:var(--tip-x,-9999px);top:var(--tip-y,0);
-  transform:translateX(-50%);z-index:40;
+  /* --tip-shift setzt core/tooltips.js auf -100%, wenn der Tooltip nach oben
+     klappen muss (Element am unteren Rand, z.B. im Dock) */
+  transform:translate(-50%,var(--tip-shift,0));z-index:40;
   /* kompakt wie nowrap, aber lange Dateinamen brechen ab Maximalbreite um,
      statt aus dem Viewport zu laufen */
   width:max-content;max-width:min(88vw,420px);overflow-wrap:anywhere;
@@ -812,11 +967,18 @@ a.crumb:hover{text-decoration:underline}
 }
 /* muss das display:flex oben schlagen, sonst ignoriert das Panel [hidden] */
 .menu-panel[hidden]{display:none}
+/* Kontextmenue der Desktop-Icons: haengt an keinem Knopf, sondern wird von
+   js/notes/status.js an die Mausposition gesetzt -> fixed statt absolute.
+   z-index ueber den Icons (die liegen als fixe Overlay-Ebene auf der Seite). */
+.note-status-menu{position:fixed;right:auto;top:auto;min-width:150px;z-index:46}
 .menu-item{
   display:block;width:100%;text-align:left;padding:.5rem .6rem;border:0;background:none;
   color:var(--ink);font:inherit;border-radius:7px;cursor:pointer;text-decoration:none;
 }
 .menu-item:hover{background:#f2f4f7}
+/* aktueller Stand im Kontextmenue der Notiz-Icons — MUSS nach .menu-item
+   stehen, dessen background:none wuerde es sonst ueberschreiben */
+.menu-item-active{background:#eef2ff;font-weight:600}
 .menu-version{
   color:var(--muted);font-size:.78rem;padding:.4rem .6rem .2rem;
   border-top:1px solid var(--line);margin-top:2px;
@@ -972,7 +1134,9 @@ a.crumb:hover{text-decoration:underline}
 /* Enge Titelleiste: Text der Aktions-Buttons weg (Icon + data-tip bleiben),
    damit die Werkzeugleiste neben Brand und Nutzer nicht ueberlaeuft */
 @media (max-width:900px){
-  .toolbar .tool-label{display:none}
+  /* Bei wenig Platz nur noch die Icons — gilt fuer die Topbar UND die
+     Ordner-Aktionen im Fensterkopf (dorthin sind sie gewandert) */
+  .toolbar .tool-label,.page-actions .tool-label{display:none}
 }
 @media (max-width:600px){
   .topbar .uname{display:none}       /* Nutzername weg; Avatar + Menue bleiben */
