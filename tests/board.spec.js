@@ -23,6 +23,13 @@ async function dragCardTo(page, title, status) {
   await page.mouse.up();
 }
 
+// Board oeffnen, falls es zugeklappt ist (Vorgabe) — idempotent, damit die
+// Tests nicht von der Startvorgabe abhaengen.
+async function openBoard(page) {
+  if (await page.locator("#board.page-min").count()) await page.click(TOGGLE);
+  await expect(page.locator(BOARD)).toBeVisible();
+}
+
 // In welcher Spalte liegt die Karte gerade?
 function columnOf(page, title) {
   return page.locator(card(title)).evaluate((el) => el.closest(".board-col").dataset.status);
@@ -40,13 +47,18 @@ test.describe("Notiz-Board", () => {
   });
 
   test("startet eingeklappt und laesst sich ueber die Topbar oeffnen", async ({ page }) => {
-    // Zweitansicht: soll sich nicht ungefragt vor die Dateiliste legen
+    // Offen wuerde es die Dateiliste verdecken -> Zweitansicht startet zu
     await expect(page.locator(BOARD)).toBeHidden();
     await expect(page.locator(TOGGLE)).toHaveAttribute("aria-pressed", "false");
 
     await page.click(TOGGLE);
     await expect(page.locator(BOARD)).toBeVisible();
     await expect(page.locator(TOGGLE)).toHaveAttribute("aria-pressed", "true");
+    // "Neue Notiz" wohnt in der Board-Titelleiste
+    await expect(page.locator("#board #note-new")).toBeVisible();
+    await page.click(TOGGLE);
+    await expect(page.locator(BOARD)).toBeHidden();
+    await page.click(TOGGLE);
     // drei Spalten in der erwarteten Reihenfolge
     await expect(page.locator(".board-col")).toHaveCount(3);
     await expect(page.locator(".board-col-title")).toHaveText(["Offen", "In Arbeit", "Erledigt"]);
@@ -55,7 +67,7 @@ test.describe("Notiz-Board", () => {
   test("neue Notizen landen in der Spalte „Offen“", async ({ page }) => {
     const title = "Brd " + uniqueName("n");
     await createNote(page, title);
-    await page.click(TOGGLE);
+    await openBoard(page);
     await expect(page.locator(card(title))).toBeVisible();
     expect(await columnOf(page, title)).toBe("open");
   });
@@ -65,7 +77,7 @@ test.describe("Notiz-Board", () => {
     // Desktop-Icon und damit sonst keinen Weg zum Statuswechsel
     const title = "Ohne ToDo " + uniqueName("n");
     await createNote(page, title, { todo: false });
-    await page.click(TOGGLE);
+    await openBoard(page);
     await expect(page.locator(card(title))).toBeVisible();
     await expect(deskIcon(page, title)).toHaveCount(0);
   });
@@ -73,7 +85,7 @@ test.describe("Notiz-Board", () => {
   test("Ziehen in eine andere Spalte aendert den Status dauerhaft", async ({ page }) => {
     const title = "Zieh " + uniqueName("n");
     await createNote(page, title);
-    await page.click(TOGGLE);
+    await openBoard(page);
     expect(await columnOf(page, title)).toBe("open");
 
     await dragCardTo(page, title, "wip");
@@ -89,7 +101,7 @@ test.describe("Notiz-Board", () => {
   test("Ziehen nach „Erledigt“ daempft die Karte", async ({ page }) => {
     const title = "Fertig " + uniqueName("n");
     await createNote(page, title);
-    await page.click(TOGGLE);
+    await openBoard(page);
     await dragCardTo(page, title, "closed");
     expect(await columnOf(page, title)).toBe("closed");
     await expect(page.locator(card(title))).toHaveClass(/note-desk-done/);
@@ -98,7 +110,7 @@ test.describe("Notiz-Board", () => {
   test("die Spaltenzaehler stimmen nach dem Ziehen", async ({ page }) => {
     const title = "Zaehl " + uniqueName("n");
     await createNote(page, title);
-    await page.click(TOGGLE);
+    await openBoard(page);
     const openCount = page.locator(`${col("open")} .board-col-count`);
     const wipCount = page.locator(`${col("wip")} .board-col-count`);
     await expect(openCount).toHaveText("1");
@@ -114,7 +126,7 @@ test.describe("Notiz-Board", () => {
     // Ein Wechsel per Kontextmenue muss auf dem Board ankommen — und umgekehrt.
     const title = "Sync " + uniqueName("n");
     await createNote(page, title, { todo: true });
-    await page.click(TOGGLE);
+    await openBoard(page);
     const icon = deskIcon(page, title);
 
     // Kontextmenue am Desktop-Icon -> Board sortiert um
@@ -132,15 +144,14 @@ test.describe("Notiz-Board", () => {
   test("Klick auf eine Karte oeffnet die Notiz", async ({ page }) => {
     const title = "Oeffne " + uniqueName("n");
     await createNote(page, title);
-    await page.click(TOGGLE);
+    await openBoard(page);
     await page.locator(card(title)).click();
     await expect(page.locator("#dlg-note")).toBeVisible();
     await expect(page.locator("#dlg-note-title")).toHaveText(title);
   });
 
   test("Fensterlage und Zustand werden gemerkt", async ({ page }) => {
-    await page.click(TOGGLE);
-    await expect(page.locator(BOARD)).toBeVisible();
+    await openBoard(page);
     await page.reload();
     await waitAppReady(page);
     await expect(page.locator(BOARD)).toBeVisible();
@@ -153,7 +164,7 @@ test.describe("Notiz-Board", () => {
   });
 
   test("Fenster liegen ueber den Desktop-Icons, angeklicktes nach vorn", async ({ page }) => {
-    await page.click(TOGGLE);
+    await openBoard(page);
     const layers = await page.evaluate(() => ({
       icons: +getComputedStyle(document.querySelector(".note-desktop")).zIndex,
       page: +document.querySelector("#page").style.zIndex,
@@ -195,8 +206,8 @@ test.describe("Notiz-Board", () => {
     const other = await ctx.newPage();
     await login(other, reader.username, reader.password);
     await waitAppReady(other);
-    await other.click(TOGGLE);
 
+    await openBoard(other);
     const foreign = other.locator(card(title));
     await expect(foreign).toBeVisible();               // sichtbar …
     await expect(foreign).toHaveClass(/board-card-fixed/); // … aber festgesetzt

@@ -12,6 +12,7 @@ import { initAccountDialog } from "./account/account-dialog.js";
 import { initCreateFileDialog } from "./files/create-file.js";
 import { initUpload } from "./files/upload.js";
 import { initOwnFilter } from "./files/own-filter.js";
+import { initImageView } from "./files/image-view.js";
 import { initNotes } from "./notes/notes.js";
 import { initBackupDialog } from "./backup.js";
 import { initFolderNav } from "./folder-nav.js";
@@ -43,6 +44,7 @@ initAccountDialog();
 initCreateFileDialog();
 initUpload();
 initOwnFilter();
+initImageView();
 
 // Fenster des "Desktops" — jedes mit eigenem Schluessel in desktop_layout.
 // MUESSEN vor initNotes() stehen: das Standard-Layout der Notiz-Icons richtet

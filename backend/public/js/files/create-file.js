@@ -1,7 +1,11 @@
 // Symbol-Buttons "Neue Datei": Dateityp übernehmen, Titel anpassen, Dialog öffnen
 import { openDlg } from "../core/dialogs.js";
 
-export function initCreateFileDialog() {
+// root-skopiert: Die Erstellen-Knoepfe sitzen in der Titelleiste des
+// Dateifensters und werden beim Ordnerwechsel mitgetauscht (folder-nav.js) —
+// ohne erneutes Binden waeren sie nach der ersten Navigation wirkungslos.
+// Der Dialog selbst liegt ausserhalb von #page und bleibt bestehen.
+export function bindCreateButtons(root) {
   var createDlg = document.getElementById("dlg-create");
   if (!createDlg) return;
   var createTitles = {
@@ -14,7 +18,7 @@ export function initCreateFileDialog() {
     xlsx: "Name der Tabelle",
     pptx: "Name der Präsentation",
   };
-  document.querySelectorAll("[data-create]").forEach(function (btn) {
+  root.querySelectorAll("[data-create]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var ext = btn.dataset.create;
       document.getElementById("dlg-create-title").textContent = createTitles[ext] || "Neue Datei";
@@ -34,4 +38,8 @@ export function initCreateFileDialog() {
       nameInput.focus();
     });
   });
+}
+
+export function initCreateFileDialog() {
+  bindCreateButtons(document);
 }

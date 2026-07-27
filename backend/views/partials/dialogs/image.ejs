@@ -1,0 +1,20 @@
+<%# Bild-Vorschau: OnlyOffice kann mit Bildern nichts anfangen, darum ein
+    eigener Dialog. Befuellt von js/files/image-view.js beim Klick auf einen
+    Bildnamen in der Liste. Das <img> bekommt seine Quelle erst dort — sonst
+    laed die Startseite alle Bilder in voller Groesse mit. %>
+<dialog id="dlg-image" class="dialog dialog-image">
+  <header class="dialog-head">
+    <img src="<%= base %>/static/img/image.svg" alt="" width="22" height="22">
+    <h2 id="dlg-image-title">Bild</h2>
+    <a class="iconbtn" id="dlg-image-download" href="#" download
+       data-tip="Herunterladen" aria-label="Bild herunterladen">
+      <img src="<%= base %>/static/img/download.svg" alt="" width="16" height="16">
+    </a>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+  <div class="image-view">
+    <img id="dlg-image-img" alt="">
+  </div>
+</dialog>

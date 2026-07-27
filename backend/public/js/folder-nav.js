@@ -9,6 +9,8 @@ import { bindTips } from "./core/tooltips.js";
 import { bindConfirmForms } from "./core/confirm.js";
 import { bindOwnOnly } from "./files/own-filter.js";
 import { bindUpload } from "./files/upload.js";
+import { bindCreateButtons } from "./files/create-file.js";
+import { bindImageOpen, bindImageThumbs } from "./files/image-view.js";
 
 // config: { bindNoteOpen } — bindNoteOpen(root) aus dem Notiz-Modul, oder
 // null, wenn keine Notiz-UI vorhanden ist.
@@ -39,7 +41,10 @@ export function initFolderNav(config) {
     bindDataDialog(pageEl);
     bindTips(pageEl);
     bindOwnOnly(pageEl);
-    bindUpload(pageEl); // Upload-Formular sitzt jetzt im Fensterkopf
+    bindUpload(pageEl);        // Upload-Formular sitzt im Fensterkopf
+    bindCreateButtons(pageEl); // ebenso die "Neue Datei"-Icons
+    bindImageOpen(pageEl);     // Bildnamen oeffnen die Vorschau
+    bindImageThumbs(pageEl);   // Rueckfall-Icon fuer kaputte Vorschaubilder
     if (bindNoteOpen) bindNoteOpen(pageEl);
     bindConfirmForms(pageEl);
     // Zeilen-Dialoge: Backdrop-Buchhaltung beim Schliessen + "Freigabe entziehen"

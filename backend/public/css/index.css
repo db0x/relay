@@ -80,9 +80,18 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 }
 .page-head img{display:block;flex:0 0 auto}
 .page-title{
-  margin:0;flex:1;min-width:0;font-size:1rem;font-weight:600;color:var(--ink);
+  margin:0;flex:0 1 auto;min-width:0;font-size:1rem;font-weight:600;color:var(--ink);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
+/* Ab hier rechtsbuendig: der Titel und die Erstellen-Icons stehen links,
+   Aktionen und Minimieren rechts. Genau EIN Element traegt das auto —
+   sonst verteilte sich der freie Platz zwischen mehreren. */
+.page-head-end{margin-left:auto}
+/* Erstellen-Icons in einer Fenster-Titelleiste: volle Groesse wie frueher in
+   der Topbar (40px Knopf, 30px Icon — siehe .create-btn). Die Leiste wird
+   dadurch etwas hoeher als ihre uebrigen Elemente; das ist gewollt, die Icons
+   sind der Einstiegspunkt der Ansicht und duerfen praesent sein. */
+.page-head .create-group{margin-left:.35rem}
 /* Ordner-Aktionen (Hochladen, Neuer Ordner) rechts im Fensterkopf, mit etwas
    Abstand vor dem Minimieren-Knopf — der gehoert zum Fenster, nicht zum Inhalt */
 .page-actions{display:flex;align-items:center;gap:.4rem;flex:0 0 auto;margin-right:.2rem}
@@ -304,7 +313,12 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .create-zoom::after{
   content:"";position:absolute;right:-4px;bottom:-3px;width:16px;height:16px;
   border-radius:50%;border:1px solid var(--line);
-  background:#fff url(../img/add.svg) center/10px 10px no-repeat;
+  /* ACHTUNG background-size: add.svg zeichnet das Plus nur auf 42% seiner
+     Flaeche (10 von 24 Einheiten, der Rest ist Rand). Der Wert muss darum
+     deutlich groesser sein als das gewuenschte Plus — 20px ergeben ~8px
+     sichtbares Plus. Mit den frueheren 10px waren es magere 4px.
+     Groesse und Hintergrundgroesse immer im selben Verhaeltnis aendern. */
+  background:#fff url(../img/add.svg) center/20px 20px no-repeat;
   box-shadow:0 1px 3px rgba(16,24,40,.18);pointer-events:none;
 }
 .create-btn:hover .create-zoom::after,
@@ -340,6 +354,26 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* padding-bottom:0 (statt der 1.1rem der .dialog-Basis): die Fuss-Abstaende
    steuert allein die note-form, damit alle vertikalen Abstaende gleich sind */
 .dialog.dialog-note{width:56vw;height:56vh;max-width:none;max-height:none;padding-bottom:0}
+
+/* Bild-Vorschau: waechst mit dem Bild, bleibt aber im Fenster. Der dunkle
+   Grund laesst freigestellte PNGs und helle Fotos gleichermassen wirken. */
+/* fit-content statt auto: der Dialog ist position:fixed mit inset:0, "auto"
+   liesse ihn auf die volle erlaubte Breite wachsen — er soll sich aber um das
+   Bild legen, egal wie klein es ist. */
+.dialog.dialog-image{width:fit-content;max-width:min(92vw,1100px);padding-bottom:0}
+.image-view{
+  display:flex;align-items:center;justify-content:center;
+  padding:0 1.1rem 1.1rem;background:transparent;
+}
+.image-view img{
+  display:block;max-width:100%;max-height:calc(100vh - 12rem);
+  border-radius:var(--radius-sm);background:
+    /* Schachbrett fuer Transparenz — sonst raet man bei freigestellten
+       Bildern, wo das Motiv aufhoert */
+    repeating-conic-gradient(#f1f3f5 0% 25%, #fff 0% 50%) 50%/18px 18px;
+}
+/* Herunterladen-Knopf im Kopf: gleiche Groesse wie die uebrigen Kopf-Knoepfe */
+#dlg-image-download{width:28px;height:28px;flex:0 0 auto;margin-left:auto}
 /* Bearbeiten-Modus: skalierbar ueber eine eigene, unsichtbare Griffecke
    unten rechts (kein CSS resize:both — dessen UA-Marker laesst sich nicht
    ueberall ausblenden). Verschieben am Kopf. Logik in index.js. */
@@ -791,6 +825,13 @@ a.crumb:hover{text-decoration:underline}
 
 .file-cell{display:flex;align-items:center;gap:.6em;min-width:0}
 .ficon{width:28px;height:28px;flex:0 0 auto;display:block}
+/* echtes Vorschaubild statt Typ-Icon: quadratisch beschnitten (der Server
+   liefert es schon so), abgerundet und mit feiner Kante — sonst verschwimmt
+   ein helles Foto mit dem Zeilenhintergrund */
+.ficon-thumb{
+  object-fit:cover;border-radius:5px;
+  border:1px solid var(--line);background:var(--line-soft);
+}
 .fname-wrap{display:flex;align-items:center;gap:.5em;min-width:0}
 .fname{color:var(--brand);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fname:hover{text-decoration:underline}

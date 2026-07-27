@@ -13,7 +13,7 @@ const shares = require("../shares");
 const notemeta = require("../notemeta");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
-const { BLANKS, BASE, DOCTYPE, MAX_UPLOAD_MB } = require("../config");
+const { BLANKS, BASE, DOCTYPE, IMAGE_TYPES, MAX_UPLOAD_MB } = require("../config");
 const { formatDate, formatDuration } = require("../format");
 const { loginRequired } = require("./auth");
 
@@ -30,7 +30,14 @@ function iconFor(name) {
   if (["pptx", "ppt", "odp"].includes(ext)) return "pptx";
   if (ext === "pdf") return "pdf";
   if (ext === "md") return "note";
+  if (IMAGE_TYPES[ext]) return "image"; // nur Rueckfall, sonst zeigt die Liste
   return "docx"; // Standard (Textdokumente und Unbekanntes)
+}
+
+// Bilder bekommen in der Liste ein echtes Vorschaubild und oeffnen einen
+// Vorschau-Dialog statt OnlyOffice (das kann mit Bildern nichts anfangen).
+function isImageName(name) {
+  return !!IMAGE_TYPES[(name.split(".").pop() || "").toLowerCase()];
 }
 
 // Notizen heissen {uuid}-{Titel}.md — angezeigt (Liste, Dialoge, Rueckfragen)
@@ -167,6 +174,7 @@ router.get("/", loginRequired, (req, res) => {
     const st = fs.statSync(p);
     return {
       name, label: labelFor(name), isNote: /\.md$/i.test(name),
+      isImage: isImageName(name),
       icon: iconFor(name), sizeBytes: st.size, mtime: st.mtimeMs,
       size: formatSize(st.size), modified: formatDate(st.mtimeMs),
     };
@@ -284,7 +292,8 @@ router.get("/", loginRequired, (req, res) => {
     )),
     // Dateiauswahl beim Hochladen auf die Formate begrenzen, die der Editor
     // oeffnen kann — abgeleitet aus DOCTYPE, bleibt also automatisch synchron
-    uploadAccept: Object.keys(DOCTYPE).map((e) => "." + e).join(","),
+    uploadAccept: [...Object.keys(DOCTYPE), ...Object.keys(IMAGE_TYPES)]
+      .map((e) => "." + e).join(","),
     maxUploadMb: MAX_UPLOAD_MB,
     // Sprachauswahl im "Neue Datei"-Dialog: Woerterbuch-Sprachen des DS,
     // minus die vom Admin ausgeblendeten (Einstellungen-Dialog)

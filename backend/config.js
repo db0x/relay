@@ -68,6 +68,18 @@ module.exports = {
     pdf: "pdf", // Ansicht im OnlyOffice-PDF-Viewer; Upload ja, Erstellen nein
   },
 
+  // Bilddateien: Endung -> MIME-Typ. Bewusst eine WHITELIST mit festen Typen —
+  // ausgeliefert wird nur mit genau diesem Content-Type plus nosniff, damit
+  // eine als .png getarnte HTML-Datei nicht doch als Seite ausgefuehrt wird.
+  // SVG fehlt absichtlich: es ist XML und kann Skripte enthalten, die im
+  // Browser unter UNSERER Herkunft liefen (siehe routes/images.js).
+  IMAGE_TYPES: {
+    png: "image/png",
+    jpg: "image/jpeg", jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+  },
+
   // leere Vorlagen (im Image mitgeliefert) fuer "Neue Datei"
   BLANKS: {
     docx: "/app/blank/blank.docx",

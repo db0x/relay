@@ -88,6 +88,12 @@ async function uploadFile(page, filename, content = "Relay E2E") {
 // ein Icon auf dem Desktop).
 async function createNote(page, title, { todo = false } = {}) {
   await waitAppReady(page);
+  // "Neue Notiz" sitzt in der Titelleiste des Boards — ist es zugeklappt,
+  // erst oeffnen (sonst ist der Knopf nicht erreichbar). Der Zustand wird
+  // danach wiederhergestellt: ein offenes Board liegt ueber der Dateiliste
+  // und finge deren Klicks ab.
+  const boardWasClosed = !!(await page.locator("#board.page-min").count());
+  if (boardWasClosed) await page.click("#board-toggle");
   await page.click("#note-new");
   await expect(page.locator("#dlg-note")).toBeVisible();
   // CodeMirror ersetzt die Textarea -> ueber den Editor tippen, nicht fill()
@@ -96,6 +102,13 @@ async function createNote(page, title, { todo = false } = {}) {
   await page.keyboard.type(`# ${title}\n\nInhalt.`);
   if (todo) await page.locator("#note-details .switch-label").click();
   await Promise.all([page.waitForNavigation(), page.click("#note-save")]);
+  // Nach dem Speichern laedt die Seite neu; das Board kommt jetzt offen
+  // zurueck (der Zustand wurde beim Oeffnen gemerkt) -> wieder zuklappen.
+  if (boardWasClosed) {
+    await waitAppReady(page);
+    await page.click("#board-toggle");
+    await expect(page.locator("#board")).toBeHidden();
+  }
   return title;
 }
 

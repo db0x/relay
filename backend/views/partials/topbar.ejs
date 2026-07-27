@@ -5,11 +5,11 @@
       <img src="<%= base %>/static/img/logo.svg" alt="" width="28" height="28">
       <span><%= appName %></span>
     </a>
-    <%# Werkzeugleiste (Ansicht / Neu erstellen / Hochladen / Neuer Ordner) %>
-    <section class="toolbar" aria-label="Aktionen">
-      <%# Eine durchgehende Icon-Reihe: Ansicht-Umschalter und die Erstellen-
-          Icons sollen als EINE Gruppe gleichartiger Symbole lesbar sein —
-          gleicher Abstand, kein Trenner dazwischen. %>
+    <%# Werkzeugleiste: nur noch die Ansicht-Umschalter. Alles, was auf EINE
+        Ansicht wirkt (neue Datei, Hochladen, Neuer Ordner, neue Notiz), sitzt
+        in der Titelleiste des jeweiligen Fensters — siehe file-list.ejs und
+        board.ejs. %>
+    <section class="toolbar" aria-label="Ansichten">
       <div class="tool-icons">
       <%# Umschalter fuer die Dateiliste: immer da, aria-pressed spiegelt, ob
           das Fenster gerade offen ist (js/desktop-layout.js). Serverseitig
@@ -25,24 +25,6 @@
               aria-pressed="<%= boardLayout && !boardLayout.minimized ? "true" : "false" %>">
         <img src="<%= base %>/static/img/board.svg" alt="" width="26" height="26">
       </button>
-      <div class="create-group" role="group" aria-label="Neue Datei erstellen">
-        <button type="button" class="create-btn" data-create="docx"
-                data-tip="Neues Textdokument" aria-label="Neues Textdokument">
-          <span class="create-zoom"><img src="<%= base %>/static/img/docx.svg" alt="" width="48" height="48"></span>
-        </button>
-        <button type="button" class="create-btn" data-create="xlsx"
-                data-tip="Neue Tabelle" aria-label="Neue Tabelle">
-          <span class="create-zoom"><img src="<%= base %>/static/img/xlsx.svg" alt="" width="48" height="48"></span>
-        </button>
-        <button type="button" class="create-btn" data-create="pptx"
-                data-tip="Neue Präsentation" aria-label="Neue Präsentation">
-          <span class="create-zoom"><img src="<%= base %>/static/img/pptx.svg" alt="" width="48" height="48"></span>
-        </button>
-        <button type="button" class="create-btn" id="note-new"
-                data-tip="Neue Notiz" aria-label="Neue Notiz">
-          <span class="create-zoom"><img src="<%= base %>/static/img/note.svg" alt="" width="48" height="48"></span>
-        </button>
-      </div>
       </div><%# Ende .tool-icons %>
       <%# "Hochladen" und "Neuer Ordner" sitzen NICHT hier, sondern in der
           Titelleiste des Dateifensters (partials/file-list.ejs): sie wirken
