@@ -417,6 +417,9 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .note-toolbar{
   display:flex;align-items:center;gap:2px;flex-wrap:wrap;
   padding-bottom:.4rem;margin-bottom:.4rem;border-bottom:1px solid var(--line-soft);
+  /* Bezugsrahmen der Emoji-Auswahl: die haengt an der Unterkante der Leiste,
+     auch wenn diese bei schmalem Dialog auf zwei Zeilen umbricht */
+  position:relative;
 }
 .note-tb{
   width:28px;height:28px;padding:0;border:0;border-radius:6px;
@@ -425,6 +428,32 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 }
 .note-tb img{display:block}
 .note-tb:hover{background:var(--line-soft)}
+/* Emoji-Auswahl: haengt unter dem Werkzeugleisten-Knopf. Liegt IM Dialog
+   (der ist modal — ausserhalb waere sie nicht bedienbar) und darum absolut
+   zum Editor-Bereich positioniert. */
+.emoji-panel{
+  position:absolute;z-index:6;left:.4rem;top:100%;margin-top:4px;
+  width:min(320px,calc(100% - .8rem));max-height:260px;overflow-y:auto;
+  padding:.5rem .6rem;background:#fff;
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  box-shadow:0 8px 28px rgba(16,24,40,.16);
+}
+.emoji-panel[hidden]{display:none}
+.emoji-group-name{
+  margin:.5rem 0 .2rem;font-size:.68rem;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--muted);font-weight:600;
+}
+.emoji-group-name:first-child{margin-top:0}
+.emoji-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(30px,1fr));gap:1px}
+.emoji-btn{
+  border:0;background:none;padding:2px;border-radius:6px;cursor:pointer;
+  font-size:1.25rem;line-height:1.4;
+  /* Emoji-Schriften unterscheiden sich je System — eine feste Reihenfolge
+     sorgt fuer ein einheitliches Bild statt zufaelliger Rueckfaelle */
+  font-family:"Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif;
+}
+.emoji-btn:hover,.emoji-btn:focus-visible{background:var(--line-soft)}
+
 .note-tb-sep{width:1px;height:18px;background:var(--line);margin:0 .35rem}
 .note-preview{
   flex:1 1 0;min-width:0;overflow:auto;

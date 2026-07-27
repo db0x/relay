@@ -52,6 +52,8 @@ function db() {
       ort      TEXT,
       color    TEXT,   -- '#rrggbb' fuer das Notiz-Icon; NULL = Standardfarbe
       status   TEXT,   -- 'open' | 'wip' | 'closed'; NULL = 'open' (Default)
+      title    TEXT,   -- Anzeigetitel MIT Emojis/Umlauten; NULL = aus dem
+                       -- Dateinamen ableiten (Altbestand, siehe browse.js)
       PRIMARY KEY (owner, filename)
     );
 
@@ -94,6 +96,11 @@ function db() {
     _db.exec("ALTER TABLE note_meta ADD COLUMN color TEXT");
   if (!metaCols.includes("status"))
     _db.exec("ALTER TABLE note_meta ADD COLUMN status TEXT");
+  // title kam dazu, weil der Dateiname nur ASCII traegt: "🎉 Geburtstag"
+  // wuerde darin zu "Geburtstag". NULL = alte Notiz, Anzeige faellt auf den
+  // Dateinamen zurueck.
+  if (!metaCols.includes("title"))
+    _db.exec("ALTER TABLE note_meta ADD COLUMN title TEXT");
   // desktop_layout.minimized kam mit dem Minimieren der Dateiliste dazu
   const layoutCols = _db.prepare("PRAGMA table_info(desktop_layout)").all().map((c) => c.name);
   if (!layoutCols.includes("minimized"))

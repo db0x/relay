@@ -43,11 +43,26 @@ function isImageName(name) {
 // Notizen heissen {uuid}-{Titel}.md — angezeigt (Liste, Dialoge, Rueckfragen)
 // wird nur der Titel; alle Links/Aktionen laufen weiter ueber den vollen Namen
 const NOTE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.*)\.md$/i;
-function labelFor(name) {
+function labelFromName(name) {
   const m = path.basename(name).match(NOTE_RE);
   // Unterstriche stammen aus secureFilename (Leerzeichen im Titel) —
   // fuer die Anzeige wieder zu Leerzeichen
   return m ? (m[1].replace(/_/g, " ") || "Notiz") : name;
+}
+
+// Anzeigename einer Notiz. Der Dateiname traegt nur ASCII (secureFilename),
+// darum steht der echte Titel — mit Emojis, Umlauten, ss — in note_meta.title.
+// Ohne gespeicherten Titel (Notizen von vor dieser Spalte) faellt es auf den
+// Dateinamen zurueck, so bleibt Altbestand lesbar.
+// metaTitle ist optional: wer das Meta ohnehin schon geladen hat, reicht es
+// durch und spart den zweiten Datenbankzugriff.
+function labelFor(name, owner, metaTitle) {
+  if (metaTitle) return metaTitle;
+  if (owner !== undefined && /\.md$/i.test(name)) {
+    const t = notemeta.get(owner, name).title;
+    if (t) return t;
+  }
+  return labelFromName(name);
 }
 
 // Dateigroesse menschenlesbar (deutsche Schreibweise: Komma als Dezimaltrenner)
@@ -87,20 +102,20 @@ function desktopNotesFor(me) {
   const out = [];
   // status: Erledigte Icons bleiben liegen, werden aber gedaempft dargestellt
   // (index.css) — und das Kontextmenue braucht den aktuellen Wert
-  const add = (owner, filename, canedit, color, status) => {
+  const add = (owner, filename, canedit, color, status, title) => {
     if (!/\.md$/i.test(filename) || !fs.existsSync(pathFor(owner, filename))) return;
     out.push({
-      owner, relpath: filename, label: labelFor(filename), canedit,
+      owner, relpath: filename, label: labelFor(filename, owner, title), canedit,
       pos: posOf(owner, filename), color: color || "", dark: notemeta.isDark(color),
       status: notemeta.normalizeStatus(status),
     });
   };
   // eigene ToDo-Notizen (alle Ordner)
-  notemeta.listTodos(me).forEach((n) => add(me, n.filename, true, n.color, n.status));
+  notemeta.listTodos(me).forEach((n) => add(me, n.filename, true, n.color, n.status, n.title));
   // an mich freigegebene ToDo-Notizen
   shares.listForUser(me).forEach((s) => {
     const m = notemeta.get(s.owner, s.filename);
-    if (m.isTodo) add(s.owner, s.filename, s.perm === "edit", m.color, m.status);
+    if (m.isTodo) add(s.owner, s.filename, s.perm === "edit", m.color, m.status, m.title);
   });
   return out;
 }
@@ -123,7 +138,7 @@ function boardNotesFor(me) {
     const m = notemeta.get(owner, filename);
     const [y, mo, d] = (m.dueDate || "").split("-");
     cols[m.status].push({
-      owner, relpath: filename, label: labelFor(filename), canedit,
+      owner, relpath: filename, label: labelFor(filename, owner, m.title), canedit,
       color: m.color || "", dark: notemeta.isDark(m.color), status: m.status,
       isTodo: m.isTodo, dueDate: m.dueDate || "",
       dueLabel: y ? `${d}.${mo}.${y}` : "",
@@ -170,10 +185,13 @@ router.get("/", loginRequired, (req, res) => {
   if (cur === null || !fs.existsSync(curAbs) || !fs.statSync(curAbs).isDirectory())
     return res.redirect(`${BASE}/`);
 
-  const meta = (name, p) => {
+  // owner + relpath werden fuer den Anzeigenamen gebraucht: der echte Titel
+  // einer Notiz steht in note_meta, und der Schluessel dort ist der Pfad
+  // RELATIV zum Nutzerordner — nicht der blosse Dateiname.
+  const meta = (name, p, owner, relpath) => {
     const st = fs.statSync(p);
     return {
-      name, label: labelFor(name), isNote: /\.md$/i.test(name),
+      name, label: labelFor(relpath, owner), isNote: /\.md$/i.test(name),
       isImage: isImageName(name),
       icon: iconFor(name), sizeBytes: st.size, mtime: st.mtimeMs,
       size: formatSize(st.size), modified: formatDate(st.mtimeMs),
@@ -200,7 +218,7 @@ router.get("/", loginRequired, (req, res) => {
     // hasAvatar je Empfaenger: der Freigabe-Tooltip zeigt Avatar + Name + Recht
     const sh = shares.listForFile(me, relpath)
       .map((s) => ({ ...s, hasAvatar: avatars.has(s.target) }));
-    const m = meta(e.name, path.join(curAbs, e.name));
+    const m = meta(e.name, path.join(curAbs, e.name), me, relpath);
     return {
       ...m,
       relpath, isDir: false,
@@ -215,7 +233,7 @@ router.get("/", loginRequired, (req, res) => {
   const shared = cur ? [] : shares.listForUser(me).map((s) => {
     const p = pathFor(s.owner, s.filename);
     if (!fs.existsSync(p)) return null;   // Karteileiche: Datei wurde geloescht
-    const m = meta(s.filename, p);
+    const m = meta(s.filename, p, s.owner, s.filename);
     return {
       ...m,
       relpath: s.filename, isDir: false,

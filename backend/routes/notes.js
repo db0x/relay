@@ -25,10 +25,25 @@ marked.setOptions({ gfm: true, breaks: true });
 const router = express.Router();
 const NOTES_DIR = "Notizen";
 
-// Titel = erste Zeile ohne fuehrende "#"; unbrauchbar/leer -> "Notiz"
+// Titel der Notiz = erste Zeile ohne fuehrende "#".
+//
+// ZWEI Formen, absichtlich getrennt:
+//   displayTitle() liefert ihn so, wie der Nutzer ihn geschrieben hat —
+//     mit Emojis, Umlauten, ss, kyrillisch. Der landet in note_meta.title
+//     und wird ueberall angezeigt.
+//   titleOf() macht daraus den DATEINAMEN-Teil und bleibt bewusst ASCII:
+//     secureFilename ist die Stelle, die Pfad-Tricks abwehrt, und an den
+//     Dateinamen haengen Freigaben und Metadaten.
+// Fuer "🎉 Geburtstag" heisst die Datei also "…-Geburtstag.md", angezeigt
+// wird trotzdem "🎉 Geburtstag".
+function firstLine(md) {
+  return (md.split(/\r?\n/, 1)[0] || "").replace(/^#+\s*/, "").trim();
+}
+function displayTitle(md) {
+  return firstLine(md).slice(0, 120);
+}
 function titleOf(md) {
-  const first = (md.split(/\r?\n/, 1)[0] || "").replace(/^#+\s*/, "").trim();
-  return secureFilename(first.slice(0, 60)) || "Notiz";
+  return secureFilename(firstLine(md).slice(0, 60)) || "Notiz";
 }
 
 // Formularfelder (ToDo/Faelligkeit/Personen/Ort) -> Meta-Objekt fuer notemeta.set.
@@ -75,8 +90,11 @@ router.post("/notes/create", loginRequired, (req, res) => {
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, md);
   // frisch angelegte Notizen starten auf dem Default-Status ("open")
-  notemeta.set(req.session.user, fid,
-    { ...metaFromBody(req.body), status: notemeta.STATUS_DEFAULT });
+  notemeta.set(req.session.user, fid, {
+    ...metaFromBody(req.body),
+    status: notemeta.STATUS_DEFAULT,
+    title: displayTitle(md),
+  });
   req.flash("ok", "Notiz gespeichert.");
   res.redirect(`${BASE}/?p=${encodeURIComponent(NOTES_DIR)}`);
 });
@@ -149,7 +167,11 @@ router.post("/notes/save/:owner/*", loginRequired, (req, res) => {
   // (er laeuft ueber POST /notes/status). NACH einem evtl. Umbenennen lesen —
   // notemeta.rename hat die Zeile dann schon auf newFid umgezogen.
   const keepStatus = notemeta.get(owner, newFid).status;
-  notemeta.set(owner, newFid, { ...metaFromBody(req.body), status: keepStatus });
+  // Titel immer aus dem AKTUELLEN Text ziehen: aendert jemand die erste
+  // Zeile, aendert sich damit auch der angezeigte Name.
+  notemeta.set(owner, newFid, {
+    ...metaFromBody(req.body), status: keepStatus, title: displayTitle(md),
+  });
   const dir = securePath(req.body.dir || "") || "";
   req.flash("ok", "Notiz gespeichert.");
   res.redirect(dir ? `${BASE}/?p=${encodeURIComponent(dir)}` : `${BASE}/`);

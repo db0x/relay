@@ -9,6 +9,7 @@ import { createPeopleChips } from "./people-chips.js";
 import { NOTE_COLOR_DEFAULT, noteColorValue, paintNoteIcon, initNoteColorPicker } from "./color.js";
 import { renderNoteSummary } from "./summary.js";
 import { externalizeLinks, renderMarkdown, highlightCode, createMarkdownActions, bindMarkdownToolbar } from "./markdown.js";
+import { initEmoji, bindEmoticons } from "./emoji.js";
 
 // baseUrl: Basis-URL der Notiz-Endpunkte (.../notes/create ohne den Suffix).
 // Rueckgabe: { openNote } — von notes.js an das Hover-/Klick-Modul weitergereicht.
@@ -127,6 +128,9 @@ export function initNoteDialog(baseUrl) {
       },
     });
     noteCM.on("change", onNoteChange);
+    // Kuerzel wie :) beim Tippen ersetzen — erst jetzt moeglich, der Editor
+    // entsteht ja beim ersten Oeffnen des Dialogs
+    bindEmoticons(noteCM);
   }
   noteText.addEventListener("input", onNoteChange); // Fallback ohne CodeMirror
 
@@ -339,6 +343,14 @@ export function initNoteDialog(baseUrl) {
   }
 
   bindMarkdownToolbar(function () { return noteCM; }, mdActions);
+
+  // Emoji-Auswahl in der Werkzeugleiste
+  initEmoji({
+    getCM: function () { return noteCM; },
+    textarea: noteText,
+    button: document.getElementById("emoji-btn"),
+    panel: document.getElementById("emoji-panel"),
+  });
 
   var noteNew = document.getElementById("note-new");
   if (noteNew) {

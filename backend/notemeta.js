@@ -20,12 +20,12 @@ function normalizeStatus(raw) {
 // aus note.svg, siehe --note-color in index.css).
 function get(owner, filename) {
   const row = db().prepare(
-    "SELECT is_todo, due_date, people, ort, color, status FROM note_meta WHERE owner=? AND filename=?"
+    "SELECT is_todo, due_date, people, ort, color, status, title FROM note_meta WHERE owner=? AND filename=?"
   ).get(owner, filename);
   if (!row) {
     return {
       isTodo: false, dueDate: "", people: { known: [], extra: [] },
-      ort: "", color: "", status: STATUS_DEFAULT,
+      ort: "", color: "", status: STATUS_DEFAULT, title: "",
     };
   }
   return {
@@ -35,30 +35,34 @@ function get(owner, filename) {
     ort: row.ort || "",
     color: row.color || "",
     status: normalizeStatus(row.status),
+    // "" = kein eigener Titel gespeichert -> Anzeige leitet ihn aus dem
+    // Dateinamen ab (Notizen von vor dieser Spalte)
+    title: row.title || "",
   };
 }
 
 // leeres Meta (kein ToDo, keine Personen, kein Ort, Standardfarbe, Status
 // "open") -> Zeile ganz loeschen statt eine Zeile zu halten, die nur
 // Vorgabewerte enthaelt
-function set(owner, filename, { isTodo, dueDate, people, ort, color, status }) {
+function set(owner, filename, { isTodo, dueDate, people, ort, color, status, title }) {
   const known = (people && people.known) || [];
   const extra = (people && people.extra) || [];
   const st = normalizeStatus(status);
+  const tt = String(title || "").trim();
   if (!isTodo && !dueDate && !known.length && !extra.length && !ort && !color
-      && st === STATUS_DEFAULT) {
+      && st === STATUS_DEFAULT && !tt) {
     remove(owner, filename);
     return;
   }
   db().prepare(
-    `INSERT INTO note_meta (owner, filename, is_todo, due_date, people, ort, color, status)
-     VALUES (?,?,?,?,?,?,?,?)
+    `INSERT INTO note_meta (owner, filename, is_todo, due_date, people, ort, color, status, title)
+     VALUES (?,?,?,?,?,?,?,?,?)
      ON CONFLICT(owner, filename) DO UPDATE SET
        is_todo=excluded.is_todo, due_date=excluded.due_date,
        people=excluded.people, ort=excluded.ort, color=excluded.color,
-       status=excluded.status`
+       status=excluded.status, title=excluded.title`
   ).run(owner, filename, isTodo ? 1 : 0, dueDate || null,
-    JSON.stringify({ known, extra }), ort || null, color || null, st);
+    JSON.stringify({ known, extra }), ort || null, color || null, st, tt || null);
 }
 
 // Nur den Status wechseln (Kontextmenue der Desktop-Icons): ueber get+set,
@@ -111,9 +115,10 @@ function isDark(color) {
 // Alle ToDo-Notizen eines Besitzers (fuer die Desktop-Icons), je mit Farbe
 // und Status (erledigte Icons zeigt der Desktop gedaempft)
 function listTodos(owner) {
-  return db().prepare("SELECT filename, color, status FROM note_meta WHERE owner=? AND is_todo=1")
+  return db().prepare("SELECT filename, color, status, title FROM note_meta WHERE owner=? AND is_todo=1")
     .all(owner).map((r) => ({
       filename: r.filename, color: r.color || "", status: normalizeStatus(r.status),
+      title: r.title || "",
     }));
 }
 

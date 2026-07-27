@@ -74,6 +74,19 @@
           <button type="button" class="note-tb" data-md="hr" data-tip="Trennlinie" aria-label="Trennlinie">
             <img src="<%= base %>/static/img/toolbar/md-hr.svg" alt="" width="24" height="24">
           </button>
+          <span class="note-tb-sep" aria-hidden="true"></span>
+          <%# Emoji-Auswahl. Die Palette liegt direkt daneben IM Dialog — der
+              ist modal, ausserhalb waere sie nicht bedienbar (gleiche Falle
+              wie beim Farbwaehler, siehe js/notes/color.js). %>
+          <button type="button" class="note-tb" id="emoji-btn" data-tip="Emoji einfügen"
+                  aria-label="Emoji einfügen" aria-haspopup="true" aria-expanded="false">
+            <img src="<%= base %>/static/img/toolbar/md-emoji.svg" alt="" width="24" height="24">
+          </button>
+          <%# befuellt js/notes/emoji.js beim ersten Oeffnen. Liegt IN der
+              Werkzeugleiste, damit es sich immer an deren Unterkante haengt —
+              auch wenn sie bei schmalem Dialog auf zwei Zeilen umbricht. %>
+          <div class="emoji-panel" id="emoji-panel" role="dialog"
+               aria-label="Emoji auswählen" hidden></div>
         </div>
         <textarea class="note-text" name="md" spellcheck="false"
                   aria-label="Markdown-Inhalt der Notiz"></textarea>
