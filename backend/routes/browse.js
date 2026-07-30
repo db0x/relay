@@ -11,6 +11,7 @@ const doclang = require("../doclang");
 const settings = require("../settings");
 const shares = require("../shares");
 const notemeta = require("../notemeta");
+const notifications = require("../notifications");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
 const { BLANKS, BASE, DOCTYPE, IMAGE_TYPES, MAX_UPLOAD_MB } = require("../config");
@@ -161,6 +162,27 @@ function boardNotesFor(me) {
   return cols;
 }
 
+// Offene Nachrichten fuer die Kopfzeile: wer hat mir was wann freigegeben.
+// Zeigt eine Nachricht auf etwas, das es nicht mehr gibt oder worauf der
+// Zugriff entzogen wurde, wird sie hier gleich entsorgt — so bleibt die Liste
+// auch dann sauber, wenn eine Aufraeum-Stelle einmal vergessen wird.
+function notificationsFor(me) {
+  return notifications.listFor(me).map((n) => {
+    if (!accessFor(me, n.owner, n.filename)) {
+      notifications.markRead(me, n.id);
+      return null;
+    }
+    const u = users.get(n.owner);
+    return {
+      id: n.id, owner: n.owner, relpath: n.filename,
+      ownerName: u ? u.display_name : n.owner,
+      label: labelFor(n.filename, n.owner),
+      perm: n.perm,
+      when: formatDate(n.created),
+    };
+  }).filter(Boolean);
+}
+
 // zurueck in den Ordner, aus dem eine Aktion kam (Formulare schicken `dir` mit)
 function redirectDir(req, res) {
   const d = securePath(req.body && req.body.dir || "");
@@ -298,6 +320,8 @@ router.get("/", loginRequired, (req, res) => {
     // plus die gemerkte Fensterlage (Default: eingeklappt, siehe board.ejs)
     boardNotes: boardNotesFor(me),
     boardLayout: notemeta.getLayout(me, "board"),
+    // offene Benachrichtigungen (Glocke am Avatar + Uebersicht)
+    notifications: notificationsFor(me),
     allDirs: walkDirs(userDir).sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" })),
     user: req.session.name,
     me,
@@ -362,6 +386,23 @@ router.post("/desktop/layout", loginRequired, express.json(), (req, res) => {
   res.sendStatus(204);
 });
 
+// --- Benachrichtigungen ----------------------------------------------
+// Gelesen = geloescht (Nutzerwunsch). Beide Routen wirken ausschliesslich auf
+// die Nachrichten des angemeldeten Nutzers — die Pruefung steckt in
+// notifications.js (username im WHERE).
+router.post("/notifications/read", loginRequired, express.json(), (req, res) => {
+  const id = Number((req.body || {}).id);
+  if (!Number.isInteger(id)) return res.sendStatus(400);
+  notifications.markRead(req.session.user, id);
+  res.sendStatus(204);
+});
+
+router.post("/notifications/read-all", loginRequired, (req, res) => {
+  const n = notifications.markAllRead(req.session.user);
+  req.flash("ok", n ? `${n} Nachricht(en) als gelesen markiert.` : "Keine Nachrichten.");
+  res.redirect(`${BASE}/`);
+});
+
 // --- Freigaben verwalten (nur eigene Dateien) ------------------------
 router.post("/share/*", loginRequired, (req, res) => {
   const me = req.session.user;
@@ -375,6 +416,8 @@ router.post("/share/*", loginRequired, (req, res) => {
     req.flash("err", "Unbekannter Nutzer.");
   } else {
     shares.share(me, fid, target, perm);
+    // Empfaenger beim naechsten Laden darueber informieren
+    notifications.add(target, me, fid, perm);
     const who = users.get(target).display_name;
     const what = perm === "edit" ? "bearbeiten" : "nur lesen";
     req.flash("ok", `„${fid}“ für ${who} freigegeben (${what}).`);
@@ -386,6 +429,9 @@ router.post("/unshare/*", loginRequired, (req, res) => {
   const me = req.session.user;
   const fid = req.params[0];
   const target = (req.body.target || "").trim();
+  // Nachricht zuerst weg: sie zeigte sonst auf etwas, das der Empfaenger
+  // nicht mehr sehen darf
+  notifications.removeForShare(me, fid, target);
   if (shares.unshare(me, fid, target)) {
     const u = users.get(target);
     req.flash("ok", `Freigabe von „${fid}“ für ${u ? u.display_name : target} entzogen.`);
@@ -474,6 +520,7 @@ router.post("/move/*", loginRequired, (req, res) => {
   } else {
     fs.renameSync(pathFor(me, fid), pathFor(me, dest));
     shares.rename(me, fid, dest);
+    notifications.rename(me, fid, dest);
     notemeta.rename(me, fid, dest);
     req.flash("ok", `„${base}“ nach „${to || "Meine Dateien"}“ verschoben.`);
   }
@@ -518,7 +565,8 @@ router.post("/delete/:owner/*", loginRequired, (req, res) => {
     return redirectDir(req, res);
   }
   fs.unlinkSync(pathFor(owner, fid));
-  shares.unshareAll(owner, fid);   // Freigaben mit entfernen
+  shares.unshareAll(owner, fid);        // Freigaben mit entfernen
+  notifications.removeForFile(owner, fid); // und die Nachrichten dazu
   notemeta.remove(owner, fid);     // Notiz-Metadaten mit entfernen
   req.flash("ok", `„${path.basename(fid)}“ gelöscht.`);
   redirectDir(req, res);

@@ -6,6 +6,7 @@ const execFile = util.promisify(require("child_process").execFile);
 const express = require("express");
 
 const users = require("../users");
+const notifications = require("../notifications");
 const settings = require("../settings");
 const doclang = require("../doclang");
 const maintenance = require("../maintenance");
@@ -117,6 +118,7 @@ router.post("/users/delete", adminRequired, (req, res) => {
     req.flash("err", `${row.display_name} ist Admin — erst die Admin-Rechte entziehen, dann löschen.`);
   } else {
     users.del(target);
+    notifications.removeForUser(target);
     fs.rmSync(dirFor(target), { recursive: true, force: true });
     req.flash("ok", `${row.display_name} wurde mitsamt allen Dateien gelöscht.`);
   }

@@ -33,9 +33,23 @@
     </section>
     </div>
     <div class="user">
-      <% if (hasAvatar) { %>
-      <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="32" height="32">
-      <% } %>
+      <%# Avatar ist zugleich der Zugang zu den Nachrichten. Die Glocke mit
+          der Anzahl erscheint nur, wenn etwas offen ist; ab 10 steht "9+"
+          (mehr Stellen wuerden das Overlay sprengen). %>
+      <button type="button" class="avatar-btn" id="notif-btn"
+              data-tip="<%= notifications.length ? "Neue Nachrichten" : "Nachrichten" %>"
+              aria-label="Nachrichten anzeigen">
+        <% if (hasAvatar) { %>
+        <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="32" height="32">
+        <% } else { %>
+        <span class="avatar avatar-initial"><%= (user || me).trim().charAt(0).toUpperCase() %></span>
+        <% } %>
+        <span class="notif-badge" id="notif-badge"
+              <%= notifications.length ? "" : "hidden" %>>
+          <img src="<%= base %>/static/img/bell.svg" alt="" width="16" height="16">
+          <span class="notif-count" id="notif-count"><%= notifications.length > 9 ? "9+" : notifications.length %></span>
+        </span>
+      </button>
       <span class="uname"><%= user %></span>
       <div class="menu">
         <button type="button" class="iconbtn menu-btn" aria-haspopup="true"

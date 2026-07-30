@@ -57,6 +57,19 @@ function db() {
       PRIMARY KEY (owner, filename)
     );
 
+    -- Benachrichtigungen: wer hat mir was freigegeben. Eine Zeile je Ereignis
+    -- und Empfaenger (notifications.js). GELESENE werden SOFORT geloescht —
+    -- es gibt bewusst kein read-Flag, die Tabelle bleibt so von selbst klein.
+    CREATE TABLE IF NOT EXISTS notifications (
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,   -- Empfaenger
+      owner    TEXT NOT NULL,   -- wer freigegeben hat
+      filename TEXT NOT NULL,   -- Pfad relativ zum Ordner des Besitzers
+      perm     TEXT NOT NULL,   -- 'edit' | 'view' (zum Zeitpunkt der Freigabe)
+      created  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS notifications_by_user ON notifications(username);
+
     -- Frei platzierbare Notiz-Icons auf der Dateiliste ("Desktop"). Position
     -- ist je BETRACHTER (username) und Notiz (owner/filename) — jeder Nutzer
     -- hat sein eigenes Layout (notemeta.js: Desktop-Funktionen).

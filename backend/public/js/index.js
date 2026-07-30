@@ -6,6 +6,7 @@ import { createWindow } from "./core/window.js";
 import { initDialogCore } from "./core/dialogs.js";
 import { initTooltips } from "./core/tooltips.js";
 import { initBoard } from "./board.js";
+import { initNotifications, highlightFromUrl } from "./notifications.js";
 import { initConfirmDialog } from "./core/confirm.js";
 import { initFormWatch } from "./core/form-watch.js";
 import { initAccountDialog } from "./account/account-dialog.js";
@@ -49,7 +50,7 @@ initImageView();
 // Fenster des "Desktops" — jedes mit eigenem Schluessel in desktop_layout.
 // MUESSEN vor initNotes() stehen: das Standard-Layout der Notiz-Icons richtet
 // sich nach der Lage der Dateiliste, die hier erst gesetzt wird.
-createWindow({
+var pageWindow = createWindow({
   el: document.getElementById("page"),
   toggleBtn: document.getElementById("page-toggle"),
   minBtn: "#page-minimize", key: "page", baseUrl: BASE_URL,
@@ -68,3 +69,8 @@ var notes = initNotes();
 initBoard({ baseUrl: BASE_URL, notes: notes });
 initBackupDialog();
 initFolderNav({ bindNoteOpen: notes && notes.bindNoteOpen });
+
+// Nachrichten (Glocke am Avatar). Braucht das Fenster der Dateiliste, um beim
+// Sprung zu einer Datei ein eingeklapptes Fenster wieder aufzuklappen.
+initNotifications({ pageWindow: pageWindow });
+highlightFromUrl();

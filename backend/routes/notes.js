@@ -13,6 +13,7 @@ const { marked } = require("marked");
 
 const shares = require("../shares");
 const notemeta = require("../notemeta");
+const notifications = require("../notifications");
 const users = require("../users");
 const avatars = require("../avatars");
 const { accessFor } = require("../access");
@@ -159,6 +160,7 @@ router.post("/notes/save/:owner/*", loginRequired, (req, res) => {
         newFid = dirPart + newBase;
         fs.renameSync(pathFor(owner, fid), pathFor(owner, newFid));
         shares.rename(owner, fid, newFid);
+        notifications.rename(owner, fid, newFid);
         notemeta.rename(owner, fid, newFid);
       }
     }

@@ -188,6 +188,41 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 }
 .brand:hover{opacity:.7}
 .user{display:flex;align-items:center;gap:.9em}
+/* Avatar als Knopf: er oeffnet die Nachrichten. position:relative traegt das
+   Glocken-Overlay. */
+.avatar-btn{
+  position:relative;display:block;padding:0;border:0;background:none;
+  cursor:pointer;line-height:0;border-radius:50%;
+}
+.avatar-btn:hover .avatar,.avatar-btn:focus-visible .avatar{filter:brightness(.92)}
+/* Der globale Fokus-Ring (eckiger Umriss) schnitte hier durch das
+   Glocken-Overlay, das ueber die Knopfflaeche hinausragt. Stattdessen ein
+   runder Ring direkt am Avatar: gleiche Farbe und Staerke, folgt aber der
+   Rundung und laesst die Glocke frei. Tastaturbedienung bleibt damit
+   sichtbar — einfach abschalten waere keine Loesung. */
+.avatar-btn:focus-visible{outline:none}
+.avatar-btn:focus-visible .avatar{
+  box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--brand);
+}
+/* ohne Profilbild: Initiale im Kreis, gleiche Groesse wie das Bild */
+.avatar-initial{
+  display:grid;place-items:center;width:32px;height:32px;border-radius:50%;
+  background:var(--brand);color:#fff;font-size:.9rem;font-weight:600;line-height:1;
+}
+/* Glocke mit Anzahl, angeschnitten unten rechts am Avatar. Die Zahl liegt IM
+   Glockenkoerper — darum die Verschiebung nach unten (die Glocke laeuft oben
+   spitz zu) und weisse, fette Schrift auf dem roten Grund. */
+.notif-badge{
+  position:absolute;right:-10px;bottom:-5px;width:20px;height:20px;
+  display:grid;place-items:center;pointer-events:none;
+}
+.notif-badge[hidden]{display:none}
+.notif-badge img{width:20px;height:20px;display:block;
+  filter:drop-shadow(0 1px 2px rgba(16,24,40,.35))}
+.notif-count{
+  position:absolute;top:52%;left:50%;transform:translate(-50%,-50%);
+  color:#fff;font-size:.62rem;font-weight:700;line-height:1;
+}
 .uname{color:var(--muted);font-size:.92rem}
 .avatar{border-radius:50%;object-fit:cover;display:block;margin-right:-.5em}
 .avatar-preview{
@@ -785,6 +820,42 @@ button.fname{
 .switch-label input:checked + .switch-ui::after{left:18px}
 .switch-label input:focus-visible + .switch-ui{outline:2px solid var(--brand);outline-offset:2px}
 .switch-label:hover{color:var(--ink)}
+
+/* Nachrichten-Uebersicht (dlg-notif) — etwas breiter als die Standarddialoge,
+   damit "X hat Y fuer dich freigegeben" nicht ueber drei Zeilen bricht */
+.dialog.dialog-notif{width:min(92vw,560px)}
+.notif-box{padding:.2rem 1.1rem 1.1rem;max-height:60vh;overflow-y:auto}
+.notif-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35rem}
+.notif-item{
+  display:flex;align-items:baseline;gap:.6rem;width:100%;text-align:left;
+  padding:.55rem .7rem;border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:#fff;font:inherit;font-size:.9rem;color:var(--ink);cursor:pointer;
+  transition:background .12s ease,border-color .12s ease;
+}
+.notif-item:hover{background:#f0f6ff;border-color:var(--brand)}
+.notif-text{flex:1;min-width:0}
+.notif-when{flex:0 0 auto;color:var(--muted);font-size:.78rem;white-space:nowrap}
+.notif-empty{margin:.6rem 0;text-align:center}
+/* Fuss der Nachrichten-Uebersicht: "Alle als gelesen" sitzt hier statt im
+   Kebab-Menue — es gehoert zu den Nachrichten, nicht zu den Konto-Aktionen. */
+.notif-foot{
+  display:flex;justify-content:flex-end;
+  margin-top:.8rem;padding-top:.7rem;border-top:1px solid var(--line-soft);
+}
+
+/* Sprung aus einer Nachricht: die Zeile kurz hervorheben, damit man sie in
+   einer langen Liste sofort findet */
+.files tbody tr.row-highlight{
+  background:#fff8db;
+  animation:row-blink 2.4s ease-out;
+}
+@keyframes row-blink{
+  0%,40%{background:#ffeaa0}
+  100%{background:transparent}
+}
+@media (prefers-reduced-motion:reduce){
+  .files tbody tr.row-highlight{animation:none}
+}
 
 /* Meldungen */
 /* Statusmeldungen: unten mittig auf dem Desktop, ueber allem ausser Dialogen.
