@@ -4,7 +4,11 @@
 // "Gelesen" heisst hier geloescht — sowohl in der Anzeige als auch in der
 // Datenbank (POST /notifications/read). Es gibt deshalb keinen Zustand
 // "gelesen, aber noch da", der irgendwo synchron gehalten werden muesste.
-import { openDlg } from "./core/dialogs.js";
+//
+// Die Liste ist ein MENUE (wie der Kebab daneben), kein Dialog: Oeffnen,
+// Schliessen per Escape und Klick daneben erledigt bindMenuButtons in
+// core/dialogs.js — hier bleibt nur das Verhalten der Eintraege.
+import { closeMenus } from "./core/dialogs.js";
 import { BASE_URL } from "./core/base.js";
 
 // Zeile der Dateiliste zu owner/relpath finden. Freigegebene Dateien stehen
@@ -38,8 +42,8 @@ function highlight(row) {
 // damit ein zugeklapptes Fenster fuer den Sprung geoeffnet werden kann.
 export function initNotifications(config) {
   var btn = document.getElementById("notif-btn");
-  var dlg = document.getElementById("dlg-notif");
-  if (!btn || !dlg) return;
+  var panel = document.getElementById("notif-panel");
+  if (!btn || !panel) return;
   var badge = document.getElementById("notif-badge");
   var countEl = document.getElementById("notif-count");
   var listEl = document.getElementById("notif-list");
@@ -47,8 +51,6 @@ export function initNotifications(config) {
   var readAllBtn = document.getElementById("notif-read-all");
   var pageWindow = config && config.pageWindow;
   var pageEl = document.getElementById("page");
-
-  btn.addEventListener("click", function () { openDlg(dlg); });
 
   // Zaehler nachfuehren, nachdem eine Nachricht verschwunden ist
   function refreshBadge() {
@@ -79,7 +81,7 @@ export function initNotifications(config) {
     var li = item.closest("li");
     if (li) li.remove();
     refreshBadge();
-    dlg.close();
+    closeMenus();
 
     // Dateiliste zeigen (war sie eingeklappt, klappt sie auf)
     if (pageWindow) pageWindow.restore();

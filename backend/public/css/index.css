@@ -213,7 +213,7 @@ body:not(.desk-ready) .note-desktop{opacity:0}
    Glockenkoerper — darum die Verschiebung nach unten (die Glocke laeuft oben
    spitz zu) und weisse, fette Schrift auf dem roten Grund. */
 .notif-badge{
-  position:absolute;right:-10px;bottom:-5px;width:20px;height:20px;
+  position:absolute;right:-16px;bottom:-8px;width:20px;height:20px;
   display:grid;place-items:center;pointer-events:none;
 }
 .notif-badge[hidden]{display:none}
@@ -821,27 +821,34 @@ button.fname{
 .switch-label input:focus-visible + .switch-ui{outline:2px solid var(--brand);outline-offset:2px}
 .switch-label:hover{color:var(--ink)}
 
-/* Nachrichten-Uebersicht (dlg-notif) — etwas breiter als die Standarddialoge,
-   damit "X hat Y fuer dich freigegeben" nicht ueber drei Zeilen bricht */
-.dialog.dialog-notif{width:min(92vw,560px)}
-.notif-box{padding:.2rem 1.1rem 1.1rem;max-height:60vh;overflow-y:auto}
-.notif-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35rem}
-.notif-item{
-  display:flex;align-items:baseline;gap:.6rem;width:100%;text-align:left;
-  padding:.55rem .7rem;border:1px solid var(--line);border-radius:var(--radius-sm);
-  background:#fff;font:inherit;font-size:.9rem;color:var(--ink);cursor:pointer;
-  transition:background .12s ease,border-color .12s ease;
+/* Nachrichten als MENUE (nicht als Dialog): dieselbe .menu-panel-Basis wie
+   der Kebab daneben, nur breiter und scrollbar. */
+.notif-panel{
+  width:min(92vw,400px);max-height:min(70vh,460px);overflow-y:auto;
+  padding:6px;
 }
-.notif-item:hover{background:#f0f6ff;border-color:var(--brand)}
-.notif-text{flex:1;min-width:0}
-.notif-when{flex:0 0 auto;color:var(--muted);font-size:.78rem;white-space:nowrap}
-.notif-empty{margin:.6rem 0;text-align:center}
-/* Fuss der Nachrichten-Uebersicht: "Alle als gelesen" sitzt hier statt im
-   Kebab-Menue — es gehoert zu den Nachrichten, nicht zu den Konto-Aktionen. */
-.notif-foot{
-  display:flex;justify-content:flex-end;
-  margin-top:.8rem;padding-top:.7rem;border-top:1px solid var(--line-soft);
+.notif-head{
+  display:flex;align-items:center;gap:.45em;
+  padding:.35rem .6rem .5rem;margin-bottom:2px;
+  border-bottom:1px solid var(--line-soft);
+  font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;
 }
+.notif-head img{display:block;opacity:.7}
+.notif-list{list-style:none;margin:0;padding:0}
+/* Eintrag ist ein .menu-item (Hover/Radius kommen von dort). Text und
+   Zeitpunkt untereinander statt nebeneinander: im schmalen Menue bricht der
+   Text ohnehin um, und ein rechtsbuendiges Datum landete dann mitten drin. */
+.notif-item{display:block;white-space:normal;font-size:.88rem;line-height:1.35}
+.notif-text{display:block}
+.notif-when{display:block;margin-top:.1rem;color:var(--muted);font-size:.76rem}
+.notif-empty{margin:.5rem .6rem;font-size:.86rem;text-align:center}
+/* Fuss: abgesetzt, damit "alles weg" nicht wie ein weiterer Eintrag wirkt */
+.notif-read-all{
+  margin-top:2px;padding-top:.5rem;border-top:1px solid var(--line-soft);
+  border-radius:0 0 7px 7px;color:var(--muted);font-size:.82rem;text-align:center;
+}
+.notif-read-all:disabled{opacity:.45;cursor:default;background:none}
 
 /* Sprung aus einer Nachricht: die Zeile kurz hervorheben, damit man sie in
    einer langen Liste sofort findet */

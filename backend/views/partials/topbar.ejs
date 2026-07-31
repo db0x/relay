@@ -33,26 +33,64 @@
     </section>
     </div>
     <div class="user">
-      <%# Avatar ist zugleich der Zugang zu den Nachrichten. Die Glocke mit
-          der Anzahl erscheint nur, wenn etwas offen ist; ab 10 steht "9+"
-          (mehr Stellen wuerden das Overlay sprengen). %>
-      <button type="button" class="avatar-btn" id="notif-btn"
-              data-tip="<%= notifications.length ? "Neue Nachrichten" : "Nachrichten" %>"
-              aria-label="Nachrichten anzeigen">
-        <% if (hasAvatar) { %>
-        <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="32" height="32">
-        <% } else { %>
-        <span class="avatar avatar-initial"><%= (user || me).trim().charAt(0).toUpperCase() %></span>
-        <% } %>
-        <span class="notif-badge" id="notif-badge"
-              <%= notifications.length ? "" : "hidden" %>>
-          <img src="<%= base %>/static/img/bell.svg" alt="" width="16" height="16">
-          <span class="notif-count" id="notif-count"><%= notifications.length > 9 ? "9+" : notifications.length %></span>
-        </span>
-      </button>
+      <%# Avatar ist zugleich der Zugang zu den Nachrichten — als MENUE, genau
+          wie der Kebab daneben: dieselbe .menu/.menu-btn/.menu-panel-Struktur,
+          damit js/core/dialogs.js (bindMenuButtons) das Oeffnen, Schliessen
+          per Escape und den Klick daneben ohne Zusatzcode uebernimmt.
+          Die Glocke erscheint nur, wenn etwas offen ist; ab 10 steht "9+". %>
+      <div class="menu notif-menu">
+        <button type="button" class="avatar-btn menu-btn" id="notif-btn"
+                aria-haspopup="true" aria-expanded="false"
+                data-tip="<%= notifications.length ? "Neue Nachrichten" : "Nachrichten" %>"
+                aria-label="Nachrichten anzeigen">
+          <% if (hasAvatar) { %>
+          <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="32" height="32">
+          <% } else { %>
+          <span class="avatar avatar-initial"><%= (user || me).trim().charAt(0).toUpperCase() %></span>
+          <% } %>
+          <span class="notif-badge" id="notif-badge"
+                <%= notifications.length ? "" : "hidden" %>>
+            <img src="<%= base %>/static/img/bell.svg" alt="" width="16" height="16">
+            <span class="notif-count" id="notif-count"><%= notifications.length > 9 ? "9+" : notifications.length %></span>
+          </span>
+        </button>
+
+        <div class="menu-panel notif-panel" id="notif-panel" hidden>
+          <div class="notif-head">
+            <img src="<%= base %>/static/img/share.svg" alt="" width="16" height="16">
+            <span>Nachrichten</span>
+          </div>
+          <ul class="notif-list" id="notif-list">
+            <% notifications.forEach(function(n){ %>
+            <li>
+              <button type="button" class="menu-item notif-item" data-id="<%= n.id %>"
+                      data-owner="<%= n.owner %>" data-rel="<%= n.relpath %>">
+                <span class="notif-text">
+                  <strong><%= n.ownerName %></strong> hat
+                  „<%= n.label %>“ für dich freigegeben<% if (n.perm === "view") { %> (nur lesen)<% } %>
+                </span>
+                <span class="notif-when"><%= n.when %></span>
+              </button>
+            </li>
+            <% }); %>
+          </ul>
+          <p class="notif-empty muted" id="notif-empty"<%= notifications.length ? " hidden" : "" %>>
+            Keine neuen Nachrichten.
+          </p>
+          <%# Alles wegraeumen — Rueckfrage, weil dabei geloescht wird %>
+          <form action="<%= base %>/notifications/read-all" method="post"
+                data-confirm="Alle Nachrichten als gelesen markieren? Sie werden dabei entfernt.">
+            <button class="menu-item notif-read-all" id="notif-read-all"
+                    <%= notifications.length ? "" : "disabled" %>>Alle als gelesen markieren</button>
+          </form>
+        </div>
+      </div>
       <span class="uname"><%= user %></span>
       <div class="menu">
-        <button type="button" class="iconbtn menu-btn" aria-haspopup="true"
+        <%# id fuers gezielte Ansprechen: seit den Nachrichten gibt es zwei
+            .menu-btn in der Titelleiste (Avatar und dieser Kebab). %>
+        <button type="button" class="iconbtn menu-btn" id="main-menu-btn"
+                aria-haspopup="true"
                 aria-expanded="false" aria-label="Menü" data-tip="Menü">
           <img src="<%= base %>/static/img/open-menu.svg" alt="" width="16" height="16">
         </button>

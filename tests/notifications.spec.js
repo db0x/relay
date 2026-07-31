@@ -54,13 +54,31 @@ test.describe("Benachrichtigungen", () => {
     await expect(rec.locator(COUNT)).toHaveText("1");
 
     await rec.click("#notif-btn");
-    await expect(rec.locator("#dlg-notif")).toBeVisible();
+    // Die Uebersicht ist ein Menue wie der Kebab daneben, kein Dialog
+    await expect(rec.locator("#notif-panel")).toBeVisible();
+    await expect(rec.locator("#notif-btn")).toHaveAttribute("aria-expanded", "true");
     const item = rec.locator(".notif-item").first();
     // wer / was
     await expect(item).toContainText(owner.display);
     await expect(item).toContainText(filename);
     // wann — Datum in deutscher Schreibweise
     await expect(item.locator(".notif-when")).toHaveText(/\d{2}\.\d{2}\.\d{4}/);
+    await ctx.close();
+  });
+
+  test("die Uebersicht schliesst wie ein Menue (Escape, Klick daneben)", async ({ page, browser }) => {
+    await shareTo(page, filename, recipient.username);
+    const { ctx, page: rec } = await asRecipient(browser);
+
+    await rec.click("#notif-btn");
+    await expect(rec.locator("#notif-panel")).toBeVisible();
+    await rec.keyboard.press("Escape");
+    await expect(rec.locator("#notif-panel")).toBeHidden();
+
+    await rec.click("#notif-btn");
+    await expect(rec.locator("#notif-panel")).toBeVisible();
+    await rec.mouse.click(400, 700); // irgendwo daneben
+    await expect(rec.locator("#notif-panel")).toBeHidden();
     await ctx.close();
   });
 
@@ -132,7 +150,8 @@ test.describe("Benachrichtigungen", () => {
     const { ctx, page: rec } = await asRecipient(browser);
     await expect(rec.locator(COUNT)).toHaveText("2");
 
-    // "Alle als gelesen" sitzt im Nachrichten-Dialog selbst (nicht im Menü)
+    // "Alle als gelesen" sitzt in der Nachrichten-Uebersicht selbst,
+    // nicht im Hauptmenue daneben
     await rec.click("#notif-btn");
     await rec.click("#notif-read-all");
     await expect(rec.locator("#dlg-confirm")).toBeVisible();

@@ -46,7 +46,7 @@ async function logout(page) {
 // Topbar-Menue oeffnen und einen Dialog daraus starten (z.B. "dlg-users").
 async function openMenuDialog(page, dialogId) {
   await waitAppReady(page);
-  await page.click(".menu-btn");
+  await page.click("#main-menu-btn");
   await page.click(`[data-dialog="${dialogId}"]`);
   await expect(page.locator(`#${dialogId}`)).toBeVisible();
 }
