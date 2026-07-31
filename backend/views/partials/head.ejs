@@ -5,6 +5,12 @@
     Mittelton des Desktop-Bildes, damit der Moment vor dem Bild nahtlos wirkt. %>
 <meta name="color-scheme" content="light">
 <style>html{background:#375998;color-scheme:light}</style>
+<%# Eigene Bildlaufleisten: die nativen sind auf vielen Systemen Overlay-
+    Leisten, die keinen Platz belegen und ausblenden — in einem langen
+    Dateifenster sah man dann nicht, dass es weitergeht (js/core/scrollbars.js).
+    MUSS vor index.css stehen: die Anmutung wird dort ueber dieselben Klassen
+    gesetzt (.os-scrollbar) und soll gewinnen. %>
+<link rel="stylesheet" href="<%= base %>/static/vendor/overlayscrollbars.min.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/css/index.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/vendor/codemirror.min.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/vendor/highlight-github.min.css?v=<%= v %>">
@@ -16,4 +22,7 @@
 <script defer src="<%= base %>/static/vendor/marked.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/vendor/purify.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/vendor/highlight.min.js?v=<%= v %>"></script>
+<%# defer laeuft VOR dem Modul unten (Dokumentreihenfolge) -> das globale
+    OverlayScrollbarsGlobal steht bereit, wenn js/core/scrollbars.js es sucht %>
+<script defer src="<%= base %>/static/vendor/overlayscrollbars.min.js?v=<%= v %>"></script>
 <script type="module" src="<%= base %>/static/js/index.js?v=<%= v %>"></script>

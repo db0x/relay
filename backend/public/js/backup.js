@@ -11,7 +11,9 @@ export function initBackupDialog() {
   var result = document.getElementById("backup-result");
   var badge = document.getElementById("backup-badge");
   var meta = document.getElementById("backup-meta");
-  var log = document.getElementById("backup-log");
+  // Das <code> IM <pre>: der <pre> ist der Scroll-Behaelter mit der
+  // Bildlaufleiste, sein Innenleben gehoert ihr (siehe backup.ejs)
+  var log = document.getElementById("backup-log-text");
   var running = false;
 
   function showResult(data) {

@@ -24,7 +24,10 @@
       </span>
     </h3>
     <p class="muted dialog-hint" id="backup-meta"><%= lastBackup ? `${lastBackup.atStr} Uhr · Dauer ${lastBackup.durationStr}` : "" %></p>
-    <pre class="backup-log" id="backup-log"><%= lastBackup ? lastBackup.log : "" %></pre>
+    <%# Der Text sitzt im <code> darin, nicht im <pre> selbst: das <pre> ist der
+        Scroll-Behaelter und traegt die Bildlaufleiste (js/core/scrollbars.js).
+        Wer den Text direkt in den Behaelter schreibt, raeumt deren Innenleben ab. %>
+    <pre class="backup-log" id="backup-log"><code id="backup-log-text"><%= lastBackup ? lastBackup.log : "" %></code></pre>
   </section>
 </dialog>
 <% } %>

@@ -91,6 +91,30 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 }
 .page.dragging{user-select:none}
 
+/* --- Bildlaufleisten ---------------------------------------------------
+   OverlayScrollbars (public/vendor/, verdrahtet in js/core/scrollbars.js).
+   Hier nur die Anmutung: schlanker Griff in der Tinte der Oberflaeche statt
+   des mitgelieferten Schwarz, damit sie zu den ruhigen Karten passt. */
+.os-scrollbar{
+  --os-size:12px;
+  --os-padding-perpendicular:3px;
+  /* Abstand an den ENDEN der Bahn. Muss mindestens so gross sein wie der
+     Eckenradius des Behaelters, sonst laeuft die Leiste bis in die runde Ecke
+     und zerschneidet sie optisch. Hier der Wert fuer --radius-sm (9px)
+     tragende Behaelter (Menues, Dropdowns) plus etwas Luft. */
+  --os-padding-axis:11px;
+  --os-handle-border-radius:999px;
+  --os-handle-bg:rgba(31,41,55,.22);
+  --os-handle-bg-hover:rgba(31,41,55,.34);
+  --os-handle-bg-active:rgba(31,41,55,.45);
+  --os-handle-min-size:28px;
+}
+/* Fenster runden mit --radius (14px) — die Bahn entsprechend weiter einruecken,
+   damit sie sichtbar VOR der Rundung endet statt sie anzuschneiden */
+.page .os-scrollbar{--os-padding-axis:18px}
+/* In Menues und schmalen Dropdowns eine Spur zierlicher */
+.notif-panel .os-scrollbar,.emoji-panel .os-scrollbar{--os-size:10px}
+
 /* Titelleiste der Dateiliste: Icon, Titel, Minimieren-Knopf. Zugleich die
    bequemste Greif-Flaeche zum Verschieben (der Knopf ist davon ausgenommen). */
 /* margin:0 — der Abstand UNTER der Trennlinie kommt aus dem padding-top der
@@ -1015,6 +1039,8 @@ a.crumb:hover{text-decoration:underline}
   font:.8rem/1.5 ui-monospace,"Cascadia Code",Consolas,monospace;
   color:var(--ink);white-space:pre-wrap;word-break:break-word;
 }
+/* der Text steckt in einem <code> darin — es soll aussehen wie das <pre> selbst */
+.backup-log code{font:inherit;background:none;padding:0;border-radius:0}
 
 /* Freigabe-Badge: Tooltip mit den Empfaengern (Avatar, Name, Recht).
    position:fixed (Koordinaten setzt index.js beim Hover als --tip-x/y):

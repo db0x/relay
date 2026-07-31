@@ -17,6 +17,7 @@ import { initImageView } from "./files/image-view.js";
 import { initNotes } from "./notes/notes.js";
 import { initBackupDialog } from "./backup.js";
 import { initFolderNav } from "./folder-nav.js";
+import { initScrollbars } from "./core/scrollbars.js";
 
 // Zurueck-Navigation aus dem Editor: der Browser stellt die Seite sonst aus
 // dem bfcache wieder her — eingefroren mit offenem Dialog und veralteter
@@ -46,6 +47,10 @@ initCreateFileDialog();
 initUpload();
 initOwnFilter();
 initImageView();
+// Eigene Bildlaufleisten fuer Menues, Dialoge und Vorschauen. Die FENSTER
+// versorgt createWindow selbst — jede kuenftige Ansicht bekommt sie damit
+// automatisch, ohne hier etwas nachzutragen.
+initScrollbars();
 
 // Fenster des "Desktops" — jedes mit eigenem Schluessel in desktop_layout.
 // MUESSEN vor initNotes() stehen: das Standard-Layout der Notiz-Icons richtet

@@ -93,7 +93,14 @@
       </div>
       <div class="note-splitter" id="note-splitter" role="separator"
            aria-orientation="vertical" aria-label="Aufteilung anpassen"></div>
-      <div class="note-preview md-render" id="note-preview" aria-label="Vorschau der Notiz"></div>
+      <%# Zwei Ebenen mit Absicht: #note-preview ist der Scroll-Behaelter (und
+          traegt die Bildlaufleiste, js/core/scrollbars.js), das gerenderte
+          Markdown landet IMMER in #note-preview-body. Wuerde note-dialog.js
+          direkt in den Behaelter schreiben, riebe es dessen Innenleben weg —
+          und die Absaetze stuenden nebeneinander statt untereinander. %>
+      <div class="note-preview" id="note-preview" aria-label="Vorschau der Notiz">
+        <div class="md-render" id="note-preview-body"></div>
+      </div>
     </div>
     <%# Kompaktes, horizontales Edit-Panel — Icons (users/place) markieren die
         Abschnitte wie in der Lese-Ansicht, alles fliesst in einer Zeile und

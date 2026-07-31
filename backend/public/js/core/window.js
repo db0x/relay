@@ -9,6 +9,10 @@
 //     …Inhalt…
 //   </div>
 // plus ein Umschalter in der Topbar (.view-btn mit aria-pressed).
+//
+// Jedes so erzeugte Fenster bekommt automatisch die eigenen Bildlaufleisten
+// (core/scrollbars.js) — eine neue Ansicht muss sich darum nicht kuemmern.
+import { attachScrollbar } from "./scrollbars.js";
 
 // Untergrenze fuer alle frei platzierten Elemente: unter der Titelleiste,
 // damit nichts hinter ihr verschwindet.
@@ -146,14 +150,18 @@ export function createWindow(config) {
 
   place();
   window.addEventListener("resize", place);
+  attachScrollbar(el); // eigene Bildlaufleiste — gilt fuer JEDES Fenster
 
-  // Ziehen aus nicht-interaktiven Flaechen — Klicks auf Inhalte bleiben Klicks
-  var DRAG_SKIP = "a,button,input,select,textarea,label,summary,"
+  // Ziehen aus nicht-interaktiven Flaechen — Klicks auf Inhalte bleiben Klicks.
+  // .os-scrollbar ist die eigene Bildlaufleiste: sie ist ein echtes Element,
+  // ohne diesen Eintrag wuerde das Ziehen des Griffs das Fenster verschieben.
+  var DRAG_SKIP = "a,button,input,select,textarea,label,summary,.os-scrollbar,"
     + ".fname,.row-menu,.share-badge,.note-open,[data-dialog],[data-create],th .sort";
   el.addEventListener("pointerdown", function (e) {
     if (e.button !== 0) return;
     if (e.target.closest(DRAG_SKIP)) return;
-    // interne Scrollleiste nicht als Ziehen kapern
+    // Rand rechts freihalten: dort liegt die Bildlaufleiste. Bleibt auch
+    // stehen, falls OverlayScrollbars einmal nicht laedt (dann native Leiste).
     if (e.clientX > el.getBoundingClientRect().right - 16) return;
     var r = el.getBoundingClientRect();
     var ox = e.clientX - r.left, oy = e.clientY - r.top, moved = false;

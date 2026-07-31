@@ -19,7 +19,9 @@ export function initNoteDialog(baseUrl) {
   var noteText = noteForm.querySelector("textarea");
   var noteSave = document.getElementById("note-save");
   var noteTitleEl = document.getElementById("dlg-note-title");
-  var notePreview = document.getElementById("note-preview");
+  // NICHT der Scroll-Behaelter #note-preview, sondern die Ebene darin: dessen
+  // Innenleben gehoert der Bildlaufleiste (siehe Kommentar im Template)
+  var notePreview = document.getElementById("note-preview-body");
   var noteStatus = document.getElementById("note-status");
   var noteCreateAction = noteForm.action; // .../notes/create — vor jeder openNote-Mutation gemerkt
   var noteBaseline = "";
