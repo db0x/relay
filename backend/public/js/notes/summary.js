@@ -47,7 +47,20 @@ export function appendSummaryBadges(target, meta, knownByUsername, baseUrl, opts
   var extra = (meta.people && meta.people.extra) || [];
   var count = 0;
 
-  // Der Bearbeitungsstand steht IMMER vorn — anders als die uebrigen Badges
+  // Ganz vorn, noch vor dem Bearbeitungsstand: gehoert die Notiz gar nicht
+  // mir? Das raeumt die Verwechslung zwischen eigenen und freigegebenen
+  // Notizen aus — und rahmt alles Weitere ein. Nur bei fremden Notizen da
+  // (routes/notes.js haengt sharedBy nur dann an die Metadaten).
+  if (meta.sharedBy) {
+    var shared = document.createElement("span");
+    shared.className = "note-summary-badge note-shared-by";
+    shared.appendChild(noteSummaryIcon("share", icoSize, baseUrl));
+    shared.appendChild(document.createTextNode("Freigegeben von " + meta.sharedBy.name
+      + (meta.sharedBy.perm === "view" ? " · nur lesen" : "")));
+    target.appendChild(shared); count++;
+  }
+
+  // Der Bearbeitungsstand steht IMMER dabei — anders als die uebrigen Badges
   // hat jede Notiz einen (Default "Offen"), er soll jederzeit ablesbar sein.
   target.appendChild(statusBadge(meta.status));
   count++;

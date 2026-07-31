@@ -110,8 +110,17 @@ router.get("/notes/raw/:owner/*", loginRequired, (req, res) => {
 // ToDo/Personen/Ort einer Notiz — Besitzer und Freigaben (auch nur-lesen)
 router.get("/notes/meta/:owner/*", loginRequired, (req, res) => {
   const owner = req.params.owner, fid = req.params[0];
-  if (!accessFor(req.session.user, owner, fid)) return res.sendStatus(404);
-  res.json(notemeta.get(owner, fid));
+  const acc = accessFor(req.session.user, owner, fid);
+  if (!acc) return res.sendStatus(404);
+  const meta = notemeta.get(owner, fid);
+  // Gehoert die Notiz jemand anderem, kommt dazu, WER sie mir freigegeben hat
+  // (und ob nur zum Lesen). Das steht nicht in note_meta — es haengt am
+  // Betrachter, nicht an der Notiz, und wird darum hier ergaenzt.
+  if (owner !== req.session.user) {
+    const u = users.get(owner);
+    meta.sharedBy = { username: owner, name: u ? u.display_name : owner, perm: acc };
+  }
+  res.json(meta);
 });
 
 // Bearbeitungsstand wechseln (Kontextmenue der Desktop-Icons). Bewusst

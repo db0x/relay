@@ -107,6 +107,7 @@ function desktopNotesFor(me) {
     if (!/\.md$/i.test(filename) || !fs.existsSync(pathFor(owner, filename))) return;
     out.push({
       owner, relpath: filename, label: labelFor(filename, owner, title), canedit,
+      isOwner: owner === me, // fremde Notizen bekommen das Freigabe-Overlay
       pos: posOf(owner, filename), color: color || "", dark: notemeta.isDark(color),
       status: notemeta.normalizeStatus(status),
     });
@@ -140,6 +141,7 @@ function boardNotesFor(me) {
     const [y, mo, d] = (m.dueDate || "").split("-");
     cols[m.status].push({
       owner, relpath: filename, label: labelFor(filename, owner, m.title), canedit,
+      isOwner: owner === me, // fuer den Filter "Nur eigene Notizen"
       color: m.color || "", dark: notemeta.isDark(m.color), status: m.status,
       isTodo: m.isTodo, dueDate: m.dueDate || "",
       dueLabel: y ? `${d}.${mo}.${y}` : "",

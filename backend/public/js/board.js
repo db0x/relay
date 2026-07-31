@@ -61,7 +61,9 @@ export function initBoard(config) {
 
   function updateCounts() {
     cols.forEach(function (col) {
-      var n = col.querySelectorAll(".board-card").length;
+      // Nur SICHTBARE Karten zaehlen: der Filter "Nur eigene Notizen" blendet
+      // fremde aus, und ein Zaehler ueber Unsichtbares waere irrefuehrend.
+      var n = col.querySelectorAll(".board-card:not([hidden])").length;
       col.querySelector(".board-col-count").textContent = n;
       // Platzhalter nur zeigen, wenn die Spalte wirklich leer ist
       var empty = col.querySelector(".board-empty");
@@ -136,6 +138,25 @@ export function initBoard(config) {
       card.addEventListener("pointercancel", up);
       e.preventDefault(); // kein Text-/Bild-Ziehen des Knopfes
     });
+  }
+
+  // Fusszeilen-Filter "Nur eigene Notizen": blendet die mir freigegebenen
+  // Karten aus. Eigener localStorage-Schluessel neben dem der Dateiliste —
+  // es sind zwei Ansichten, die man unabhaengig voneinander einstellen will.
+  // Die Fusszeile gibt es nur, wenn ueberhaupt Fremdes dabei ist (board.ejs).
+  var OWN_KEY = "relay-board-own-only";
+  var ownOnly = board.querySelector("#board-own-only");
+  function applyOwnFilter() {
+    board.querySelectorAll(".board-card.card-foreign").forEach(function (card) {
+      card.hidden = ownOnly.checked;
+    });
+    localStorage.setItem(OWN_KEY, ownOnly.checked ? "1" : "0");
+    updateCounts(); // Zaehler und "nichts hier" richten sich danach
+  }
+  if (ownOnly) {
+    ownOnly.checked = localStorage.getItem(OWN_KEY) === "1";
+    ownOnly.addEventListener("change", applyOwnFilter);
+    applyOwnFilter();
   }
 
   board.querySelectorAll(".board-card").forEach(setupCard);

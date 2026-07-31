@@ -6,6 +6,13 @@
   <header class="dialog-head">
     <img src="<%= base %>/static/img/image.svg" alt="" width="22" height="22">
     <h2 id="dlg-image-title">Bild</h2>
+    <%# Neuer Tab zeigt dieselbe Quelle wie der Dialog (Route /image/, liefert
+        inline aus). rel="noopener": das geoeffnete Fenster darf nicht ueber
+        window.opener auf unsere Seite zugreifen. %>
+    <a class="iconbtn" id="dlg-image-tab" href="#" target="_blank" rel="noopener"
+       data-tip="In neuem Tab öffnen" aria-label="Bild in neuem Tab öffnen">
+      <img src="<%= base %>/static/img/new-tab.svg" alt="" width="16" height="16">
+    </a>
     <a class="iconbtn" id="dlg-image-download" href="#" download
        data-tip="Herunterladen" aria-label="Bild herunterladen">
       <img src="<%= base %>/static/img/download.svg" alt="" width="16" height="16">

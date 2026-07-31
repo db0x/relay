@@ -24,7 +24,16 @@ export function deskMinY() {
 var Z_BASE = 10;
 var stack = [];
 function applyStack() {
-  stack.forEach(function (w, i) { w.style.zIndex = String(Z_BASE + i); });
+  // Zugleich das "aktive" Fenster markieren: das vorderste SICHTBARE. Es
+  // traegt .win-active und wirft damit den kraeftigeren Schatten — wie das
+  // Key Window bei macOS. Eingeklappte Fenster (.page-min) zaehlen nicht mit,
+  // sonst haette manchmal gar keines die Markierung.
+  var top = null;
+  stack.forEach(function (w, i) {
+    w.style.zIndex = String(Z_BASE + i);
+    if (!w.classList.contains("page-min")) top = w;
+  });
+  stack.forEach(function (w) { w.classList.toggle("win-active", w === top); });
 }
 function raise(el) {
   var i = stack.indexOf(el);
@@ -102,13 +111,16 @@ export function createWindow(config) {
     saveLayout(true);
     el.classList.add("page-min");
     syncToggle();
+    applyStack(); // das aktive Fenster ist jetzt ein anderes
   }
 
   function restore() {
     if (!isMinimized()) return;
     el.classList.remove("page-min");
     syncToggle();
-    raise(el); // wiederhergestellt heisst: nach vorn, nicht hinter andere
+    raise(el);      // wiederhergestellt heisst: nach vorn, nicht hinter andere
+    applyStack();   // raise() steigt aus, wenn es schon oben lag — die
+                    // .win-active-Markierung muss trotzdem neu gesetzt werden
 
     place(); // Bildschirm koennte inzwischen kleiner sein -> neu einpassen
     saveLayout(false);

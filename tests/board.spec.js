@@ -215,4 +215,53 @@ test.describe("Notiz-Board", () => {
     expect(await columnOf(other, title)).toBe("open"); // unveraendert
     await ctx.close();
   });
+
+  test("„Nur eigene Notizen“ blendet Fremdes aus und zaehlt richtig", async ({ page, browser }) => {
+    const mine = "Meins " + uniqueName("n");
+    await createNote(page, mine);
+    await openBoard(page);
+    // ohne Freigaben haette der Filter nichts zu tun -> er wird gar nicht erst
+    // gerendert (dieselbe Regel wie unter der Dateiliste)
+    await expect(page.locator("#board .list-footer")).toHaveCount(0);
+
+    // der Admin gibt uns eine seiner Notizen frei
+    const ctx0 = await browser.newContext({ baseURL: BASE_URL });
+    const admin = await ctx0.newPage();
+    await loginAsAdmin(admin);
+    const shared = "Geteilt " + uniqueName("n");
+    await createNote(admin, shared);
+    await admin.reload(); // Empfaenger steht erst nach dem Neuladen zur Auswahl
+    await waitAppReady(admin);
+    await shareFile(admin, shared, user.username);
+    await expectFlash(admin, "freigegeben");
+    await ctx0.close();
+
+    await page.reload();
+    await waitAppReady(page);
+    await openBoard(page);
+    const openCount = page.locator(`${col("open")} .board-col-count`);
+    await expect(page.locator(card(shared))).toBeVisible();
+    await expect(openCount).toHaveText("2");
+
+    // Filter an: die fremde Karte verschwindet, der Zaehler zieht nach
+    await page.locator("#board .switch-label").click();
+    await expect(page.locator(card(shared))).toBeHidden();
+    await expect(page.locator(card(mine))).toBeVisible();
+    await expect(openCount).toHaveText("1");
+
+    // Zustand ueberlebt das Neuladen (localStorage, eigener Schluessel)
+    await page.reload();
+    await waitAppReady(page);
+    await openBoard(page);
+    await expect(page.locator("#board-own-only")).toBeChecked();
+    await expect(page.locator(card(shared))).toBeHidden();
+    await expect(openCount).toHaveText("1");
+
+    // Und der Grenzfall: zieht man die eigene Karte weg, ist „Offen“ SICHTBAR
+    // leer, obwohl dort noch eine ausgeblendete fremde Karte liegt — der
+    // Platzhalter muss trotzdem erscheinen.
+    await dragCardTo(page, mine, "wip");
+    await expect(openCount).toHaveText("0");
+    await expect(page.locator(`${col("open")} .board-empty`)).toBeVisible();
+  });
 });

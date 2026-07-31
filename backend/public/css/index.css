@@ -18,6 +18,23 @@
      .files/.list-footer. */
   --page-pad:22px;
   --page-gap:12px;
+  /* Fensterschatten in der Anmutung von macOS. Der Trick dort ist nicht EIN
+     Schatten, sondern drei uebereinander: ein hauchduenner dunkler Saum direkt
+     an der Kante (zeichnet das Fenster gegen helle Bildbereiche ab), ein
+     kurzer "Kontakt"-Schatten dicht darunter und ein grosser, weit nach unten
+     versetzter Umgebungsschatten, der das Fenster vom Hintergrund abhebt.
+     Das VORDERSTE Fenster wirft deutlich mehr — daran erkennt man bei macOS
+     das aktive Fenster (Key Window). */
+  --win-shadow:
+    0 0 0 .5px rgba(16,24,40,.13),
+    0 2px 5px rgba(16,24,40,.09),
+    0 9px 20px rgba(16,24,40,.11),
+    0 24px 52px rgba(16,24,40,.17);
+  --win-shadow-active:
+    0 0 0 .5px rgba(16,24,40,.17),
+    0 3px 8px rgba(16,24,40,.12),
+    0 15px 32px rgba(16,24,40,.17),
+    0 38px 80px rgba(16,24,40,.30);
 }
 
 *{box-sizing:border-box}
@@ -44,7 +61,7 @@ body{
   max-height:calc(100vh - 112px);overflow:auto;
   background:var(--card);
   border:1px solid var(--line);border-radius:var(--radius);
-  box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
+  box-shadow:var(--win-shadow);
   /* Ein einziges Mass zum Kartenrand — auf ALLEN vier Seiten. Zusammen mit
      den buendigen Aussenkanten der Tabelle (siehe .files th/td :first/:last-
      child) stehen Titel, Spaltenkoepfe, Dateinamen und Fusszeile auf
@@ -59,7 +76,12 @@ body{
    Ohne JS (dann kein Platzieren) sofort sichtbar lassen. */
 body:not(.desk-ready) .page,
 body:not(.desk-ready) .note-desktop{opacity:0}
-.page,.note-desktop{transition:opacity .3s ease}
+.note-desktop{transition:opacity .3s ease}
+.page{transition:opacity .3s ease,box-shadow .22s ease}
+/* Vorderstes Fenster: kraeftigerer Schatten (js/core/window.js vergibt die
+   Klasse beim Stapeln neu). Der weiche Uebergang macht den Wechsel beim
+   Anklicken eines anderen Fensters unaufdringlich. */
+.page.win-active{box-shadow:var(--win-shadow-active)}
 @media (scripting:none){
   body:not(.desk-ready) .page,
   body:not(.desk-ready) .note-desktop{opacity:1}
@@ -146,6 +168,9 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   transition:background .12s ease;
 }
 .board-card:hover{background:rgba(127,127,127,.12)}
+/* vom Filter "Nur eigene Notizen" ausgeblendet — display:flex oben wuerde das
+   UA-hidden sonst aushebeln */
+.board-card[hidden]{display:none}
 .board-card .note-ico{
   width:46px;height:46px;display:block;pointer-events:none;
   filter:drop-shadow(0 1px 3px rgba(16,24,40,.22));
@@ -407,8 +432,10 @@ body:not(.desk-ready) .note-desktop{opacity:0}
        Bildern, wo das Motiv aufhoert */
     repeating-conic-gradient(#f1f3f5 0% 25%, #fff 0% 50%) 50%/18px 18px;
 }
-/* Herunterladen-Knopf im Kopf: gleiche Groesse wie die uebrigen Kopf-Knoepfe */
-#dlg-image-download{width:28px;height:28px;flex:0 0 auto;margin-left:auto}
+/* Knoepfe im Kopf (neuer Tab, Herunterladen): gleiche Groesse wie die uebrigen
+   Kopf-Knoepfe. margin-left:auto am ERSTEN schiebt die ganze Gruppe nach rechts */
+#dlg-image-tab,#dlg-image-download{width:28px;height:28px;flex:0 0 auto}
+#dlg-image-tab{margin-left:auto}
 /* Bearbeiten-Modus: skalierbar ueber eine eigene, unsichtbare Griffecke
    unten rechts (kein CSS resize:both — dessen UA-Marker laesst sich nicht
    ueberall ausblenden). Verschieben am Kopf. Logik in index.js. */
@@ -676,6 +703,10 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 }
 .note-people{display:flex;flex-wrap:wrap;align-items:center;gap:.45em .55em}
 .note-ort{display:flex;align-items:center;gap:.4em}
+/* "Freigegeben von …" — bewusst dieselbe ruhige Pille wie Personen/Ort statt
+   einer eigenen Farbe: die Status-Pillen daneben belegen Blau/Violett/Gruen
+   schon, das Freigabe-Icon davor traegt die Bedeutung */
+.note-shared-by{display:flex;align-items:center;gap:.4em}
 /* place.svg/users.svg: eigenes currentColor-Stylesheet im SVG faerbt sie
    bereits dezent grau (#444) — hier nur Groesse/Ausrichtung, keine Farbe */
 .note-summary-icon{flex:0 0 auto;opacity:.6}
@@ -731,6 +762,19 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .note-desk .note-ico{
   width:46px;height:46px;display:block;pointer-events:none;
   filter:drop-shadow(0 2px 4px rgba(16,24,40,.3));
+}
+/* Freigabe-Overlay am Notiz-Icon (Desktop UND Board): kleines share.svg unten
+   rechts, gleiche Machart wie das Plus der "neu"-Knoepfe (.create-zoom::after).
+   Es sitzt am Wrapper, nicht am Knopf — so bleibt es am Icon kleben, egal wie
+   breit oder hoch der Knopf drumherum gerade ist.
+   ACHTUNG background-size wie beim Plus: share.svg zeichnet nur auf rund zwei
+   Dritteln seiner Flaeche, 12px ergeben also ~8px sichtbares Symbol. */
+.note-ico-wrap{position:relative;display:block}
+.note-shared .note-ico-wrap::after{
+  content:"";position:absolute;right:-3px;bottom:-1px;width:16px;height:16px;
+  border-radius:50%;border:1px solid var(--line);
+  background:#fff url(../img/share.svg) center/12px 12px no-repeat;
+  box-shadow:0 1px 3px rgba(16,24,40,.18);pointer-events:none;
 }
 /* Label als halbtransparenter weisser Chip mit dunklem Text -> lesbar auf
    hellem App-Hintergrund wie auf dunklem (Voltage-)Fensterhintergrund */

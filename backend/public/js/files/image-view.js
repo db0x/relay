@@ -12,6 +12,7 @@ export function bindImageOpen(root) {
   var img = document.getElementById("dlg-image-img");
   var title = document.getElementById("dlg-image-title");
   var dl = document.getElementById("dlg-image-download");
+  var tab = document.getElementById("dlg-image-tab");
 
   root.querySelectorAll(".image-open").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -21,6 +22,7 @@ export function bindImageOpen(root) {
       // voller Groesse mit, obwohl man vielleicht keines ansieht
       img.src = btn.dataset.src;
       dl.href = btn.dataset.download;
+      tab.href = btn.dataset.src; // neuer Tab zeigt dasselbe Bild, nicht den Download
       openDlg(dlg);
     });
   });
