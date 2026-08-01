@@ -121,6 +121,52 @@ test.describe("Bildlaufleisten", () => {
     }
   });
 
+  test("der Notiz-Editor hat eine eigene, sichtbare Leiste", async ({ page }) => {
+    // CodeMirror verwaltet sein Innenleben selbst — OverlayScrollbars kann dort
+    // nicht hinein. Stattdessen sein eigenes Modell (Addon cm-scrollbars.js,
+    // scrollbarStyle:"overlay"); die Optik gleicht index.css an.
+    if (await page.locator("#board.page-min").count()) await page.click("#board-toggle");
+    await page.click("#note-new");
+    await expect(page.locator("#dlg-note")).toBeVisible();
+    await page.click(".CodeMirror");
+    await page.keyboard.press("Control+A");
+    // Kurze Zeilen, aber genug davon: der Editorbereich ist nur rund 170px
+    // hoch. Lange Zeilen zu tippen kostete nur Zeit (jeder Anschlag geht
+    // einzeln durch CodeMirror) und brachte den Test an die 30s-Grenze.
+    const zeilen = [];
+    for (let i = 1; i <= 20; i++) zeilen.push(`Zeile ${i}`);
+    await page.keyboard.type(zeilen.join("\n"));
+
+    // das Addon-Modell ist aktiv (sonst waere es die unsichtbare native)
+    await expect(page.locator(".CodeMirror")).toHaveClass(/CodeMirror-overlayscroll/);
+    const bar = page.locator(".CodeMirror-overlayscroll-vertical");
+    await expect(bar).toBeVisible();
+
+    const mass = await bar.evaluate((el) => {
+      const inner = el.firstElementChild;
+      return {
+        bahn: el.getBoundingClientRect().height,
+        griff: inner.getBoundingClientRect().height,
+        breite: inner.getBoundingClientRect().width,
+      };
+    });
+    expect(mass.griff).toBeGreaterThan(0);
+    expect(mass.griff).toBeLessThan(mass.bahn);
+    // dieselbe Griffbreite wie bei den uebrigen Leisten
+    expect(Math.round(mass.breite)).toBe(6);
+
+    // und er scrollt: nach unten getippt -> Zug nach OBEN muss zurueckfuehren
+    const inner = await page.locator(".CodeMirror-overlayscroll-vertical > div").boundingBox();
+    const vorher = await page.evaluate(() => document.querySelector(".CodeMirror-scroll").scrollTop);
+    expect(vorher).toBeGreaterThan(0);
+    await page.mouse.move(inner.x + inner.width / 2, inner.y + inner.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(inner.x + inner.width / 2, inner.y + inner.height / 2 - 100, { steps: 10 });
+    await page.mouse.up();
+    await expect.poll(() =>
+      page.evaluate(() => document.querySelector(".CodeMirror-scroll").scrollTop)).toBeLessThan(vorher);
+  });
+
   test("die Notiz-Vorschau setzt ihre Bloecke UNTEREINANDER", async ({ page }) => {
     // Regression: OverlayScrollbars setzt seinen Behaelter auf
     // flex-direction:row. Schrieb note-dialog.js das gerenderte Markdown

@@ -121,6 +121,9 @@ test.describe("Benachrichtigungen", () => {
   });
 
   test("mehr als neun Nachrichten zeigen 9+", async ({ page, browser }) => {
+    // Zehn Uploads plus zehn Freigaben, jedes mit eigener Navigation — das
+    // sprengt die 30s-Vorgabe, sobald die Maschine etwas zu tun hat.
+    test.slow();
     // zehn Freigaben -> der Zaehler darf nicht zweistellig werden
     for (let i = 0; i < 10; i++) {
       await uploadFile(page, `${uniqueName("m")}.docx`);

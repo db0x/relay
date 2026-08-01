@@ -120,7 +120,7 @@ export function initNoteDialog(baseUrl) {
 
   function ensureNoteEditor() {
     if (noteCM || !window.CodeMirror) return;
-    noteCM = CodeMirror.fromTextArea(noteText, {
+    var opts = {
       mode: "markdown",
       theme: "github", // eigene Palette in index.css, passend zur Vorschau
       lineWrapping: true,
@@ -128,7 +128,14 @@ export function initNoteDialog(baseUrl) {
         "Ctrl-B": function () { mdActions.bold(); },
         "Ctrl-I": function () { mdActions.italic(); },
       },
-    });
+    };
+    // Eigene Bildlaufleiste statt der nativen (Addon vendor/cm-scrollbars.js,
+    // Optik in index.css) — die native ist auf vielen Systemen unsichtbar,
+    // siehe core/scrollbars.js. Nur setzen, wenn das Addon wirklich da ist:
+    // ein unbekanntes Modell laesst CodeMirror werfen.
+    if (CodeMirror.scrollbarModel && CodeMirror.scrollbarModel.overlay)
+      opts.scrollbarStyle = "overlay";
+    noteCM = CodeMirror.fromTextArea(noteText, opts);
     noteCM.on("change", onNoteChange);
     // Kuerzel wie :) beim Tippen ersetzen — erst jetzt moeglich, der Editor
     // entsteht ja beim ersten Oeffnen des Dialogs

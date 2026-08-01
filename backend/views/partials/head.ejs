@@ -17,6 +17,11 @@
 <link rel="stylesheet" href="<%= base %>/static/vendor/coloris.min.css?v=<%= v %>">
 <script defer src="<%= base %>/static/vendor/coloris.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/vendor/codemirror.min.js?v=<%= v %>"></script>
+<%# CodeMirror bringt seine Bildlaufleiste selbst mit — die eingebaute ist die
+    native und damit dieselbe unsichtbare wie ueberall sonst. Dieses Addon
+    (scrollbarStyle:"overlay", gesetzt in js/notes/note-dialog.js) zeichnet
+    stattdessen eigene Elemente; die Optik gleicht index.css an. %>
+<script defer src="<%= base %>/static/vendor/cm-scrollbars.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/vendor/cm-xml.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/vendor/cm-markdown.min.js?v=<%= v %>"></script>
 <script defer src="<%= base %>/static/vendor/marked.min.js?v=<%= v %>"></script>

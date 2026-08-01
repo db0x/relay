@@ -67,7 +67,6 @@ body{
      child) stehen Titel, Spaltenkoepfe, Dateinamen und Fusszeile auf
      derselben Linie. Abstaende INNERHALB der Karte laufen ueber --page-gap. */
   padding:var(--page-pad);
-  cursor:move; /* leere Bereiche = Greif-Flaeche zum Verschieben */
 }
 /* Beim Laden positioniert index.js Karte UND Notiz-Icons erst per JS. Bis
    dahin bleiben sie unsichtbar und blenden dann zusammen weich ein — so sieht
@@ -115,6 +114,30 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* In Menues und schmalen Dropdowns eine Spur zierlicher */
 .notif-panel .os-scrollbar,.emoji-panel .os-scrollbar{--os-size:10px}
 
+/* Der Notiz-Editor ist der eine Bereich, der KEIN OverlayScrollbars bekommen
+   kann: CodeMirror vermisst und verwaltet sein Innenleben selbst, eine fremde
+   Huelle darin bricht das. Es bringt aber ein eigenes Leisten-Modell mit
+   (vendor/cm-scrollbars.js, scrollbarStyle:"overlay") — hier auf dieselbe
+   Anmutung gebracht, damit im Dialog nicht zwei verschiedene Leisten stehen.
+   Die Strukturregeln (position/z-index) gehoeren zum Addon und muessen sein;
+   sein mitgeliefertes Stylesheet vendoren wir dafuer nicht. */
+.CodeMirror-overlayscroll .CodeMirror-scrollbar-filler,
+.CodeMirror-overlayscroll .CodeMirror-gutter-filler{display:none}
+.CodeMirror-overlayscroll-vertical,
+.CodeMirror-overlayscroll-horizontal{position:absolute;z-index:6}
+/* 6px Griff, 3px vom Rand — dieselben Masse wie --os-size 12 mit 3px Polster */
+.CodeMirror-overlayscroll-vertical{right:3px;top:0;width:6px}
+.CodeMirror-overlayscroll-horizontal{bottom:3px;left:0;height:6px}
+.CodeMirror-overlayscroll-vertical div,
+.CodeMirror-overlayscroll-horizontal div{
+  position:absolute;border-radius:999px;background:rgba(31,41,55,.22);
+  transition:background .12s ease;
+}
+.CodeMirror-overlayscroll-vertical div{right:0;width:100%}
+.CodeMirror-overlayscroll-horizontal div{bottom:0;height:100%}
+.CodeMirror-overlayscroll-vertical:hover div,
+.CodeMirror-overlayscroll-horizontal:hover div{background:rgba(31,41,55,.34)}
+
 /* Titelleiste der Dateiliste: Icon, Titel, Minimieren-Knopf. Zugleich die
    bequemste Greif-Flaeche zum Verschieben (der Knopf ist davon ausgenommen). */
 /* margin:0 — der Abstand UNTER der Trennlinie kommt aus dem padding-top der
@@ -122,7 +145,17 @@ body:not(.desk-ready) .note-desktop{opacity:0}
    darueber und nicht beides addiert wird. */
 .page-head{
   display:flex;align-items:center;gap:.6rem;
-  margin:0;padding:0 0 var(--page-gap);border-bottom:1px solid var(--line-soft);
+  /* Nur HIER wird gezogen (core/window.js), nicht mehr im ganzen Fenster —
+     touch-action:none, damit das auch mit dem Finger geht statt zu scrollen.
+     Der negative obere Rand zieht die Leiste bis an die Fensterkante hoch:
+     der Rahmenstreifen darueber (--page-pad) gehoert optisch zu ihr und soll
+     mitziehen. Das gleiche Mass als padding zurueck -> der Inhalt der Leiste
+     steht unveraendert auf dem Raster, und die Trennlinie bleibt eingerueckt
+     wie die Tabelle darunter. */
+  margin:calc(var(--page-pad) * -1) 0 0;
+  padding:var(--page-pad) 0 var(--page-gap);
+  border-bottom:1px solid var(--line-soft);
+  cursor:move;touch-action:none;
 }
 .page-head img{display:block;flex:0 0 auto}
 .page-title{
@@ -216,7 +249,8 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   text-align:center;pointer-events:none;
 }
 
-/* interaktive Inhalte behalten ihren normalen Cursor (nicht den move-Cursor) */
+/* Bedienelemente behalten ihren Zeiger. Wichtig auch in der Titelleiste: die
+   traegt cursor:move, und ein <button> haette von sich aus gar keinen Zeiger */
 .page a,.page button,.page summary,.page label,.page .fname,.page .crumb{cursor:pointer}
 .page input,.page select,.page textarea{cursor:auto}
 
@@ -226,7 +260,10 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   display:flex;justify-content:space-between;align-items:center;gap:1rem;
   background:var(--card);border-bottom:1px solid var(--line);
   padding:.5rem clamp(16px,4vw,36px);
-  box-shadow:0 1px 3px rgba(16,24,40,.06);
+  /* Derselbe Schatten wie die Fenster — die Leiste liegt ueber allem und soll
+     das auch zeigen. Nicht die Aktiv-Variante: aktiv ist immer genau EIN
+     Fenster, die Leiste steht daneben und nicht darueber. */
+  box-shadow:var(--win-shadow);
 }
 /* Brand + Werkzeugleiste zusammen links; Nutzer bleibt rechts */
 .topbar-left{display:flex;align-items:center;gap:clamp(.6rem,2vw,1.5rem);min-width:0}

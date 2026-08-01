@@ -152,17 +152,18 @@ export function createWindow(config) {
   window.addEventListener("resize", place);
   attachScrollbar(el); // eigene Bildlaufleiste — gilt fuer JEDES Fenster
 
-  // Ziehen aus nicht-interaktiven Flaechen — Klicks auf Inhalte bleiben Klicks.
-  // .os-scrollbar ist die eigene Bildlaufleiste: sie ist ein echtes Element,
-  // ohne diesen Eintrag wuerde das Ziehen des Griffs das Fenster verschieben.
-  var DRAG_SKIP = "a,button,input,select,textarea,label,summary,.os-scrollbar,"
-    + ".fname,.row-menu,.share-badge,.note-open,[data-dialog],[data-create],th .sort";
+  // Gezogen wird NUR an der Titelleiste — wie bei einem echten Fenster und wie
+  // beim Notiz-Dialog (.dialog-note .dialog-head). Frueher war die ganze Karte
+  // Greif-Flaeche; das machte jeden Griff daneben zum versehentlichen Verschieben.
+  //
+  // Die Bildlaufleiste braucht dadurch keine Ausnahme mehr: sie haengt neben
+  // dem Inhalt am Fenster, nicht IN der Titelleiste, und faellt schon durch
+  // die closest()-Pruefung heraus.
+  var DRAG_SKIP = "a,button,input,select,textarea,label,summary,[data-dialog],[data-create]";
   el.addEventListener("pointerdown", function (e) {
     if (e.button !== 0) return;
-    if (e.target.closest(DRAG_SKIP)) return;
-    // Rand rechts freihalten: dort liegt die Bildlaufleiste. Bleibt auch
-    // stehen, falls OverlayScrollbars einmal nicht laedt (dann native Leiste).
-    if (e.clientX > el.getBoundingClientRect().right - 16) return;
+    if (!e.target.closest(".page-head")) return; // nur die Titelleiste zieht
+    if (e.target.closest(DRAG_SKIP)) return;     // Bedienelemente darin nicht
     var r = el.getBoundingClientRect();
     var ox = e.clientX - r.left, oy = e.clientY - r.top, moved = false;
     try { el.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
