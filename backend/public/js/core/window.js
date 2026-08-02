@@ -9,6 +9,10 @@
 //     …Inhalt…
 //   </div>
 // plus ein Umschalter in der Topbar (.view-btn mit aria-pressed).
+//
+// Jedes so erzeugte Fenster bekommt automatisch die eigenen Bildlaufleisten
+// (core/scrollbars.js) — eine neue Ansicht muss sich darum nicht kuemmern.
+import { attachScrollbar } from "./scrollbars.js";
 
 // Untergrenze fuer alle frei platzierten Elemente: unter der Titelleiste,
 // damit nichts hinter ihr verschwindet.
@@ -24,7 +28,16 @@ export function deskMinY() {
 var Z_BASE = 10;
 var stack = [];
 function applyStack() {
-  stack.forEach(function (w, i) { w.style.zIndex = String(Z_BASE + i); });
+  // Zugleich das "aktive" Fenster markieren: das vorderste SICHTBARE. Es
+  // traegt .win-active und wirft damit den kraeftigeren Schatten — wie das
+  // Key Window bei macOS. Eingeklappte Fenster (.page-min) zaehlen nicht mit,
+  // sonst haette manchmal gar keines die Markierung.
+  var top = null;
+  stack.forEach(function (w, i) {
+    w.style.zIndex = String(Z_BASE + i);
+    if (!w.classList.contains("page-min")) top = w;
+  });
+  stack.forEach(function (w) { w.classList.toggle("win-active", w === top); });
 }
 function raise(el) {
   var i = stack.indexOf(el);
@@ -102,13 +115,16 @@ export function createWindow(config) {
     saveLayout(true);
     el.classList.add("page-min");
     syncToggle();
+    applyStack(); // das aktive Fenster ist jetzt ein anderes
   }
 
   function restore() {
     if (!isMinimized()) return;
     el.classList.remove("page-min");
     syncToggle();
-    raise(el); // wiederhergestellt heisst: nach vorn, nicht hinter andere
+    raise(el);      // wiederhergestellt heisst: nach vorn, nicht hinter andere
+    applyStack();   // raise() steigt aus, wenn es schon oben lag — die
+                    // .win-active-Markierung muss trotzdem neu gesetzt werden
 
     place(); // Bildschirm koennte inzwischen kleiner sein -> neu einpassen
     saveLayout(false);
@@ -134,15 +150,20 @@ export function createWindow(config) {
 
   place();
   window.addEventListener("resize", place);
+  attachScrollbar(el); // eigene Bildlaufleiste — gilt fuer JEDES Fenster
 
-  // Ziehen aus nicht-interaktiven Flaechen — Klicks auf Inhalte bleiben Klicks
-  var DRAG_SKIP = "a,button,input,select,textarea,label,summary,"
-    + ".fname,.row-menu,.share-badge,.note-open,[data-dialog],[data-create],th .sort";
+  // Gezogen wird NUR an der Titelleiste — wie bei einem echten Fenster und wie
+  // beim Notiz-Dialog (.dialog-note .dialog-head). Frueher war die ganze Karte
+  // Greif-Flaeche; das machte jeden Griff daneben zum versehentlichen Verschieben.
+  //
+  // Die Bildlaufleiste braucht dadurch keine Ausnahme mehr: sie haengt neben
+  // dem Inhalt am Fenster, nicht IN der Titelleiste, und faellt schon durch
+  // die closest()-Pruefung heraus.
+  var DRAG_SKIP = "a,button,input,select,textarea,label,summary,[data-dialog],[data-create]";
   el.addEventListener("pointerdown", function (e) {
     if (e.button !== 0) return;
-    if (e.target.closest(DRAG_SKIP)) return;
-    // interne Scrollleiste nicht als Ziehen kapern
-    if (e.clientX > el.getBoundingClientRect().right - 16) return;
+    if (!e.target.closest(".page-head")) return; // nur die Titelleiste zieht
+    if (e.target.closest(DRAG_SKIP)) return;     // Bedienelemente darin nicht
     var r = el.getBoundingClientRect();
     var ox = e.clientX - r.left, oy = e.clientY - r.top, moved = false;
     try { el.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }

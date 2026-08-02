@@ -7,7 +7,8 @@
   <% desktopNotes.forEach(function(n){ %>
   <%# note-colored + --note-color nur bei eigener Farbe; sonst bleibt es beim
       Standard-Pink aus dem <symbol>. note-dark kippt die Ecke auf "aufhellen" %>
-  <button type="button" class="note-open note-desk<%= n.color ? " note-colored" : "" %><%= n.dark ? " note-dark" : "" %><%= n.status === "closed" ? " note-desk-done" : "" %>"
+  <%# note-shared: mir freigegebene Notiz -> share.svg als Overlay am Icon %>
+  <button type="button" class="note-open note-desk<%= n.isOwner ? "" : " note-shared" %><%= n.color ? " note-colored" : "" %><%= n.dark ? " note-dark" : "" %><%= n.status === "closed" ? " note-desk-done" : "" %>"
           data-owner="<%= n.owner %>"
           data-rel="<%= n.relpath %>" data-label="<%= n.label %>"
           data-canedit="<%= n.canedit ? 1 : 0 %>"
@@ -15,7 +16,11 @@
           <% if (n.color) { %>style="--note-color:<%= n.color %>"<% } %>
           <% if (n.pos) { %>data-x="<%= n.pos.x %>" data-y="<%= n.pos.y %>"<% } %>
           aria-label="Notiz: <%= n.label %>">
-    <svg class="note-ico" width="46" height="46" aria-hidden="true" focusable="false"><use href="#note-ico"/></svg>
+    <%# Der Wrapper traegt das Freigabe-Overlay (::after) — so haengt es am
+        Icon selbst und nicht an der Knopfgeometrie %>
+    <span class="note-ico-wrap">
+      <svg class="note-ico" width="46" height="46" aria-hidden="true" focusable="false"><use href="#note-ico"/></svg>
+    </span>
     <span class="note-desk-label"><%= n.label %></span>
   </button>
   <% }); %>

@@ -8,27 +8,25 @@
 
     Ohne gemerkte Lage startet das Board EINGEKLAPPT. Offen wuerde es sich
     ueber die Dateiliste legen und deren Zeilen blockieren (beide Fenster sind
-    breiter als ein halber Bildschirm) — die Hauptansicht beim ersten Laden zu
-    verdecken waere schlimmer, als "Neue Notiz" einen Klick entfernt zu haben.
-    Wer das Board oeffnet, findet es beim naechsten Mal offen vor. %>
+    breiter als ein halber Bildschirm). Wer das Board oeffnet, findet es beim
+    naechsten Mal offen vor. %>
 <% const boardCols = [
      { key: "open", label: "Offen" },
      { key: "wip", label: "In Arbeit" },
      { key: "closed", label: "Erledigt" },
-   ]; %>
+   ];
+   // Der Filter in der Fusszeile hat nur einen Sinn, wenn ueberhaupt fremde
+   // (mir freigegebene) Notizen dabei sind — genau wie in der Dateiliste.
+   const boardForeign = boardCols.some(function(c){
+     return boardNotes[c.key].some(function(n){ return !n.isOwner; });
+   }); %>
 <div class="page board<%= !boardLayout || boardLayout.minimized ? " page-min" : "" %>" id="board"
      <% if (boardLayout) { %>data-x="<%= boardLayout.x %>" data-y="<%= boardLayout.y %>"<% } %>>
   <header class="page-head">
     <img src="<%= base %>/static/img/board.svg" alt="" width="22" height="22">
     <h2 class="page-title">Notiz-Board</h2>
-    <%# "Neue Notiz" gehoert hierher: Notizen sind der Inhalt dieser Ansicht.
-        Der Dialog dahinter haengt an der id note-new (js/notes/note-dialog.js). %>
-    <div class="create-group" role="group" aria-label="Neue Notiz">
-      <button type="button" class="create-btn" id="note-new"
-              data-tip="Neue Notiz" aria-label="Neue Notiz">
-        <span class="create-zoom"><img src="<%= base %>/static/img/note.svg" alt="" width="48" height="48"></span>
-      </button>
-    </div>
+    <%# "Neue Notiz" ist in das Anwendungs-Menue am Logo umgezogen
+        (partials/topbar.ejs). %>
     <button type="button" class="iconbtn page-min-btn page-head-end" id="board-minimize"
             data-tip="Minimieren" aria-label="Notiz-Board minimieren">
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
@@ -49,24 +47,41 @@
       <div class="board-drop">
         <% boardNotes[col.key].forEach(function(n){ %>
         <button type="button"
-                class="note-open board-card<%= n.color ? " note-colored" : "" %><%= n.dark ? " note-dark" : "" %><%= n.status === "closed" ? " note-desk-done" : "" %>"
+                <%# card-foreign: Ziel des Filters unten. note-shared: share.svg
+                    als Overlay am Icon (dieselbe Bedingung, aber zwei Aufgaben —
+                    die Desktop-Icons haben nur das Overlay, keinen Filter) %>
+                class="note-open board-card<%= n.isOwner ? "" : " card-foreign note-shared" %><%= n.color ? " note-colored" : "" %><%= n.dark ? " note-dark" : "" %><%= n.status === "closed" ? " note-desk-done" : "" %>"
                 data-owner="<%= n.owner %>" data-rel="<%= n.relpath %>"
                 data-label="<%= n.label %>" data-canedit="<%= n.canedit ? 1 : 0 %>"
                 data-status="<%= n.status %>" data-due="<%= n.dueDate %>"
                 <% if (n.color) { %>style="--note-color:<%= n.color %>"<% } %>
                 aria-label="Notiz: <%= n.label %>">
-          <svg class="note-ico" width="46" height="46" aria-hidden="true" focusable="false"><use href="#note-ico"/></svg>
+          <span class="note-ico-wrap">
+            <svg class="note-ico" width="46" height="46" aria-hidden="true" focusable="false"><use href="#note-ico"/></svg>
+          </span>
           <span class="board-card-label"><%= n.label %></span>
           <% if (n.isTodo && n.dueLabel) { %>
           <span class="badge badge-todo<%= n.overdue ? " badge-todo-over" : "" %>"><%= n.dueLabel %></span>
           <% } %>
         </button>
         <% }); %>
-        <% if (!boardNotes[col.key].length) { %>
-        <p class="board-empty">nichts hier</p>
-        <% } %>
+        <%# Platzhalter IMMER mitliefern, nur ausgeblendet: eine Spalte kann
+            auch nachtraeglich leer werden — durch Ziehen oder weil der Filter
+            unten alle fremden Karten ausblendet. js/board.js schaltet ihn um. %>
+        <p class="board-empty"<%= boardNotes[col.key].length ? " hidden" : "" %>>nichts hier</p>
       </div>
     </section>
     <% }); %>
   </div>
+
+  <% if (boardForeign) { %>
+  <%# Fusszeile mit Filter — dasselbe Muster wie unter der Dateiliste %>
+  <footer class="list-footer">
+    <label class="switch-label">
+      <input type="checkbox" id="board-own-only">
+      <span class="switch-ui" aria-hidden="true"></span>
+      <span class="switch-text">Nur eigene Notizen</span>
+    </label>
+  </footer>
+  <% } %>
 </div>

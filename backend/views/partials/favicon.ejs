@@ -1,0 +1,9 @@
+<%# Favicon — dasselbe relay.svg wie in der Titelleiste und auf der Anmeldeseite.
+    Als SVG, damit es in jeder Groesse scharf bleibt (Tab, Lesezeichen, Verlauf).
+    Eingebunden in ALLEN vier Seitenkoepfen: head.ejs (Startseite), login.ejs,
+    edit.ejs und maintenance.ejs — sonst faellt der Editor-Tab aus der Reihe.
+
+    Das PNG daneben ist fuer den iOS-Startbildschirm: dort wird kein SVG
+    genutzt und der Hintergrund muss deckend sein. %>
+<link rel="icon" href="<%= base %>/static/img/relay.svg?v=<%= v %>" type="image/svg+xml">
+<link rel="apple-touch-icon" href="<%= base %>/static/img/apple-touch-icon.png?v=<%= v %>">

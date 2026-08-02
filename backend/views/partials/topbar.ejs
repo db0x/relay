@@ -1,10 +1,92 @@
 <header class="topbar">
     <div class="topbar-left">
-    <%# Klick auf Logo/Name fuehrt zurueck zur Startseite ("Meine Dateien") %>
+    <%# Logo und Name sind zwei verschiedene Dinge:
+        das Logo oeffnet das Anwendungs-Menue, der Name laedt die Startseite.
+        Beide stehen eng beieinander (.brand-group) — der grosszuegige Abstand
+        aus .topbar-left gilt erst zur Werkzeugleiste dahinter. %>
+    <div class="brand-group">
+    <div class="menu app-menu">
+      <button type="button" class="brand-btn menu-btn" id="app-menu-btn"
+              aria-haspopup="true" aria-expanded="false"
+              data-tip="Anwendungen" aria-label="Anwendungen">
+        <img src="<%= base %>/static/img/relay.svg" alt="" width="28" height="28">
+      </button>
+      <%# Je Anwendung eine Gruppe mit ihren Aktionen als 48px-Icons. Die
+          Knoepfe tragen dieselben Haken wie die in den Fenster-Titelleisten
+          (data-create bzw. .note-new) — damit greifen die vorhandenen Handler
+          aus js/files/create-file.js und js/notes/note-dialog.js ohne
+          Zusatzcode. Bewusst OHNE das "+"-Overlay der Titelleisten-Icons:
+          hier steht die Anwendung im Vordergrund, nicht das Anlegen. %>
+      <div class="menu-panel app-panel" id="app-panel" hidden>
+        <%# Suche ueber alle sichtbaren Dokumente (eigene + freigegebene).
+            Die Vorschlaege holt js/search.js von GET /search; die Treffer
+            tragen dieselben Haken wie die Zeilen der Dateiliste
+            (.note-open/.image-open bzw. ein /edit-Link) und werden darum von
+            denselben Handlern geoeffnet. %>
+        <div class="app-search">
+          <img class="app-search-icon" src="<%= base %>/static/img/search.svg"
+               alt="" width="18" height="18">
+          <input type="search" class="app-search-input" id="app-search"
+                 placeholder="Suchen" autocomplete="off" spellcheck="false"
+                 role="combobox" aria-expanded="false" aria-controls="app-search-results"
+                 aria-label="Dokumente suchen">
+        </div>
+        <%# Drei Ebenen, jede mit einer Aufgabe:
+            .app-search-out    faehrt die Hoehe auf und zu (Uebergang, js setzt
+                               die Klasse) — die Panelbreite bleibt davon fest
+            .app-search-scroll traegt die Bildlaufleiste. In einen Behaelter mit
+                               eigener Leiste darf man NICHT hineinschreiben
+                               (Grundregel in js/core/scrollbars.js) …
+            <ul>               … darum wird nur diese von js/search.js befuellt %>
+        <div class="app-search-out" id="app-search-out">
+          <div class="app-search-scroll">
+            <ul class="app-search-results" id="app-search-results" role="listbox" hidden></ul>
+            <p class="app-search-empty" id="app-search-empty" hidden>Nichts gefunden.</p>
+          </div>
+        </div>
+
+        <section class="app-group">
+          <h3 class="app-group-title">
+            <img src="<%= base %>/static/img/onlyoffice.svg" alt="" width="16" height="16">
+            <span>OnlyOffice</span>
+          </h3>
+          <div class="app-icons">
+            <button type="button" class="app-btn" data-create="docx"
+                    data-tip="Neues Textdokument" aria-label="Neues Textdokument">
+              <img src="<%= base %>/static/img/docx.svg" alt="" width="48" height="48">
+              <span class="app-label">Textdokument</span>
+            </button>
+            <button type="button" class="app-btn" data-create="xlsx"
+                    data-tip="Neue Tabelle" aria-label="Neue Tabelle">
+              <img src="<%= base %>/static/img/xlsx.svg" alt="" width="48" height="48">
+              <span class="app-label">Tabelle</span>
+            </button>
+            <button type="button" class="app-btn" data-create="pptx"
+                    data-tip="Neue Präsentation" aria-label="Neue Präsentation">
+              <img src="<%= base %>/static/img/pptx.svg" alt="" width="48" height="48">
+              <span class="app-label">Präsentation</span>
+            </button>
+          </div>
+        </section>
+        <section class="app-group">
+          <h3 class="app-group-title">
+            <img src="<%= base %>/static/img/relay.svg" alt="" width="16" height="16">
+            <span>Notizen</span>
+          </h3>
+          <div class="app-icons">
+            <button type="button" class="app-btn note-new"
+                    data-tip="Neue Notiz" aria-label="Neue Notiz">
+              <img src="<%= base %>/static/img/note.svg" alt="" width="48" height="48">
+              <span class="app-label">Notiz</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
     <a class="brand" href="<%= base %>/" data-tip="Zur Startseite" aria-label="Zur Startseite">
-      <img src="<%= base %>/static/img/logo.svg" alt="" width="28" height="28">
       <span><%= appName %></span>
     </a>
+    </div><%# Ende .brand-group %>
     <%# Werkzeugleiste: nur noch die Ansicht-Umschalter. Alles, was auf EINE
         Ansicht wirkt (neue Datei, Hochladen, Neuer Ordner, neue Notiz), sitzt
         in der Titelleiste des jeweiligen Fensters — siehe file-list.ejs und
@@ -33,12 +115,64 @@
     </section>
     </div>
     <div class="user">
-      <% if (hasAvatar) { %>
-      <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="32" height="32">
-      <% } %>
+      <%# Avatar ist zugleich der Zugang zu den Nachrichten — als MENUE, genau
+          wie der Kebab daneben: dieselbe .menu/.menu-btn/.menu-panel-Struktur,
+          damit js/core/dialogs.js (bindMenuButtons) das Oeffnen, Schliessen
+          per Escape und den Klick daneben ohne Zusatzcode uebernimmt.
+          Die Glocke erscheint nur, wenn etwas offen ist; ab 10 steht "9+". %>
+      <div class="menu notif-menu">
+        <button type="button" class="avatar-btn menu-btn" id="notif-btn"
+                aria-haspopup="true" aria-expanded="false"
+                data-tip="<%= notifications.length ? "Neue Nachrichten" : "Nachrichten" %>"
+                aria-label="Nachrichten anzeigen">
+          <% if (hasAvatar) { %>
+          <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="32" height="32">
+          <% } else { %>
+          <span class="avatar avatar-initial"><%= (user || me).trim().charAt(0).toUpperCase() %></span>
+          <% } %>
+          <span class="notif-badge" id="notif-badge"
+                <%= notifications.length ? "" : "hidden" %>>
+            <img src="<%= base %>/static/img/bell.svg" alt="" width="16" height="16">
+            <span class="notif-count" id="notif-count"><%= notifications.length > 9 ? "9+" : notifications.length %></span>
+          </span>
+        </button>
+
+        <div class="menu-panel notif-panel" id="notif-panel" hidden>
+          <div class="notif-head">
+            <img src="<%= base %>/static/img/share.svg" alt="" width="16" height="16">
+            <span>Nachrichten</span>
+          </div>
+          <ul class="notif-list" id="notif-list">
+            <% notifications.forEach(function(n){ %>
+            <li>
+              <button type="button" class="menu-item notif-item" data-id="<%= n.id %>"
+                      data-owner="<%= n.owner %>" data-rel="<%= n.relpath %>">
+                <span class="notif-text">
+                  <strong><%= n.ownerName %></strong> hat
+                  „<%= n.label %>“ für dich freigegeben<% if (n.perm === "view") { %> (nur lesen)<% } %>
+                </span>
+                <span class="notif-when"><%= n.when %></span>
+              </button>
+            </li>
+            <% }); %>
+          </ul>
+          <p class="notif-empty muted" id="notif-empty"<%= notifications.length ? " hidden" : "" %>>
+            Keine neuen Nachrichten.
+          </p>
+          <%# Alles wegraeumen — Rueckfrage, weil dabei geloescht wird %>
+          <form action="<%= base %>/notifications/read-all" method="post"
+                data-confirm="Alle Nachrichten als gelesen markieren? Sie werden dabei entfernt.">
+            <button class="menu-item notif-read-all" id="notif-read-all"
+                    <%= notifications.length ? "" : "disabled" %>>Alle als gelesen markieren</button>
+          </form>
+        </div>
+      </div>
       <span class="uname"><%= user %></span>
       <div class="menu">
-        <button type="button" class="iconbtn menu-btn" aria-haspopup="true"
+        <%# id fuers gezielte Ansprechen: seit den Nachrichten gibt es zwei
+            .menu-btn in der Titelleiste (Avatar und dieser Kebab). %>
+        <button type="button" class="iconbtn menu-btn" id="main-menu-btn"
+                aria-haspopup="true"
                 aria-expanded="false" aria-label="Menü" data-tip="Menü">
           <img src="<%= base %>/static/img/open-menu.svg" alt="" width="16" height="16">
         </button>

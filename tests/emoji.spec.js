@@ -5,7 +5,7 @@
 // darum taucht es auch im Titel, in der Liste und auf dem Board auf.
 const { test, expect } = require("@playwright/test");
 const {
-  loginAsAdmin, login, logout, createUser, uniqueName, fileRow, waitAppReady,
+  loginAsAdmin, login, logout, createUser, uniqueName, fileRow, waitAppReady, openApp,
 } = require("./helpers/relay");
 
 // Inhalt des Editors auslesen (CodeMirror haelt ihn, nicht die Textarea)
@@ -16,7 +16,7 @@ function editorText(page) {
 // Notiz-Dialog oeffnen und den Editor leeren
 async function openEmptyEditor(page) {
   if (await page.locator("#board.page-min").count()) await page.click("#board-toggle");
-  await page.click("#note-new");
+  await openApp(page, ".note-new");
   await expect(page.locator("#dlg-note")).toBeVisible();
   await page.click(".CodeMirror");
   await page.keyboard.press("Control+A");

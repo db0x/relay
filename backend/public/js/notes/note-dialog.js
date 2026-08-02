@@ -4,7 +4,7 @@
 // "# Titel"-Vorlage; Klick auf eine Notiz laedt deren Inhalt.
 // Speichern erst bei Aenderung gegenueber dem Oeffnen (eigene Logik statt
 // dialog-submit-Waechter: der Ausgangszustand wechselt mit jedem Oeffnen).
-import { openDlg } from "../core/dialogs.js";
+import { openDlg, closeMenus } from "../core/dialogs.js";
 import { createPeopleChips } from "./people-chips.js";
 import { NOTE_COLOR_DEFAULT, noteColorValue, paintNoteIcon, initNoteColorPicker } from "./color.js";
 import { renderNoteSummary } from "./summary.js";
@@ -19,7 +19,9 @@ export function initNoteDialog(baseUrl) {
   var noteText = noteForm.querySelector("textarea");
   var noteSave = document.getElementById("note-save");
   var noteTitleEl = document.getElementById("dlg-note-title");
-  var notePreview = document.getElementById("note-preview");
+  // NICHT der Scroll-Behaelter #note-preview, sondern die Ebene darin: dessen
+  // Innenleben gehoert der Bildlaufleiste (siehe Kommentar im Template)
+  var notePreview = document.getElementById("note-preview-body");
   var noteStatus = document.getElementById("note-status");
   var noteCreateAction = noteForm.action; // .../notes/create — vor jeder openNote-Mutation gemerkt
   var noteBaseline = "";
@@ -118,7 +120,7 @@ export function initNoteDialog(baseUrl) {
 
   function ensureNoteEditor() {
     if (noteCM || !window.CodeMirror) return;
-    noteCM = CodeMirror.fromTextArea(noteText, {
+    var opts = {
       mode: "markdown",
       theme: "github", // eigene Palette in index.css, passend zur Vorschau
       lineWrapping: true,
@@ -126,7 +128,14 @@ export function initNoteDialog(baseUrl) {
         "Ctrl-B": function () { mdActions.bold(); },
         "Ctrl-I": function () { mdActions.italic(); },
       },
-    });
+    };
+    // Eigene Bildlaufleiste statt der nativen (Addon vendor/cm-scrollbars.js,
+    // Optik in index.css) — die native ist auf vielen Systemen unsichtbar,
+    // siehe core/scrollbars.js. Nur setzen, wenn das Addon wirklich da ist:
+    // ein unbekanntes Modell laesst CodeMirror werfen.
+    if (CodeMirror.scrollbarModel && CodeMirror.scrollbarModel.overlay)
+      opts.scrollbarStyle = "overlay";
+    noteCM = CodeMirror.fromTextArea(noteText, opts);
     noteCM.on("change", onNoteChange);
     // Kuerzel wie :) beim Tippen ersetzen — erst jetzt moeglich, der Editor
     // entsteht ja beim ersten Oeffnen des Dialogs
@@ -352,15 +361,18 @@ export function initNoteDialog(baseUrl) {
     panel: document.getElementById("emoji-panel"),
   });
 
-  var noteNew = document.getElementById("note-new");
-  if (noteNew) {
-    noteNew.addEventListener("click", function () {
+  // Alle "Neue Notiz"-Ausloeser: der Knopf im Board-Kopf und der Eintrag im
+  // Anwendungs-Menue der Topbar. Beide tragen .note-new — ueber die Klasse
+  // statt ueber eine id, weil es mehr als einen gibt.
+  document.querySelectorAll(".note-new").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      closeMenus(); // falls der Ausloeser im Anwendungs-Menue sitzt
       openNote("Neue Notiz", "# Titel\n\n", noteCreateAction, true, true);
       // "Titel" vorselektieren: lostippen ersetzt das Platzhalterwort
       if (noteCM) noteCM.setSelection({ line: 0, ch: 2 }, { line: 0, ch: 7 });
       else noteText.setSelectionRange(2, 7);
     });
-  }
+  });
 
   return { openNote: openNote, knownByUsername: people.knownByUsername };
 }

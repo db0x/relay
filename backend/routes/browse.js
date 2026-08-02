@@ -11,6 +11,7 @@ const doclang = require("../doclang");
 const settings = require("../settings");
 const shares = require("../shares");
 const notemeta = require("../notemeta");
+const notifications = require("../notifications");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
 const { BLANKS, BASE, DOCTYPE, IMAGE_TYPES, MAX_UPLOAD_MB } = require("../config");
@@ -44,10 +45,14 @@ function isImageName(name) {
 // wird nur der Titel; alle Links/Aktionen laufen weiter ueber den vollen Namen
 const NOTE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.*)\.md$/i;
 function labelFromName(name) {
-  const m = path.basename(name).match(NOTE_RE);
+  // Immer nur der Dateiname: hier kommt teils der volle relative Pfad an
+  // (Datei in einem Unterordner). Ohne basename stand in der Liste
+  // "Steuer/Nebenkosten.xlsx" statt "Nebenkosten.xlsx".
+  const base = path.basename(name);
+  const m = base.match(NOTE_RE);
   // Unterstriche stammen aus secureFilename (Leerzeichen im Titel) —
   // fuer die Anzeige wieder zu Leerzeichen
-  return m ? (m[1].replace(/_/g, " ") || "Notiz") : name;
+  return m ? (m[1].replace(/_/g, " ") || "Notiz") : base;
 }
 
 // Anzeigename einer Notiz. Der Dateiname traegt nur ASCII (secureFilename),
@@ -106,6 +111,7 @@ function desktopNotesFor(me) {
     if (!/\.md$/i.test(filename) || !fs.existsSync(pathFor(owner, filename))) return;
     out.push({
       owner, relpath: filename, label: labelFor(filename, owner, title), canedit,
+      isOwner: owner === me, // fremde Notizen bekommen das Freigabe-Overlay
       pos: posOf(owner, filename), color: color || "", dark: notemeta.isDark(color),
       status: notemeta.normalizeStatus(status),
     });
@@ -139,6 +145,7 @@ function boardNotesFor(me) {
     const [y, mo, d] = (m.dueDate || "").split("-");
     cols[m.status].push({
       owner, relpath: filename, label: labelFor(filename, owner, m.title), canedit,
+      isOwner: owner === me, // fuer den Filter "Nur eigene Notizen"
       color: m.color || "", dark: notemeta.isDark(m.color), status: m.status,
       isTodo: m.isTodo, dueDate: m.dueDate || "",
       dueLabel: y ? `${d}.${mo}.${y}` : "",
@@ -159,6 +166,27 @@ function boardNotesFor(me) {
     return byName(a, b);
   }));
   return cols;
+}
+
+// Offene Nachrichten fuer die Kopfzeile: wer hat mir was wann freigegeben.
+// Zeigt eine Nachricht auf etwas, das es nicht mehr gibt oder worauf der
+// Zugriff entzogen wurde, wird sie hier gleich entsorgt — so bleibt die Liste
+// auch dann sauber, wenn eine Aufraeum-Stelle einmal vergessen wird.
+function notificationsFor(me) {
+  return notifications.listFor(me).map((n) => {
+    if (!accessFor(me, n.owner, n.filename)) {
+      notifications.markRead(me, n.id);
+      return null;
+    }
+    const u = users.get(n.owner);
+    return {
+      id: n.id, owner: n.owner, relpath: n.filename,
+      ownerName: u ? u.display_name : n.owner,
+      label: labelFor(n.filename, n.owner),
+      perm: n.perm,
+      when: formatDate(n.created),
+    };
+  }).filter(Boolean);
 }
 
 // zurueck in den Ordner, aus dem eine Aktion kam (Formulare schicken `dir` mit)
@@ -298,6 +326,8 @@ router.get("/", loginRequired, (req, res) => {
     // plus die gemerkte Fensterlage (Default: eingeklappt, siehe board.ejs)
     boardNotes: boardNotesFor(me),
     boardLayout: notemeta.getLayout(me, "board"),
+    // offene Benachrichtigungen (Glocke am Avatar + Uebersicht)
+    notifications: notificationsFor(me),
     allDirs: walkDirs(userDir).sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" })),
     user: req.session.name,
     me,
@@ -362,6 +392,23 @@ router.post("/desktop/layout", loginRequired, express.json(), (req, res) => {
   res.sendStatus(204);
 });
 
+// --- Benachrichtigungen ----------------------------------------------
+// Gelesen = geloescht (Nutzerwunsch). Beide Routen wirken ausschliesslich auf
+// die Nachrichten des angemeldeten Nutzers — die Pruefung steckt in
+// notifications.js (username im WHERE).
+router.post("/notifications/read", loginRequired, express.json(), (req, res) => {
+  const id = Number((req.body || {}).id);
+  if (!Number.isInteger(id)) return res.sendStatus(400);
+  notifications.markRead(req.session.user, id);
+  res.sendStatus(204);
+});
+
+router.post("/notifications/read-all", loginRequired, (req, res) => {
+  const n = notifications.markAllRead(req.session.user);
+  req.flash("ok", n ? `${n} Nachricht(en) als gelesen markiert.` : "Keine Nachrichten.");
+  res.redirect(`${BASE}/`);
+});
+
 // --- Freigaben verwalten (nur eigene Dateien) ------------------------
 router.post("/share/*", loginRequired, (req, res) => {
   const me = req.session.user;
@@ -375,6 +422,8 @@ router.post("/share/*", loginRequired, (req, res) => {
     req.flash("err", "Unbekannter Nutzer.");
   } else {
     shares.share(me, fid, target, perm);
+    // Empfaenger beim naechsten Laden darueber informieren
+    notifications.add(target, me, fid, perm);
     const who = users.get(target).display_name;
     const what = perm === "edit" ? "bearbeiten" : "nur lesen";
     req.flash("ok", `„${fid}“ für ${who} freigegeben (${what}).`);
@@ -386,6 +435,9 @@ router.post("/unshare/*", loginRequired, (req, res) => {
   const me = req.session.user;
   const fid = req.params[0];
   const target = (req.body.target || "").trim();
+  // Nachricht zuerst weg: sie zeigte sonst auf etwas, das der Empfaenger
+  // nicht mehr sehen darf
+  notifications.removeForShare(me, fid, target);
   if (shares.unshare(me, fid, target)) {
     const u = users.get(target);
     req.flash("ok", `Freigabe von „${fid}“ für ${u ? u.display_name : target} entzogen.`);
@@ -401,6 +453,14 @@ router.post("/create", loginRequired, (req, res) => {
   const ext = req.body.ext;
   const cur = securePath(req.body.dir || "");
   if (!BLANKS[ext] || cur === null) return res.sendStatus(400);
+  // Der Zielordner kommt aus einer Auswahl im Dialog und muss darum nicht mehr
+  // der Ordner sein, den man gerade ansieht — er kann inzwischen geloescht
+  // worden sein (anderer Tab, anderes Geraet). Ohne diese Pruefung liefe das
+  // copyFileSync unten in ENOENT und der Nutzer saehe einen Serverfehler.
+  if (cur && !fs.existsSync(pathFor(req.session.user, cur))) {
+    req.flash("err", `Den Ordner „${cur}“ gibt es nicht mehr.`);
+    return res.redirect(`${BASE}/`);
+  }
   const base = secureFilename(`${name}.${ext}`);
   if (!name || base === `.${ext}`) {
     req.flash("err", "Bitte einen Dateinamen angeben.");
@@ -419,6 +479,75 @@ router.post("/create", loginRequired, (req, res) => {
   const lang = req.body.lang || "";
   doclang.apply(p, ext, settings.get("hidden_langs", []).includes(lang) ? "" : lang);
   res.redirect(`${BASE}/edit/${encodeURIComponent(req.session.user)}/${encPath(fid)}`);
+});
+
+// --- Suche ------------------------------------------------------------
+// Autovervollstaendigung im Anwendungs-Menue: sucht in den ANZEIGENAMEN aller
+// Dateien, die der Anfragende sehen darf — eigene (ueber alle Ordner hinweg)
+// plus die ihm freigegebenen. Nie darueber hinaus: die Liste wird aus
+// dirFor(me) und shares.listForUser(me) gebaut, ein fremder Pfad kann also gar
+// nicht erst hineingeraten.
+//
+// Die Antwort traegt je Treffer schon alles, was die Oberflaeche zum Oeffnen
+// braucht — und zwar in denselben Feldern, die auch die Dateiliste benutzt
+// (js/search.js haengt daraus .note-open/.image-open bzw. einen /edit-Link).
+
+// Vergleichsform: Kleinschreibung ohne diakritische Zeichen, damit
+// "prasentation" auch "Präsentation" findet.
+function searchNorm(s) {
+  return s.normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // zerlegte Akzente wegwerfen: ä -> a
+    .replace(/ß/g, "ss")            // wird nicht zerlegt, aber gerne "ss" getippt
+    .toLowerCase();
+}
+
+const SEARCH_MAX = 12;
+
+router.get("/search", loginRequired, (req, res) => {
+  const me = req.session.user;
+  const q = searchNorm(String(req.query.q || "").trim());
+  if (!q) return res.json([]);
+
+  const hits = [];
+  const seen = new Set();
+  const add = (owner, relpath, ownerName, canedit) => {
+    const key = `${owner}/${relpath}`;
+    if (seen.has(key)) return;
+    const abs = pathFor(owner, relpath);
+    if (!fs.existsSync(abs)) return;          // verwaiste Freigabe
+    const name = path.basename(relpath);
+    const label = labelFor(relpath, owner);
+    const pos = searchNorm(label).indexOf(q);
+    if (pos === -1) return;
+    seen.add(key);
+    const dir = path.dirname(relpath);
+    hits.push({
+      owner, relpath, label,
+      isNote: /\.md$/i.test(name),
+      isImage: isImageName(name),
+      icon: iconFor(name),
+      canedit,
+      // Woher stammt der Treffer? Bei eigenen der Ordner, bei fremden der
+      // Besitzer — beides beantwortet "welches von den gleichnamigen ist es?"
+      hint: ownerName || (dir === "." ? "" : dir),
+      // Treffer am Wortanfang zuerst, dann alphabetisch
+      _pos: pos,
+    });
+  };
+
+  walkFiles(dirFor(me)).forEach((rel) => add(me, rel, "", true));
+  shares.listForUser(me).forEach((s) => add(s.owner, s.filename, s.owner_name, s.perm === "edit"));
+
+  hits.sort((a, b) => a._pos - b._pos
+    || a.label.localeCompare(b.label, "de", { sensitivity: "base" }));
+  res.json(hits.slice(0, SEARCH_MAX).map((h) => {
+    delete h._pos;
+    // Links erst hier bauen — so steht die Pfadkodierung an genau einer Stelle
+    const p = `${encodeURIComponent(h.owner)}/${encPath(h.relpath)}`;
+    return h.isImage
+      ? { ...h, src: `${BASE}/image/${p}`, download: `${BASE}/download/${p}` }
+      : (h.isNote ? h : { ...h, href: `${BASE}/edit/${p}` });
+  }));
 });
 
 // neuer Unterordner im aktuellen Ordner
@@ -474,6 +603,7 @@ router.post("/move/*", loginRequired, (req, res) => {
   } else {
     fs.renameSync(pathFor(me, fid), pathFor(me, dest));
     shares.rename(me, fid, dest);
+    notifications.rename(me, fid, dest);
     notemeta.rename(me, fid, dest);
     req.flash("ok", `„${base}“ nach „${to || "Meine Dateien"}“ verschoben.`);
   }
@@ -518,7 +648,8 @@ router.post("/delete/:owner/*", loginRequired, (req, res) => {
     return redirectDir(req, res);
   }
   fs.unlinkSync(pathFor(owner, fid));
-  shares.unshareAll(owner, fid);   // Freigaben mit entfernen
+  shares.unshareAll(owner, fid);        // Freigaben mit entfernen
+  notifications.removeForFile(owner, fid); // und die Nachrichten dazu
   notemeta.remove(owner, fid);     // Notiz-Metadaten mit entfernen
   req.flash("ok", `„${path.basename(fid)}“ gelöscht.`);
   redirectDir(req, res);

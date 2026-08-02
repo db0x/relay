@@ -6,6 +6,7 @@ import { createWindow } from "./core/window.js";
 import { initDialogCore } from "./core/dialogs.js";
 import { initTooltips } from "./core/tooltips.js";
 import { initBoard } from "./board.js";
+import { initNotifications, highlightFromUrl } from "./notifications.js";
 import { initConfirmDialog } from "./core/confirm.js";
 import { initFormWatch } from "./core/form-watch.js";
 import { initAccountDialog } from "./account/account-dialog.js";
@@ -16,6 +17,8 @@ import { initImageView } from "./files/image-view.js";
 import { initNotes } from "./notes/notes.js";
 import { initBackupDialog } from "./backup.js";
 import { initFolderNav } from "./folder-nav.js";
+import { initScrollbars } from "./core/scrollbars.js";
+import { initSearch } from "./search.js";
 
 // Zurueck-Navigation aus dem Editor: der Browser stellt die Seite sonst aus
 // dem bfcache wieder her — eingefroren mit offenem Dialog und veralteter
@@ -45,11 +48,15 @@ initCreateFileDialog();
 initUpload();
 initOwnFilter();
 initImageView();
+// Eigene Bildlaufleisten fuer Menues, Dialoge und Vorschauen. Die FENSTER
+// versorgt createWindow selbst — jede kuenftige Ansicht bekommt sie damit
+// automatisch, ohne hier etwas nachzutragen.
+initScrollbars();
 
 // Fenster des "Desktops" — jedes mit eigenem Schluessel in desktop_layout.
 // MUESSEN vor initNotes() stehen: das Standard-Layout der Notiz-Icons richtet
 // sich nach der Lage der Dateiliste, die hier erst gesetzt wird.
-createWindow({
+var pageWindow = createWindow({
   el: document.getElementById("page"),
   toggleBtn: document.getElementById("page-toggle"),
   minBtn: "#page-minimize", key: "page", baseUrl: BASE_URL,
@@ -68,3 +75,11 @@ var notes = initNotes();
 initBoard({ baseUrl: BASE_URL, notes: notes });
 initBackupDialog();
 initFolderNav({ bindNoteOpen: notes && notes.bindNoteOpen });
+// Suche im Anwendungs-Menue. Braucht bindNoteOpen aus demselben Grund wie die
+// Ordnernavigation: gefundene Notizen sollen im Notiz-Dialog aufgehen.
+initSearch({ baseUrl: BASE_URL, bindNoteOpen: notes && notes.bindNoteOpen });
+
+// Nachrichten (Glocke am Avatar). Braucht das Fenster der Dateiliste, um beim
+// Sprung zu einer Datei ein eingeklapptes Fenster wieder aufzuklappen.
+initNotifications({ pageWindow: pageWindow });
+highlightFromUrl();

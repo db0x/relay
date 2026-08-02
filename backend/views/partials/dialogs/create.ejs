@@ -7,11 +7,25 @@
     </form>
   </header>
   <form class="stack-form" action="<%= base %>/create" method="post">
-    <input type="hidden" name="dir" value="<%= curDir %>">
     <input type="hidden" name="ext" id="dlg-create-ext" value="docx">
     <label class="dialog-label" for="dlg-create-name" id="dlg-create-name-label">Name der Datei</label>
     <input class="field" name="name" id="dlg-create-name"
            placeholder="Name der neuen Datei" required autocomplete="off">
+    <%# Zielordner. Gibt es gar keine Unterordner, waere die Auswahl sinnlos —
+        dann bleibt es beim versteckten Feld mit dem aktuellen Ordner.
+        Vorbelegt ist immer der Ordner, den man gerade ansieht; die AJAX-
+        Ordnernavigation zieht das ueber syncDirFields nach (folder-nav.js). %>
+    <% if (allDirs.length) { %>
+    <label class="dialog-label" for="dlg-create-dir">Ordner</label>
+    <select class="field" name="dir" id="dlg-create-dir">
+      <option value=""<%= curDir === "" ? " selected" : "" %>>Meine Dateien (oberste Ebene)</option>
+      <% allDirs.forEach(function(d){ %>
+      <option value="<%= d %>"<%= d === curDir ? " selected" : "" %>><%= d %></option>
+      <% }); %>
+    </select>
+    <% } else { %>
+    <input type="hidden" name="dir" value="<%= curDir %>">
+    <% } %>
     <label class="dialog-label" for="dlg-create-lang">Sprache des Dokuments</label>
     <select class="field" name="lang" id="dlg-create-lang"
             data-default="<%= docLangDefault %>">

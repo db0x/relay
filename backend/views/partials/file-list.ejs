@@ -10,28 +10,12 @@
   <header class="page-head">
     <img src="<%= base %>/static/img/file-manager.svg" alt="" width="22" height="22">
     <h2 class="page-title">Meine Dateien</h2>
-    <%# Neue Datei anlegen — direkt am Titel, weil es genau diese Ansicht
-        betrifft (und den gerade offenen Ordner). Liegt damit innerhalb von
-        #page und wird beim Ordnerwechsel mitgetauscht -> js/files/create-file.js
-        bindet root-skopiert (folder-nav.js ruft das erneut auf). %>
-    <div class="create-group" role="group" aria-label="Neue Datei erstellen">
-      <button type="button" class="create-btn" data-create="docx"
-              data-tip="Neues Textdokument" aria-label="Neues Textdokument">
-        <span class="create-zoom"><img src="<%= base %>/static/img/docx.svg" alt="" width="48" height="48"></span>
-      </button>
-      <button type="button" class="create-btn" data-create="xlsx"
-              data-tip="Neue Tabelle" aria-label="Neue Tabelle">
-        <span class="create-zoom"><img src="<%= base %>/static/img/xlsx.svg" alt="" width="48" height="48"></span>
-      </button>
-      <button type="button" class="create-btn" data-create="pptx"
-              data-tip="Neue Präsentation" aria-label="Neue Präsentation">
-        <span class="create-zoom"><img src="<%= base %>/static/img/pptx.svg" alt="" width="48" height="48"></span>
-      </button>
-    </div>
-    <%# Aktionen, die auf den GERADE angezeigten Ordner wirken. Sie stehen
-        bewusst hier statt in der Topbar — und weil sie damit innerhalb von
-        #page liegen, tauscht die AJAX-Ordnernavigation sie beim Ordnerwechsel
-        mit aus; das versteckte dir-Feld zeigt so immer auf den richtigen
+    <%# Die "neu"-Icons sind in das Anwendungs-Menue am Logo umgezogen
+        (partials/topbar.ejs). Hier bleiben die Aktionen, die auf den GERADE
+        angezeigten Ordner wirken. Sie stehen bewusst hier statt in der Topbar
+        — und weil sie damit innerhalb von #page liegen, tauscht die AJAX-
+        Ordnernavigation sie beim Ordnerwechsel mit aus; das versteckte
+        dir-Feld zeigt so immer auf den richtigen
         Ordner (siehe syncDirFields in js/folder-nav.js fuer die Dialoge,
         die ausserhalb liegen). %>
     <%# page-head-end: alles ab hier rueckt an den rechten Rand (margin-left:auto) %>

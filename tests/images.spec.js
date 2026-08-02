@@ -58,6 +58,27 @@ test.describe("Bilder", () => {
     await expect(page.locator("#dlg-image-download")).toHaveAttribute("href", /\/download\//);
   });
 
+  test("der Knopf daneben oeffnet das Bild in einem neuen Tab", async ({ page, context }) => {
+    await uploadImage(page);
+    await fileRow(page, name).locator(".image-open").click();
+    const btn = page.locator("#dlg-image-tab");
+    // zeigt auf die Anzeige-Route (/image/), nicht auf den Download
+    await expect(btn).toHaveAttribute("href", /\/image\//);
+    await expect(btn).toHaveAttribute("target", "_blank");
+
+    const [tab] = await Promise.all([context.waitForEvent("page"), btn.click()]);
+    await tab.waitForLoadState();
+    expect(tab.url()).toContain("/image/");
+    // der Browser zeigt das Bild wirklich an (Content-Disposition: inline)
+    await expect.poll(() => tab.evaluate(() => {
+      const el = document.querySelector("img");
+      return !!el && el.complete && el.naturalWidth > 0;
+    })).toBe(true);
+    // rel="noopener": der neue Tab darf nicht auf unsere Seite zugreifen
+    expect(await tab.evaluate(() => window.opener)).toBeNull();
+    await tab.close();
+  });
+
   test("Bilder werden mit festem Typ und nosniff ausgeliefert", async ({ page }) => {
     await uploadImage(page);
     const url = await fileRow(page, name).locator(".image-open").getAttribute("data-src");

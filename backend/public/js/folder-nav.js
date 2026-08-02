@@ -11,6 +11,7 @@ import { bindOwnOnly } from "./files/own-filter.js";
 import { bindUpload } from "./files/upload.js";
 import { bindCreateButtons } from "./files/create-file.js";
 import { bindImageOpen, bindImageThumbs } from "./files/image-view.js";
+import { attachScrollbar, detachScrollbars, bindScrollbars } from "./core/scrollbars.js";
 
 // config: { bindNoteOpen } — bindNoteOpen(root) aus dem Notiz-Modul, oder
 // null, wenn keine Notiz-UI vorhanden ist.
@@ -47,9 +48,14 @@ export function initFolderNav(config) {
     bindImageThumbs(pageEl);   // Rueckfall-Icon fuer kaputte Vorschaubilder
     if (bindNoteOpen) bindNoteOpen(pageEl);
     bindConfirmForms(pageEl);
+    // Bildlaufleiste des Fensters neu aufbauen (ihre Huelle ist beim
+    // innerHTML-Tausch mit weggefallen) plus die Flaechen im neuen Inhalt
+    attachScrollbar(pageEl);
+    bindScrollbars(pageEl);
     // Zeilen-Dialoge: Backdrop-Buchhaltung beim Schliessen + "Freigabe entziehen"
     bindDialogClose(rowDialogsEl);
     bindConfirmForms(rowDialogsEl);
+    bindScrollbars(rowDialogsEl);
   }
 
   // Formulare, die in einen Ordner schreiben (Hochladen, Neuer Ordner, Neue
@@ -57,9 +63,12 @@ export function initFolderNav(config) {
   // dlg-create/dlg-mkdir liegen AUSSERHALB von #page und werden beim
   // Ordnerwechsel darum nicht mitgetauscht — ohne dieses Nachziehen behielten
   // sie den Ordner vom Seitenaufbau und legten alles in der Wurzel an.
+  // Auch das <select> im "Neue Datei"-Dialog traegt name="dir" — es zeigt den
+  // Zielordner und muss beim Ordnerwechsel genauso nachziehen wie die
+  // versteckten Felder.
   function syncDirFields(dir) {
-    document.querySelectorAll('input[name="dir"]').forEach(function (inp) {
-      inp.value = dir;
+    document.querySelectorAll('input[name="dir"],select[name="dir"]').forEach(function (el) {
+      el.value = dir;
     });
   }
 
@@ -69,10 +78,18 @@ export function initFolderNav(config) {
     var newPage = doc.getElementById("page");
     if (!newPage) return false; // kein Listen-Dokument (z.B. Login) -> Vollreload
     var newRows = doc.getElementById("row-dialogs");
+    // ERST die Bildlaufleisten aufloesen: OverlayScrollbars baut seine Huelle
+    // in die Container hinein. Wird sie ueberschrieben, bleibt eine Instanz
+    // zurueck, die sich fuer lebendig haelt und nie wieder etwas zeichnet.
+    detachScrollbars(pageEl);
+    detachScrollbars(rowDialogsEl);
     pageEl.innerHTML = newPage.innerHTML;
     rowDialogsEl.innerHTML = newRows ? newRows.innerHTML : "";
     pageEl.dataset.dir = newPage.dataset.dir || "";
     syncDirFields(pageEl.dataset.dir);
+    // Nach oben: die Bildlaufleiste wird gleich frisch aufgebaut und startet
+    // ohnehin bei 0 — die Zeile greift, wenn OverlayScrollbars nicht geladen
+    // ist und #page selbst der Scroller bleibt.
     pageEl.scrollTop = 0;
     rebindFolder();
     return true;

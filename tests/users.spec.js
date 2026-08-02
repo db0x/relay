@@ -37,7 +37,7 @@ test.describe("Nutzer anlegen", () => {
     const user = await createUser(page, { admin: true });
     await logout(page);
     await login(page, user.username, user.password);
-    await page.click(".menu-btn");
+    await page.click("#main-menu-btn");
     await expect(page.locator('[data-dialog="dlg-users"]')).toBeVisible();
   });
 
@@ -103,7 +103,7 @@ test.describe("Admin-Rechte", () => {
     await postForm(page, "/users/admin", { target: ADMIN.username, value: "0" });
     await page.goto("/");
     await expectFlash(page, "kann man sich nicht selbst entziehen");
-    await page.click(".menu-btn");
+    await page.click("#main-menu-btn");
     await expect(page.locator('[data-dialog="dlg-users"]')).toBeVisible();
   });
 
@@ -113,7 +113,7 @@ test.describe("Admin-Rechte", () => {
     await logout(page);
     await login(page, user.username, user.password);
 
-    await page.click(".menu-btn");
+    await page.click("#main-menu-btn");
     await expect(page.locator('[data-dialog="dlg-users"]')).toHaveCount(0);
 
     const name = uniqueName("geschmuggelt");
