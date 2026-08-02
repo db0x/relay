@@ -42,18 +42,30 @@
   }
 
   // --- Watchdog: ZUERST scharf schalten, damit ein Fehler weiter unten die
-  // Erholung nicht verhindert. Kommt onDocumentReady nicht -> goRetry.
+  // Erholung nicht verhindert.
+  //
+  // ZWEI Stufen mit verschiedenen Ursachen — darum verschiedene Fristen:
+  //   1. onAppReady bleibt aus -> die Editor-ANWENDUNG selbst kam nicht hoch.
+  //      Das ist der Fall, wenn das Modul-Laden des DocumentServers abbricht
+  //      (require.js-Fehler in seinem eigenen Bundle, z.B. "Cannot read
+  //      properties of undefined (reading 'extend')"). Hier hilft nur neu
+  //      laden — und zwar schnell, sonst starrt man in ein totes Skelett.
+  //   2. onAppReady kam, onDocumentReady nicht -> das DOKUMENT haengt
+  //      (DS-Session/Cache aus dem Speicherfenster). Dafuer reicht kuerzer.
+  // Frueher war beides EIN Zaehler mit 18s; Fall 1 dauerte damit unnoetig lang.
   var watchdog = null;
   function stopWatchdog() { if (watchdog) { clearTimeout(watchdog); watchdog = null; } }
-  function armWatchdog(ms) {
+  function armWatchdog(ms, was) {
     stopWatchdog();
     watchdog = setTimeout(function () {
       watchdog = null;
-      console.warn("[relay] Editor-Watchdog: onDocumentReady blieb aus -> Retry (frischer Key)");
-      goRetry("Der Editor blieb im Ladebildschirm hängen.");
+      console.warn("[relay] Editor-Watchdog: " + was + " blieb aus -> Retry (frischer Key)");
+      goRetry(was === "onAppReady"
+        ? "Der Editor konnte nicht vollständig geladen werden."
+        : "Der Editor blieb im Ladebildschirm hängen.");
     }, ms);
   }
-  armWatchdog(18000); // Grundzeit; nach onAppReady auf 8s verkuerzt
+  armWatchdog(10000, "onAppReady");
 
   if (typeof DocsAPI === "undefined") {
     stopWatchdog();
@@ -68,20 +80,29 @@
   // DS auf eigener Origin (Port-Setup), bleibt uiTheme der Startwert.
   var ed = document.getElementById("editor");
   if (ed.dataset.dsOrigin === location.origin) {
+    // NUR schreiben, wenn sich der Wert wirklich aendert. Das ist fremder
+    // Speicher (der des DocumentServers) und wir fassen ihn unmittelbar vor
+    // seinem Start an — jedes ueberfluessige Schreiben ist ein zusaetzlicher
+    // Eingriff in sein Hochfahren, und genau dort brach es gelegentlich ab.
+    // Vor allem removeItem("ui-theme") loescht seinen Farb-Cache: das soll
+    // beim WECHSEL passieren, nicht bei jedem Oeffnen.
+    var setzeWennAnders = function (k, v) {
+      if (localStorage.getItem(k) !== v) { localStorage.setItem(k, v); return true; }
+      return false;
+    };
     try {
-      if (ed.dataset.theme) {
-        localStorage.setItem("ui-theme-id", ed.dataset.theme);
-        localStorage.removeItem("ui-theme"); // gecachte Farben des alten Themes
+      if (ed.dataset.theme && setzeWennAnders("ui-theme-id", ed.dataset.theme)) {
+        localStorage.removeItem("ui-theme"); // gecachte Farben des ALTEN Themes
       }
       // Schriftdarstellung "Nativ" (Wert "2") fuer alle Editor-Typen:
       // de=Text, sse=Tabellen, pe=Praesentationen, pdfe=PDF, ve=Visio
       ["de", "sse", "pe", "pdfe", "ve"].forEach(function (p) {
-        localStorage.setItem(p + "-settings-fontrender", "2");
+        setzeWennAnders(p + "-settings-fontrender", "2");
       });
       // Toolbar-Tabs gefuellt statt Linie; das -newtheme-Flag muss dazu, sonst
       // erzwingen die modernen Themes (theme-white/night/system) wieder "line"
-      localStorage.setItem("settings-tab-style", "fill");
-      localStorage.setItem("settings-tab-style-newtheme", "1");
+      setzeWennAnders("settings-tab-style", "fill");
+      setzeWennAnders("settings-tab-style-newtheme", "1");
     } catch (e) { /* Speicher blockiert (Privatmodus o.ae.) — dann eben nicht */ }
   }
 
@@ -102,7 +123,7 @@
     },
     // Anwendung geladen, aber Dokument evtl. noch nicht -> Fenster verkuerzen,
     // damit ein Doc-Ladehaenger schneller erkannt wird
-    onAppReady: function () { if (watchdog) armWatchdog(8000); },
+    onAppReady: function () { if (watchdog) armWatchdog(8000, "onDocumentReady"); },
     // Datei wurde nach dem Rendern dieser Seite gespeichert -> Key veraltet
     onOutdatedVersion: function () { goRetry("Das Dokument wurde zwischenzeitlich gespeichert."); },
     onError: function (e) {

@@ -12,6 +12,7 @@ const settings = require("../settings");
 const shares = require("../shares");
 const notemeta = require("../notemeta");
 const notifications = require("../notifications");
+const noteicon = require("../noteicon");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
 const { BLANKS, BASE, DOCTYPE, IMAGE_TYPES, MAX_UPLOAD_MB } = require("../config");
@@ -319,6 +320,8 @@ router.get("/", loginRequired, (req, res) => {
     crumbs,
     curDir: cur,
     // frei platzierbare Notiz-Icons neben der Liste (ordnerunabhaengig sichtbar)
+    // <symbol> der Notiz-Icons, erzeugt aus public/img/note.svg
+    noteSymbol: noteicon.symbolMarkup(),
     desktopNotes: desktopNotesFor(me),
     // gemerkte Position der frei verschiebbaren Dokumentenliste (oder null)
     pageLayout: notemeta.getLayout(me, "page"),

@@ -965,28 +965,50 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* grauer Overlay-Hover funktioniert auf hellem UND dunklem Hintergrund */
 .note-desk:hover{background:rgba(127,127,127,.16)}
 .note-desk.dragging{cursor:grabbing;opacity:.85}
-/* Erledigte ToDo-Notizen bleiben liegen, treten aber zurueck — der Fortschritt
-   bleibt sichtbar und ein versehentliches Schliessen ist per Rechtsklick
-   sofort ruecknehmbar. Beim Hover wieder voll da, damit man sie sicher trifft. */
-.note-desk-done{opacity:.5}
-.note-desk-done:hover{opacity:1}
+/* Erledigte Notizen bleiben liegen — der Fortschritt bleibt sichtbar und ein
+   versehentliches Schliessen ist per Rechtsklick sofort ruecknehmbar.
+   Kenntlich gemacht wird das mit dem Haken-Overlay weiter unten, NICHT mehr
+   ueber Transparenz: gedaempfte Icons wirkten eher wie "kaputt geladen" als
+   wie "abgehakt", und auf dem Board waren sie in der Spalte "Erledigt"
+   doppelt gemoppelt. */
 .note-desk .note-ico{
   width:46px;height:46px;display:block;pointer-events:none;
   filter:drop-shadow(0 2px 4px rgba(16,24,40,.3));
 }
-/* Freigabe-Overlay am Notiz-Icon (Desktop UND Board): kleines share.svg unten
-   rechts, gleiche Machart wie der Stift am Avatar.
-   Es sitzt am Wrapper, nicht am Knopf — so bleibt es am Icon kleben, egal wie
+/* --- Overlays am Notiz-Icon (Desktop UND Board) --------------------------
+   Zwei Stueck, und sie koennen ZUSAMMEN auftreten (eine freigegebene Notiz,
+   die erledigt ist). Regel:
+     unten rechts = der Standardplatz. Ist nur EIN Overlay da, sitzt es hier.
+     oben rechts  = Ausweichplatz. Sind BEIDE da, rueckt der Haken hierhin,
+                    weil die Freigabe unten rechts schon steht.
+   Unten LINKS bleibt frei: dort sitzt die umgeknickte Ecke der Notiz.
+   Sie haengen am Wrapper, nicht am Knopf — so kleben sie am Icon, egal wie
    breit oder hoch der Knopf drumherum gerade ist.
-   ACHTUNG background-size wie beim Plus: share.svg zeichnet nur auf rund zwei
-   Dritteln seiner Flaeche, 12px ergeben also ~8px sichtbares Symbol. */
+   z-index:1 ist noetig: .note-ico traegt einen drop-shadow-Filter und wird
+   damit selbst zum Stapel-Element; ohne den z-index verschwaende das ::before
+   (es steht VOR dem <svg> im Baum) hinter dem Icon.
+   ACHTUNG background-size: die Symbole zeichnen unterschiedlich viel ihrer
+   Flaeche aus — share.svg rund zwei Drittel, check.svg fast ganz. Darum
+   verschiedene Werte, damit beide gleich gross WIRKEN. */
 .note-ico-wrap{position:relative;display:block}
-.note-shared .note-ico-wrap::after{
-  content:"";position:absolute;right:-3px;bottom:-1px;width:16px;height:16px;
+.note-ico-wrap::before,.note-ico-wrap::after{
+  content:"";position:absolute;z-index:1;width:16px;height:16px;
+  right:-3px;bottom:-1px; /* Standardplatz */
   border-radius:50%;border:1px solid var(--line);
-  background:#fff url(../img/share.svg) center/12px 12px no-repeat;
+  background-color:#fff;background-repeat:no-repeat;background-position:center;
   box-shadow:0 1px 3px rgba(16,24,40,.18);pointer-events:none;
+  display:none; /* nur die Zustaende unten schalten sie ein */
 }
+.note-shared .note-ico-wrap::after{
+  display:block;
+  background-image:url(../img/share.svg);background-size:12px 12px;
+}
+.note-desk-done .note-ico-wrap::before{
+  display:block;
+  background-image:url(../img/check.svg);background-size:11px 11px;
+}
+/* beide da -> der Haken weicht nach oben aus */
+.note-shared.note-desk-done .note-ico-wrap::before{bottom:auto;top:-2px}
 /* Label als halbtransparenter weisser Chip mit dunklem Text -> lesbar auf
    hellem App-Hintergrund wie auf dunklem (Voltage-)Fensterhintergrund */
 .note-desk-label{

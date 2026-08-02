@@ -99,13 +99,20 @@ test.describe("Notiz-Board", () => {
     expect(await columnOf(page, title)).toBe("wip");
   });
 
-  test("Ziehen nach „Erledigt“ daempft die Karte", async ({ page }) => {
+  test("Ziehen nach „Erledigt“ setzt den Haken auf die Karte", async ({ page }) => {
     const title = "Fertig " + uniqueName("n");
     await createNote(page, title);
     await openBoard(page);
     await dragCardTo(page, title, "closed");
     expect(await columnOf(page, title)).toBe("closed");
     await expect(page.locator(card(title))).toHaveClass(/note-desk-done/);
+    // Erledigt wird als Haken-Overlay gezeigt, NICHT mehr ueber Transparenz
+    const optik = await page.locator(card(title)).evaluate((el) => ({
+      haken: getComputedStyle(el.querySelector(".note-ico-wrap"), "::before").display,
+      deckkraft: getComputedStyle(el).opacity,
+    }));
+    expect(optik.haken).toBe("block");
+    expect(optik.deckkraft).toBe("1");
   });
 
   test("die Spaltenzaehler stimmen nach dem Ziehen", async ({ page }) => {
