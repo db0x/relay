@@ -1378,15 +1378,12 @@ a.crumb:hover{text-decoration:underline}
    Zeilenmenues der Dateiliste und das Status-Kontextmenue haengen ueber
    hellen Karten, dort waere dunkles Glas ein Fremdkoerper.
 
-   Deckkraft hoeher als in der Leiste (0,78 statt 0,28) — und zwar aus einem
-   messbaren Grund: diese Panels liegen oft ueber der WEISSEN Dateikarte, und
-   dort hellt der Untergrund das Glas stark auf. Gemessen bei 0,68: ueber dem
-   Desktop kam das Panel auf 27/34/47, ueber der Karte auf 94/94/94 — sichtbar
-   zweifarbig, und das Suchfeld darin rutschte auf 4,2:1 unter die
-   Lesbarkeitsgrenze. Bei 0,78 bleibt das Panel ueberall ruhig und lesbar. */
+   Werte 1:1 aus der Leiste: gleiche Fuellung, gleiche Linie, gleicher Filter.
+   Sie stehen absichtlich NICHT in eigenen Zahlen hier — wer den Ton der
+   Leiste dreht, dreht die Menues mit. */
 .topbar .menu-panel{
-  --glass-bg:rgba(17,17,18,.78);
-  --glass-line:rgba(255,255,255,.14);
+  --glass-bg:rgba(17, 17, 18, 0.28);
+  --glass-line:rgba(2,6,20,.12);
   --glass-ink:rgba(255,255,255,.95);
   --glass-ink-muted:rgba(255,255,255,.6);
   --glass-hover:rgba(255,255,255,.12);
@@ -1410,6 +1407,18 @@ a.crumb:hover{text-decoration:underline}
 }
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .topbar .menu-panel::before{background:rgba(17,17,18,.93)}
+}
+/* Der Rahmen darf nicht dieselbe fast unsichtbare Linie sein wie in der
+   Leiste — ein freischwebendes Panel braucht eine erkennbare Kante. */
+.topbar .menu-panel{
+  border-color:rgba(255,255,255,.16);
+  /* Tiefer aufklappen, damit die Panel-Kante nicht auf der Unterkante der
+     Leiste klebt. Der Wert setzt sich zusammen aus: 8px Innenabstand der
+     Leiste unter dem Knopf + ~4px Hoehenunterschied durch die zentrierte
+     Ausrichtung + 10px gewuenschter Spalt. Gemessen lagen die Panels vorher
+     4-5px OBERHALB der Leistenkante, die Raender lagen also uebereinander.
+     Aendert sich das Polster der Leiste, gehoert dieser Wert nachgezogen. */
+  top:calc(100% + 22px);
 }
 
 /* Inhalte auf hell. Farbige Icons (Dateitypen, Anwendungen, Avatare) bleiben
