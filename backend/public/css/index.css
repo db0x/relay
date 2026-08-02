@@ -376,10 +376,15 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .app-icons{display:flex;align-items:flex-start;gap:.5rem}
 /* Reines Icon ohne Zusatz-Overlay: hier steht die Anwendung im Vordergrund,
    nicht das Anlegen. Feste Breite, damit die Unterschriften aller Eintraege
-   auf einer Grundlinie stehen — auch das lange "Praesentation". */
+   auf einer Grundlinie stehen — auch das lange "Textdokument".
+   ZUR BREITE: die haengt an der Schrift, und system-ui loest je nach System
+   verschieden auf. Gemessen bei 12,16px: "Textdokument" braucht 76px in
+   Liberation, 82px in Noto und 86px in DejaVu Sans — letzteres nimmt der
+   GitHub-Runner, und mit den frueheren 92px (= 84px netto) rutschte es dort
+   in die Ellipse. 112px lassen 104px netto und damit reichlich Luft. */
 .app-btn{
   display:flex;flex-direction:column;align-items:center;gap:.35rem;
-  width:92px;padding:.55rem .25rem .5rem;
+  width:112px;padding:.55rem .25rem .5rem;
   border:0;background:none;border-radius:10px;cursor:pointer;
   font:inherit;color:var(--ink);
   transition:background .12s ease,transform .12s ease;
