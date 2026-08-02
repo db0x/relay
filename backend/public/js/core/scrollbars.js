@@ -39,7 +39,8 @@ var OPTIONS = {
 //   - .chips-dropdown (Personen-Vorschlaege): wird erst bei Bedarf erzeugt und
 //     bei jedem Tastendruck neu befuellt — 190px hoch, der Aufwand lohnt nicht
 var AREAS = [
-  ".notif-panel",  // Nachrichten-Menue
+  ".notif-panel",       // Nachrichten-Menue
+  ".app-search-scroll", // Trefferliste der Suche (Inhalt sitzt in der <ul> darin)
   ".note-preview", // Vorschau im Notiz-Editor (Inhalt in #note-preview-body)
   ".emoji-panel",  // Emoji-Auswahl
   ".backup-log",   // rsync-Ausgabe im Backup-Dialog (Text im <code> darin)

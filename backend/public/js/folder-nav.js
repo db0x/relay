@@ -63,9 +63,12 @@ export function initFolderNav(config) {
   // dlg-create/dlg-mkdir liegen AUSSERHALB von #page und werden beim
   // Ordnerwechsel darum nicht mitgetauscht — ohne dieses Nachziehen behielten
   // sie den Ordner vom Seitenaufbau und legten alles in der Wurzel an.
+  // Auch das <select> im "Neue Datei"-Dialog traegt name="dir" — es zeigt den
+  // Zielordner und muss beim Ordnerwechsel genauso nachziehen wie die
+  // versteckten Felder.
   function syncDirFields(dir) {
-    document.querySelectorAll('input[name="dir"]').forEach(function (inp) {
-      inp.value = dir;
+    document.querySelectorAll('input[name="dir"],select[name="dir"]').forEach(function (el) {
+      el.value = dir;
     });
   }
 

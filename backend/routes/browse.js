@@ -45,10 +45,14 @@ function isImageName(name) {
 // wird nur der Titel; alle Links/Aktionen laufen weiter ueber den vollen Namen
 const NOTE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.*)\.md$/i;
 function labelFromName(name) {
-  const m = path.basename(name).match(NOTE_RE);
+  // Immer nur der Dateiname: hier kommt teils der volle relative Pfad an
+  // (Datei in einem Unterordner). Ohne basename stand in der Liste
+  // "Steuer/Nebenkosten.xlsx" statt "Nebenkosten.xlsx".
+  const base = path.basename(name);
+  const m = base.match(NOTE_RE);
   // Unterstriche stammen aus secureFilename (Leerzeichen im Titel) —
   // fuer die Anzeige wieder zu Leerzeichen
-  return m ? (m[1].replace(/_/g, " ") || "Notiz") : name;
+  return m ? (m[1].replace(/_/g, " ") || "Notiz") : base;
 }
 
 // Anzeigename einer Notiz. Der Dateiname traegt nur ASCII (secureFilename),
@@ -449,6 +453,14 @@ router.post("/create", loginRequired, (req, res) => {
   const ext = req.body.ext;
   const cur = securePath(req.body.dir || "");
   if (!BLANKS[ext] || cur === null) return res.sendStatus(400);
+  // Der Zielordner kommt aus einer Auswahl im Dialog und muss darum nicht mehr
+  // der Ordner sein, den man gerade ansieht — er kann inzwischen geloescht
+  // worden sein (anderer Tab, anderes Geraet). Ohne diese Pruefung liefe das
+  // copyFileSync unten in ENOENT und der Nutzer saehe einen Serverfehler.
+  if (cur && !fs.existsSync(pathFor(req.session.user, cur))) {
+    req.flash("err", `Den Ordner „${cur}“ gibt es nicht mehr.`);
+    return res.redirect(`${BASE}/`);
+  }
   const base = secureFilename(`${name}.${ext}`);
   if (!name || base === `.${ext}`) {
     req.flash("err", "Bitte einen Dateinamen angeben.");
@@ -467,6 +479,75 @@ router.post("/create", loginRequired, (req, res) => {
   const lang = req.body.lang || "";
   doclang.apply(p, ext, settings.get("hidden_langs", []).includes(lang) ? "" : lang);
   res.redirect(`${BASE}/edit/${encodeURIComponent(req.session.user)}/${encPath(fid)}`);
+});
+
+// --- Suche ------------------------------------------------------------
+// Autovervollstaendigung im Anwendungs-Menue: sucht in den ANZEIGENAMEN aller
+// Dateien, die der Anfragende sehen darf — eigene (ueber alle Ordner hinweg)
+// plus die ihm freigegebenen. Nie darueber hinaus: die Liste wird aus
+// dirFor(me) und shares.listForUser(me) gebaut, ein fremder Pfad kann also gar
+// nicht erst hineingeraten.
+//
+// Die Antwort traegt je Treffer schon alles, was die Oberflaeche zum Oeffnen
+// braucht — und zwar in denselben Feldern, die auch die Dateiliste benutzt
+// (js/search.js haengt daraus .note-open/.image-open bzw. einen /edit-Link).
+
+// Vergleichsform: Kleinschreibung ohne diakritische Zeichen, damit
+// "prasentation" auch "Präsentation" findet.
+function searchNorm(s) {
+  return s.normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // zerlegte Akzente wegwerfen: ä -> a
+    .replace(/ß/g, "ss")            // wird nicht zerlegt, aber gerne "ss" getippt
+    .toLowerCase();
+}
+
+const SEARCH_MAX = 12;
+
+router.get("/search", loginRequired, (req, res) => {
+  const me = req.session.user;
+  const q = searchNorm(String(req.query.q || "").trim());
+  if (!q) return res.json([]);
+
+  const hits = [];
+  const seen = new Set();
+  const add = (owner, relpath, ownerName, canedit) => {
+    const key = `${owner}/${relpath}`;
+    if (seen.has(key)) return;
+    const abs = pathFor(owner, relpath);
+    if (!fs.existsSync(abs)) return;          // verwaiste Freigabe
+    const name = path.basename(relpath);
+    const label = labelFor(relpath, owner);
+    const pos = searchNorm(label).indexOf(q);
+    if (pos === -1) return;
+    seen.add(key);
+    const dir = path.dirname(relpath);
+    hits.push({
+      owner, relpath, label,
+      isNote: /\.md$/i.test(name),
+      isImage: isImageName(name),
+      icon: iconFor(name),
+      canedit,
+      // Woher stammt der Treffer? Bei eigenen der Ordner, bei fremden der
+      // Besitzer — beides beantwortet "welches von den gleichnamigen ist es?"
+      hint: ownerName || (dir === "." ? "" : dir),
+      // Treffer am Wortanfang zuerst, dann alphabetisch
+      _pos: pos,
+    });
+  };
+
+  walkFiles(dirFor(me)).forEach((rel) => add(me, rel, "", true));
+  shares.listForUser(me).forEach((s) => add(s.owner, s.filename, s.owner_name, s.perm === "edit"));
+
+  hits.sort((a, b) => a._pos - b._pos
+    || a.label.localeCompare(b.label, "de", { sensitivity: "base" }));
+  res.json(hits.slice(0, SEARCH_MAX).map((h) => {
+    delete h._pos;
+    // Links erst hier bauen — so steht die Pfadkodierung an genau einer Stelle
+    const p = `${encodeURIComponent(h.owner)}/${encPath(h.relpath)}`;
+    return h.isImage
+      ? { ...h, src: `${BASE}/image/${p}`, download: `${BASE}/download/${p}` }
+      : (h.isNote ? h : { ...h, href: `${BASE}/edit/${p}` });
+  }));
 });
 
 // neuer Unterordner im aktuellen Ordner

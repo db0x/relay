@@ -6,7 +6,7 @@
 // nachstellen. Diese Leisten sind echte Elemente und damit pruefbar.
 const { test, expect } = require("@playwright/test");
 const {
-  loginAsAdmin, uniqueName, uploadFile, waitAppReady,
+  loginAsAdmin, uniqueName, uploadFile, waitAppReady, openApp,
 } = require("./helpers/relay");
 
 const VBAR = "#page .os-scrollbar-vertical";
@@ -125,8 +125,7 @@ test.describe("Bildlaufleisten", () => {
     // CodeMirror verwaltet sein Innenleben selbst — OverlayScrollbars kann dort
     // nicht hinein. Stattdessen sein eigenes Modell (Addon cm-scrollbars.js,
     // scrollbarStyle:"overlay"); die Optik gleicht index.css an.
-    if (await page.locator("#board.page-min").count()) await page.click("#board-toggle");
-    await page.click("#note-new");
+    await openApp(page, ".note-new");
     await expect(page.locator("#dlg-note")).toBeVisible();
     await page.click(".CodeMirror");
     await page.keyboard.press("Control+A");
@@ -173,10 +172,7 @@ test.describe("Bildlaufleisten", () => {
     // direkt in diesen Behaelter, wurden Ueberschrift, Absatz und Liste zu
     // Flex-Kindern und standen NEBENEINANDER. Der Inhalt gehoert deshalb in
     // #note-preview-body, eine Ebene tiefer.
-    // "Neue Notiz" sitzt im Board-Kopf. Nur oeffnen, wenn zu — der Zustand
-    // wird serverseitig gemerkt und ein frueherer Test kann ihn geaendert haben.
-    if (await page.locator("#board.page-min").count()) await page.click("#board-toggle");
-    await page.click("#note-new");
+    await openApp(page, ".note-new");
     await expect(page.locator("#dlg-note")).toBeVisible();
     await page.click(".CodeMirror");
     await page.keyboard.press("Control+A");

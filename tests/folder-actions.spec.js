@@ -1,14 +1,15 @@
 // Ordner-Aktionen wirken auf den GERADE angezeigten Ordner.
 //
 // Regression: Hochladen, "Neuer Ordner" und "Neue Datei" schicken den
-// Zielordner als verstecktes dir-Feld mit. Nach einem AJAX-Ordnerwechsel
-// (folder-nav.js tauscht nur #page aus) zeigten diese Felder weiter auf den
-// Ordner vom Seitenaufbau — alles landete in der Wurzel statt im geoeffneten
-// Unterordner. Die Knoepfe sitzen jetzt im Fensterkopf (werden also
-// mitgetauscht), die Dialoge ausserhalb werden per syncDirFields nachgezogen.
+// Zielordner als dir-Feld mit. Nach einem AJAX-Ordnerwechsel (folder-nav.js
+// tauscht nur #page aus) zeigten diese Felder weiter auf den Ordner vom
+// Seitenaufbau — alles landete in der Wurzel statt im geoeffneten
+// Unterordner. Hochladen und "Neuer Ordner" sitzen im Fensterkopf (werden
+// also mitgetauscht), "Neue Datei" im Anwendungs-Menue am Logo; die Dialoge
+// ausserhalb von #page werden per syncDirFields nachgezogen.
 const { test, expect } = require("@playwright/test");
 const {
-  loginAsAdmin, login, logout, createUser, uniqueName, waitAppReady, fileRow,
+  loginAsAdmin, login, logout, createUser, uniqueName, waitAppReady, fileRow, openApp,
 } = require("./helpers/relay");
 
 // Legt einen Ordner an und navigiert per AJAX hinein.
@@ -81,7 +82,7 @@ test.describe("Ordner-Aktionen im geoeffneten Unterordner", () => {
 
   test("„Neue Datei“ legt das Dokument im geoeffneten Ordner an", async ({ page }) => {
     const name = "Doku" + uniqueName("");
-    await page.locator('[data-create="docx"]').click();
+    await openApp(page, '[data-create="docx"]');
     await page.fill("#dlg-create-name", name);
     // Das Anlegen leitet in den OnlyOffice-Editor weiter — der ist hier nicht
     // Teil des Tests; es zaehlt nur, WO die Datei entsteht.
@@ -97,4 +98,50 @@ test.describe("Ordner-Aktionen im geoeffneten Unterordner", () => {
     await waitAppReady(page);
     await expect(fileRow(page, name + ".docx")).toHaveCount(0);
   });
+
+  test("die Ordnerauswahl im Dialog steht auf dem geoeffneten Ordner",
+    async ({ page }) => {
+      await openApp(page, '[data-create="docx"]');
+      await expect(page.locator("#dlg-create")).toBeVisible();
+      await expect(page.locator("#dlg-create-dir")).toHaveValue(folder);
+    });
+
+  test("ueber die Auswahl landet die Datei in einem ANDEREN Ordner",
+    async ({ page }) => {
+      // Der eigentliche Zweck der Auswahl: anlegen, ohne vorher dorthin zu
+      // navigieren. Wir stehen in `folder` und zielen auf die Wurzel.
+      const name = "Woanders" + uniqueName("");
+      await openApp(page, '[data-create="docx"]');
+      await page.fill("#dlg-create-name", name);
+      await page.selectOption("#dlg-create-dir", "");
+      await Promise.all([
+        page.waitForResponse((r) => r.url().includes("/create")),
+        page.click("#dlg-create .dialog-submit"),
+      ]);
+
+      await page.goto("/");
+      await waitAppReady(page);
+      await expect(fileRow(page, name + ".docx")).toBeVisible();
+      await page.goto(`/?p=${encodeURIComponent(folder)}`);
+      await waitAppReady(page);
+      await expect(fileRow(page, name + ".docx")).toHaveCount(0);
+    });
+
+  test("in einem Unterordner steht der Dateiname ohne Pfad in der Liste",
+    async ({ page }) => {
+      // Regression: die Liste baute ihren Anzeigenamen aus dem RELATIVEN Pfad
+      // — in einem Unterordner stand darum "Ordner/Datei.docx" statt
+      // "Datei.docx". In der Wurzel fiel das nie auf (dort sind beide gleich).
+      const filename = uniqueName("pfad") + ".docx";
+      await Promise.all([
+        page.waitForNavigation(),
+        page.locator(".upload-form input[type=file]").setInputFiles({
+          name: filename, mimeType: "application/octet-stream", buffer: Buffer.from("x"),
+        }),
+      ]);
+      await waitAppReady(page);
+      await page.goto(`/?p=${encodeURIComponent(folder)}`);
+      await waitAppReady(page);
+      await expect(page.locator("table.files .fname").first()).toHaveText(filename);
+    });
 });

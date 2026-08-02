@@ -4,7 +4,7 @@
 // "# Titel"-Vorlage; Klick auf eine Notiz laedt deren Inhalt.
 // Speichern erst bei Aenderung gegenueber dem Oeffnen (eigene Logik statt
 // dialog-submit-Waechter: der Ausgangszustand wechselt mit jedem Oeffnen).
-import { openDlg } from "../core/dialogs.js";
+import { openDlg, closeMenus } from "../core/dialogs.js";
 import { createPeopleChips } from "./people-chips.js";
 import { NOTE_COLOR_DEFAULT, noteColorValue, paintNoteIcon, initNoteColorPicker } from "./color.js";
 import { renderNoteSummary } from "./summary.js";
@@ -361,15 +361,18 @@ export function initNoteDialog(baseUrl) {
     panel: document.getElementById("emoji-panel"),
   });
 
-  var noteNew = document.getElementById("note-new");
-  if (noteNew) {
-    noteNew.addEventListener("click", function () {
+  // Alle "Neue Notiz"-Ausloeser: der Knopf im Board-Kopf und der Eintrag im
+  // Anwendungs-Menue der Topbar. Beide tragen .note-new — ueber die Klasse
+  // statt ueber eine id, weil es mehr als einen gibt.
+  document.querySelectorAll(".note-new").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      closeMenus(); // falls der Ausloeser im Anwendungs-Menue sitzt
       openNote("Neue Notiz", "# Titel\n\n", noteCreateAction, true, true);
       // "Titel" vorselektieren: lostippen ersetzt das Platzhalterwort
       if (noteCM) noteCM.setSelection({ line: 0, ch: 2 }, { line: 0, ch: 7 });
       else noteText.setSelectionRange(2, 7);
     });
-  }
+  });
 
   return { openNote: openNote, knownByUsername: people.knownByUsername };
 }

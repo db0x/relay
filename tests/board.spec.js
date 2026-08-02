@@ -54,8 +54,9 @@ test.describe("Notiz-Board", () => {
     await page.click(TOGGLE);
     await expect(page.locator(BOARD)).toBeVisible();
     await expect(page.locator(TOGGLE)).toHaveAttribute("aria-pressed", "true");
-    // "Neue Notiz" wohnt in der Board-Titelleiste
-    await expect(page.locator("#board #note-new")).toBeVisible();
+    // "Neue Notiz" ist ins Anwendungs-Menue am Logo umgezogen — im
+    // Board-Kopf steht sie nicht mehr (siehe topbar-appmenu.spec.js)
+    await expect(page.locator("#board #note-new")).toHaveCount(0);
     await page.click(TOGGLE);
     await expect(page.locator(BOARD)).toBeHidden();
     await page.click(TOGGLE);

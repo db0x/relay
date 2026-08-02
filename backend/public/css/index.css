@@ -162,15 +162,10 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   margin:0;flex:0 1 auto;min-width:0;font-size:1rem;font-weight:600;color:var(--ink);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-/* Ab hier rechtsbuendig: der Titel und die Erstellen-Icons stehen links,
-   Aktionen und Minimieren rechts. Genau EIN Element traegt das auto —
-   sonst verteilte sich der freie Platz zwischen mehreren. */
+/* Ab hier rechtsbuendig: der Titel steht links, Aktionen und Minimieren
+   rechts. Genau EIN Element traegt das auto — sonst verteilte sich der freie
+   Platz zwischen mehreren. */
 .page-head-end{margin-left:auto}
-/* Erstellen-Icons in einer Fenster-Titelleiste: volle Groesse wie frueher in
-   der Topbar (40px Knopf, 30px Icon — siehe .create-btn). Die Leiste wird
-   dadurch etwas hoeher als ihre uebrigen Elemente; das ist gewollt, die Icons
-   sind der Einstiegspunkt der Ansicht und duerfen praesent sein. */
-.page-head .create-group{margin-left:.35rem}
 /* Ordner-Aktionen (Hochladen, Neuer Ordner) rechts im Fensterkopf, mit etwas
    Abstand vor dem Minimieren-Knopf — der gehoert zum Fenster, nicht zum Inhalt */
 .page-actions{display:flex;align-items:center;gap:.4rem;flex:0 0 auto;margin-right:.2rem}
@@ -273,6 +268,123 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   transition:opacity .12s ease;
 }
 .brand:hover{opacity:.7}
+/* Logo und Name eng zusammen — der weite Abstand aus .topbar-left greift
+   erst dahinter, zur Werkzeugleiste */
+.brand-group{display:flex;align-items:center;gap:.55em;min-width:0}
+/* Das Logo ist ein Knopf: es oeffnet das Anwendungs-Menue (der Name daneben
+   laedt weiterhin die Startseite) */
+.brand-btn{
+  display:grid;place-items:center;padding:3px;border:0;background:none;
+  border-radius:9px;cursor:pointer;transition:background .12s ease;
+}
+.brand-btn:hover{background:#f2f4f7}
+.brand-btn img{display:block}
+
+/* Anwendungs-Menue: je Anwendung eine Gruppe mit ihren Aktionen als
+   48px-Icons mit Unterschrift. Oeffnet nach LINKS — die Basisregel
+   .menu-panel haengt an right:0, das liefe hier am linken Rand aus dem Bild. */
+/* Doppelte Klasse mit Absicht: die Basisregel .menu-panel steht weiter unten
+   in dieser Datei und wuerde right/min-width sonst zurueckerobern. Ohne die
+   Breite hier lief die dritte Kachel aus dem Panel heraus. */
+.menu-panel.app-panel{
+  right:auto;left:0;padding:1rem 1.1rem 1.1rem;
+  /* FESTE Breite mit Absicht: das Panel soll beim Tippen nicht mitzappeln.
+     Lange Dateinamen in der Trefferliste kuerzen per Ellipse, statt das Panel
+     zu dehnen. min-width setzt die Basisregel .menu-panel — hier ueberstimmt,
+     sonst koennte sie die Breite doch noch anfassen. */
+  width:min(92vw,660px);min-width:0;max-width:none;
+}
+/* Suchfeld in der Anmutung von macOS/GNOME: abgerundete Kapsel, dezent
+   gefuellt, Lupe INNEN links — und bewusst OHNE jeden Rahmen, auch im Fokus.
+   Den Fokus zeigt allein die etwas kraeftigere Fuellung: das Feld bekommt den
+   Fokus beim Oeffnen des Menues automatisch, ein Ring waere darum staendig zu
+   sehen und genau das laute Element, das hier nicht hingehoert.
+   Die Lupe liegt als eigenes <img> darueber (kein background-image): so bleibt
+   sie unabhaengig vom Feld skalierbar und per alt="" aus dem Vorlesefluss. */
+.app-search{position:relative;display:flex;align-items:center}
+.app-search-icon{
+  position:absolute;left:.85rem;pointer-events:none;opacity:.5;
+}
+.app-search-input{
+  width:100%;padding:.62rem .9rem .62rem 2.6rem;
+  border:0;border-radius:999px;
+  background:var(--line-soft);color:var(--ink);
+  font:inherit;font-size:1.02rem;line-height:1.3;
+  transition:background .12s ease;
+}
+.app-search-input::placeholder{color:var(--muted)}
+.app-search-input:focus{outline:none;background:#eceff3}
+/* das native Kreuz von type=search unterdruecken — Chrome zeichnet es grau
+   und quadratisch, das passt nicht zur Kapsel */
+.app-search-input::-webkit-search-cancel-button{-webkit-appearance:none}
+
+/* Auf- und Zufahren der Trefferliste. Den Zielwert setzt js/search.js als
+   Pixelwert — damit laeuft der Uebergang auch beim Wechsel der Trefferzahl,
+   nicht nur beim Erscheinen und Verschwinden. */
+.app-search-out{height:0;overflow:hidden;transition:height .22s ease}
+@media (prefers-reduced-motion:reduce){.app-search-out{transition:none}}
+/* Gescrollt wird der Wrapper (traegt die Bildlaufleiste), befuellt die Liste */
+.app-search-scroll{max-height:min(46vh,300px);overflow-y:auto}
+.app-search-results{
+  list-style:none;margin:.45rem 0 0;padding:0;
+  display:flex;flex-direction:column;gap:1px;
+}
+.app-search-results[hidden]{display:none}
+.app-search-empty{
+  margin:.5rem .2rem .1rem;color:var(--muted);font-size:.84rem;
+}
+.app-hit{
+  display:flex;align-items:center;gap:.5em;width:100%;
+  padding:.4rem .5rem;border:0;border-radius:8px;background:none;
+  font:inherit;color:var(--ink);text-align:left;text-decoration:none;
+  cursor:pointer;
+}
+.app-hit-icon{flex:0 0 auto;display:block}
+.app-hit-label{
+  flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* Ordner bzw. Besitzer — beantwortet, WELCHES von mehreren gleichnamigen */
+.app-hit-hint{
+  flex:0 0 auto;max-width:40%;color:var(--muted);font-size:.78rem;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.app-hit:hover,.app-hit-active{background:#f2f4f7}
+/* Trennlinie zur ersten Kategorie darunter. Der Ausfahr-Behaelter steht IMMER
+   im DOM und ist damit verlaesslich das Element davor. */
+.app-search-out + .app-group{
+  margin-top:.9rem;padding-top:.85rem;border-top:1px solid var(--line-soft);
+}
+
+.app-group{display:flex;flex-direction:column;gap:.5rem}
+.app-group + .app-group{
+  margin-top:1rem;padding-top:.9rem;border-top:1px solid var(--line-soft);
+}
+/* Kategoriezeile: kleines Anwendungs-Icon vor dem Namen, Typografie wie die
+   Spaltenkoepfe des Boards */
+.app-group-title{
+  display:flex;align-items:center;gap:.45em;margin:0;padding:0 .2rem;
+  font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;
+}
+.app-group-title img{display:block;flex:0 0 auto}
+.app-icons{display:flex;align-items:flex-start;gap:.5rem}
+/* Reines Icon ohne Zusatz-Overlay: hier steht die Anwendung im Vordergrund,
+   nicht das Anlegen. Feste Breite, damit die Unterschriften aller Eintraege
+   auf einer Grundlinie stehen — auch das lange "Praesentation". */
+.app-btn{
+  display:flex;flex-direction:column;align-items:center;gap:.35rem;
+  width:92px;padding:.55rem .25rem .5rem;
+  border:0;background:none;border-radius:10px;cursor:pointer;
+  font:inherit;color:var(--ink);
+  transition:background .12s ease,transform .12s ease;
+}
+.app-btn img{display:block;width:48px;height:48px}
+.app-label{
+  max-width:100%;font-size:.76rem;line-height:1.3;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.app-btn:hover,.app-btn:focus-visible{background:#f2f4f7}
+.app-btn:active{transform:scale(.96)}
 .user{display:flex;align-items:center;gap:.9em}
 /* Avatar als Knopf: er oeffnet die Nachrichten. position:relative traegt das
    Glocken-Overlay. */
@@ -407,47 +519,10 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .toolbar{
   display:flex;gap:.35rem;align-items:center;
 }
-/* Ansicht-Umschalter + Erstellen-Icons als EINE Reihe gleichartiger Symbole:
-   derselbe enge Abstand wie zwischen den Erstellen-Icons, kein Trenner. */
+/* Ansicht-Umschalter als eine Reihe gleichartiger Symbole */
 .tool-icons{display:flex;align-items:center;gap:.1rem}
-.create-group{display:flex;gap:.1rem}
-/* Erstellen: pure Icons statt Buttons — beim Hover hebt sich das gewaehlte
-   Icon ab (leichter Zoom + Untergrund), damit die Auswahl sichtbar ist */
-.create-btn{
-  width:40px;height:40px;padding:0;border:0;background:none;cursor:pointer;
-  display:grid;place-items:center;border-radius:10px;
-  transition:background .12s ease;
-}
-.create-btn img{width:30px;height:30px}
-/* WICHTIG: der Zoom liegt auf dem .create-zoom-Wrapper (Icon + Plus-Overlay
-   als EINE Einheit), NICHT auf dem Button — ein transform auf dem Button
-   machte ihn zum Bezugsrahmen fuer position:fixed und wuerde den
-   data-tip-Tooltip aus dem Viewport-Raster verschieben */
-.create-zoom{
-  position:relative;display:grid;place-items:center;
-  transition:transform .12s ease;
-}
-.create-btn:hover .create-zoom,.create-btn:focus-visible .create-zoom{transform:scale(1.12)}
-.create-btn:active .create-zoom{transform:scale(1.04)}
-/* Plus-Overlay unten rechts, im Stil des Avatar-Stifts — auf dem Wrapper,
-   damit es den Hover-Zoom mitmacht */
-.create-zoom::after{
-  content:"";position:absolute;right:-4px;bottom:-3px;width:16px;height:16px;
-  border-radius:50%;border:1px solid var(--line);
-  /* ACHTUNG background-size: add.svg zeichnet das Plus nur auf 42% seiner
-     Flaeche (10 von 24 Einheiten, der Rest ist Rand). Der Wert muss darum
-     deutlich groesser sein als das gewuenschte Plus — 20px ergeben ~8px
-     sichtbares Plus. Mit den frueheren 10px waren es magere 4px.
-     Groesse und Hintergrundgroesse immer im selben Verhaeltnis aendern. */
-  background:#fff url(../img/add.svg) center/20px 20px no-repeat;
-  box-shadow:0 1px 3px rgba(16,24,40,.18);pointer-events:none;
-}
-.create-btn:hover .create-zoom::after,
-.create-btn:focus-visible .create-zoom::after{background-color:#f2f4f7}
-.create-btn:hover,.create-btn:focus-visible{background:var(--line-soft)}
-/* Ansicht-Umschalter (Dateiliste ein/aus): gleiche Optik wie die
-   Erstellen-Icons, aber ohne Plus-Overlay. Der Zoom liegt aus demselben Grund
-   wie dort auf dem Bild statt auf dem Knopf — ein transform auf dem Knopf
+/* Ansicht-Umschalter (Dateiliste ein/aus). Der Zoom liegt auf dem Bild statt
+   auf dem Knopf — ein transform auf dem Knopf
    machte ihn zum Bezugsrahmen des position:fixed-Tooltips. */
 .view-btn{
   width:40px;height:40px;padding:0;border:0;background:none;cursor:pointer;
@@ -825,7 +900,7 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   filter:drop-shadow(0 2px 4px rgba(16,24,40,.3));
 }
 /* Freigabe-Overlay am Notiz-Icon (Desktop UND Board): kleines share.svg unten
-   rechts, gleiche Machart wie das Plus der "neu"-Knoepfe (.create-zoom::after).
+   rechts, gleiche Machart wie der Stift am Avatar.
    Es sitzt am Wrapper, nicht am Knopf — so bleibt es am Icon kleben, egal wie
    breit oder hoch der Knopf drumherum gerade ist.
    ACHTUNG background-size wie beim Plus: share.svg zeichnet nur auf rund zwei

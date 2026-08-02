@@ -18,6 +18,7 @@ import { initNotes } from "./notes/notes.js";
 import { initBackupDialog } from "./backup.js";
 import { initFolderNav } from "./folder-nav.js";
 import { initScrollbars } from "./core/scrollbars.js";
+import { initSearch } from "./search.js";
 
 // Zurueck-Navigation aus dem Editor: der Browser stellt die Seite sonst aus
 // dem bfcache wieder her — eingefroren mit offenem Dialog und veralteter
@@ -74,6 +75,9 @@ var notes = initNotes();
 initBoard({ baseUrl: BASE_URL, notes: notes });
 initBackupDialog();
 initFolderNav({ bindNoteOpen: notes && notes.bindNoteOpen });
+// Suche im Anwendungs-Menue. Braucht bindNoteOpen aus demselben Grund wie die
+// Ordnernavigation: gefundene Notizen sollen im Notiz-Dialog aufgehen.
+initSearch({ baseUrl: BASE_URL, bindNoteOpen: notes && notes.bindNoteOpen });
 
 // Nachrichten (Glocke am Avatar). Braucht das Fenster der Dateiliste, um beim
 // Sprung zu einer Datei ein eingeklapptes Fenster wieder aufzuklappen.

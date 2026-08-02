@@ -82,19 +82,22 @@ async function uploadFile(page, filename, content = "Relay E2E") {
   ]);
 }
 
+// Anwendungs-Menue am Logo oeffnen und einen Eintrag anklicken. Dort sitzen
+// seit 2026-08-02 ALLE "neu"-Aktionen (frueher in den Fenster-Titelleisten):
+// openApp(page, '[data-create="docx"]') bzw. openApp(page, ".note-new").
+async function openApp(page, itemSelector) {
+  await waitAppReady(page);
+  await page.click("#app-menu-btn");
+  await expect(page.locator("#app-panel")).toBeVisible();
+  await page.click(`#app-panel ${itemSelector}`);
+}
+
 // Neue Notiz anlegen. Der Titel ist die erste Markdown-Zeile — daraus baut
 // das Backend den Dateinamen ({uuid}-{Titel}.md), angezeigt wird nur der Titel.
 // todo:true setzt zusaetzlich den ToDo-Schalter (nur dann bekommt die Notiz
 // ein Icon auf dem Desktop).
 async function createNote(page, title, { todo = false } = {}) {
-  await waitAppReady(page);
-  // "Neue Notiz" sitzt in der Titelleiste des Boards — ist es zugeklappt,
-  // erst oeffnen (sonst ist der Knopf nicht erreichbar). Der Zustand wird
-  // danach wiederhergestellt: ein offenes Board liegt ueber der Dateiliste
-  // und finge deren Klicks ab.
-  const boardWasClosed = !!(await page.locator("#board.page-min").count());
-  if (boardWasClosed) await page.click("#board-toggle");
-  await page.click("#note-new");
+  await openApp(page, ".note-new");
   await expect(page.locator("#dlg-note")).toBeVisible();
   // CodeMirror ersetzt die Textarea -> ueber den Editor tippen, nicht fill()
   await page.click(".CodeMirror");
@@ -102,13 +105,6 @@ async function createNote(page, title, { todo = false } = {}) {
   await page.keyboard.type(`# ${title}\n\nInhalt.`);
   if (todo) await page.locator("#note-details .switch-label").click();
   await Promise.all([page.waitForNavigation(), page.click("#note-save")]);
-  // Nach dem Speichern laedt die Seite neu; das Board kommt jetzt offen
-  // zurueck (der Zustand wurde beim Oeffnen gemerkt) -> wieder zuklappen.
-  if (boardWasClosed) {
-    await waitAppReady(page);
-    await page.click("#board-toggle");
-    await expect(page.locator("#board")).toBeHidden();
-  }
   return title;
 }
 
@@ -210,6 +206,7 @@ module.exports = {
   loginAsAdmin,
   logout,
   openMenuDialog,
+  openApp,
   createUser,
   waitAppReady,
   uploadFile,

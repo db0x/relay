@@ -8,9 +8,8 @@
 
     Ohne gemerkte Lage startet das Board EINGEKLAPPT. Offen wuerde es sich
     ueber die Dateiliste legen und deren Zeilen blockieren (beide Fenster sind
-    breiter als ein halber Bildschirm) — die Hauptansicht beim ersten Laden zu
-    verdecken waere schlimmer, als "Neue Notiz" einen Klick entfernt zu haben.
-    Wer das Board oeffnet, findet es beim naechsten Mal offen vor. %>
+    breiter als ein halber Bildschirm). Wer das Board oeffnet, findet es beim
+    naechsten Mal offen vor. %>
 <% const boardCols = [
      { key: "open", label: "Offen" },
      { key: "wip", label: "In Arbeit" },
@@ -26,14 +25,8 @@
   <header class="page-head">
     <img src="<%= base %>/static/img/board.svg" alt="" width="22" height="22">
     <h2 class="page-title">Notiz-Board</h2>
-    <%# "Neue Notiz" gehoert hierher: Notizen sind der Inhalt dieser Ansicht.
-        Der Dialog dahinter haengt an der id note-new (js/notes/note-dialog.js). %>
-    <div class="create-group" role="group" aria-label="Neue Notiz">
-      <button type="button" class="create-btn" id="note-new"
-              data-tip="Neue Notiz" aria-label="Neue Notiz">
-        <span class="create-zoom"><img src="<%= base %>/static/img/note.svg" alt="" width="48" height="48"></span>
-      </button>
-    </div>
+    <%# "Neue Notiz" ist in das Anwendungs-Menue am Logo umgezogen
+        (partials/topbar.ejs). %>
     <button type="button" class="iconbtn page-min-btn page-head-end" id="board-minimize"
             data-tip="Minimieren" aria-label="Notiz-Board minimieren">
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
