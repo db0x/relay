@@ -15,12 +15,25 @@ const FELD = "#app-search";
 const LISTE = "#app-search-results";
 const TREFFER = `${LISTE} .app-hit`;
 
-// Menue oeffnen und suchen; wartet auf die Antwort statt auf eine feste Zeit.
+// Menue oeffnen und suchen. Gewartet wird nicht auf eine feste Zeit, sondern
+// bis die Trefferliste FERTIG aufgefahren ist: waehrend der Hoehen-Animation
+// baut OverlayScrollbars den Behaelter noch um, und Tastendruecke in diesem
+// Moment sind ein Wettlauf (genau daran ist der Enter-Test einmal gescheitert).
 async function suche(page, q) {
   if (await page.locator("#app-panel").isHidden()) await page.click("#app-menu-btn");
   await page.fill(FELD, q);
   await page.waitForResponse((r) => r.url().includes("/search?q="));
-  await page.waitForTimeout(120); // rendern lassen
+  await page.waitForFunction(() => {
+    const out = document.querySelector("#app-search-out");
+    if (!out || !out.style.height) return false;
+    // gerenderte Hoehe hat den Zielwert erreicht -> Uebergang durch
+    return Math.abs(out.getBoundingClientRect().height - parseFloat(out.style.height)) < 1;
+  });
+  // Danach raeumt OverlayScrollbars im Behaelter noch auf (Groessen-Beobachter,
+  // Leisten-Klassen). Zwei Frames abwarten, bis das durch ist — sonst treffen
+  // Tastendruecke die Oberflaeche mitten im Umbau.
+  await page.evaluate(() => new Promise((r) =>
+    requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
 const labels = (page) =>

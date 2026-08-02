@@ -149,7 +149,21 @@ export function initSearch(config) {
     timer = setTimeout(function () { search(q); }, DEBOUNCE);
   });
 
-  input.addEventListener("keydown", function (e) {
+  // Tastensteuerung am DOKUMENT, in der Capture-Phase — nicht am Eingabefeld.
+  //
+  // Warum: waehrend die Trefferliste aufgeht, baut OverlayScrollbars den
+  // Behaelter um; dabei rutscht der Fokus fuer einen Wimpernschlag auf <body>.
+  // Haengt die Steuerung am Feld, laufen Pfeiltaste und Enter in genau diesem
+  // Moment ins Leere — der Treffer wird markiert, aber Enter tut nichts.
+  // Capture, damit Escape wie bisher zuerst die Suche raeumt und erst danach
+  // (beim zweiten Mal) das Menue schliesst: der Escape-Handler von
+  // core/dialogs.js haengt am Dokument und wuerde sonst vorher zuschlagen.
+  document.addEventListener("keydown", function (e) {
+    var panel = document.getElementById("app-panel");
+    if (!panel || panel.hidden) return;   // nur bei offenem Anwendungs-Menue
+    // Die Anwendungs-Kacheln sind Knoepfe und behalten ihre eigene Enter-Taste
+    if (e.target.closest && e.target.closest(".app-btn")) return;
+
     if (e.key === "ArrowDown") { e.preventDefault(); highlight(active + 1); return; }
     if (e.key === "ArrowUp") { e.preventDefault(); highlight(active - 1); return; }
     if (e.key === "Enter") {
@@ -168,6 +182,20 @@ export function initSearch(config) {
         clear();
       }
     }
+  }, true);
+
+  // Waehrend die Trefferliste aufgeht, baut OverlayScrollbars den Behaelter um
+  // und die Hoehe animiert — in diesem Moment verliert das Feld gelegentlich
+  // fuer einen Wimpernschlag den Fokus (focusout OHNE Ziel, Fokus faellt auf
+  // <body>). Wer dann tippt oder Pfeil/Enter drueckt, laeuft ins Leere. Also
+  // zurueckholen — aber nur, wenn der Fokus wirklich nirgendwo gelandet ist.
+  input.addEventListener("focusout", function (e) {
+    if (e.relatedTarget) return; // bewusst woandershin gegangen
+    var panel = document.getElementById("app-panel");
+    if (!panel || panel.hidden) return; // Menue zu, nichts zu retten
+    setTimeout(function () {
+      if (!panel.hidden && document.activeElement === document.body) input.focus();
+    }, 0);
   });
 
   // Ein angeklickter Treffer schliesst das Menue. Der Link navigiert ohnehin;
