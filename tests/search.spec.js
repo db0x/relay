@@ -232,3 +232,69 @@ test.describe("Suche — Bedienung", () => {
     await expect(page.locator(LISTE)).toBeHidden();
   });
 });
+
+test.describe("Suche — lange Trefferliste", () => {
+  let user, stamm;
+
+  test.beforeEach(async ({ page }) => {
+    test.slow(); // mehrere Uploads
+    await loginAsAdmin(page);
+    user = await createUser(page);
+    await logout(page);
+    await login(page, user.username, user.password);
+    // kleines Fenster: .app-search-scroll ist auf 46vh gedeckelt, so laeuft
+    // die Liste schon mit wenigen Treffern ueber
+    await page.setViewportSize({ width: 1200, height: 420 });
+    await waitAppReady(page);
+    stamm = "Reise" + uniqueName("");
+    for (let i = 1; i <= 6; i++) {
+      await uploadFile(page, `${stamm}-${i}.docx`);
+      await waitAppReady(page);
+    }
+  });
+
+  test("die Bildlaufleiste verdeckt keine Treffer", async ({ page }) => {
+    await suche(page, stamm.toLowerCase());
+    const bar = page.locator(".app-search-scroll .os-scrollbar-vertical");
+    await expect(bar).toBeVisible();
+    await expect(bar).not.toHaveClass(/os-scrollbar-unusable/);
+    // kein Treffer ragt unter den Griff
+    const drunter = await page.evaluate(() => {
+      const b = document.querySelector(".app-search-scroll .os-scrollbar-vertical")
+        .getBoundingClientRect();
+      return [...document.querySelectorAll("#app-search-results .app-hit")]
+        .filter((h) => h.getBoundingClientRect().right > b.left + 1).length;
+    });
+    expect(drunter).toBe(0);
+  });
+
+  test("im Menue scrollen schliesst es NICHT", async ({ page }) => {
+    // Regression: core/dialogs.js schloss bei JEDEM Scrollen alle Menues
+    // (damit sich die fixen Zeilenmenues nicht von ihrer Zeile loesen) — damit
+    // war die Trefferliste praktisch nicht bedienbar.
+    await suche(page, stamm.toLowerCase());
+    const box = await page.locator(".app-search-scroll").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 200);
+
+    await expect(page.locator("#app-panel")).toBeVisible();
+    await expect.poll(() => page.evaluate(() => {
+      const os = window.OverlayScrollbarsGlobal
+        .OverlayScrollbars(document.querySelector(".app-search-scroll"));
+      return os ? Math.round(os.elements().viewport.scrollTop) : 0;
+    })).toBeGreaterThan(0);
+  });
+
+  test("das Zeilenmenue schliesst beim Scrollen weiterhin", async ({ page }) => {
+    // Gegenprobe zur Ausnahme oben: ausserhalb eines Menues gilt die alte
+    // Regel unveraendert, sonst haengte ein fixes Zeilenmenue in der Luft.
+    const row = page.locator("table.files tbody tr").first();
+    await row.locator(".row-menu-btn").click();
+    await expect(page.locator(".row-menu-panel:not([hidden])")).toHaveCount(1);
+
+    const f = await page.locator("#page").boundingBox();
+    await page.mouse.move(f.x + f.width / 2, f.y + f.height - 40);
+    await page.mouse.wheel(0, 250);
+    await expect(page.locator(".row-menu-panel:not([hidden])")).toHaveCount(0);
+  });
+});

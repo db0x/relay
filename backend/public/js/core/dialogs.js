@@ -126,8 +126,15 @@ export function initDialogCore() {
     if (dlgStack.length) dlgStack[dlgStack.length - 1].close();
   });
   // Scrollen (auch im Tabellen-Wrapper, daher capture) wuerde fixe Panels
-  // von ihrer Zeile trennen -> einfach schliessen
-  window.addEventListener("scroll", closeMenus, true);
+  // von ihrer Zeile trennen -> einfach schliessen. ABER: Scrollen INNERHALB
+  // eines Menues ist kein Grund dafuer — die Trefferliste der Suche und das
+  // Nachrichten-Menue scrollen selbst, und die gingen sonst bei der ersten
+  // Radbewegung wieder zu.
+  window.addEventListener("scroll", function (e) {
+    var t = e.target;
+    if (t && t.closest && t.closest(".menu-panel")) return;
+    closeMenus();
+  }, true);
   bindRowMenuItemClose(document);
   bindDialogClose(document);
   bindDataDialog(document);
