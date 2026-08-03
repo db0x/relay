@@ -12,14 +12,21 @@
     <p class="muted dialog-hint">Nur angehakte Sprachen erscheinen in der Auswahl.
       Deutsch (Deutschland) ist die Vorgabe und lässt sich nicht ausblenden.</p>
     <form class="stack-form" action="<%= base %>/settings/langs" method="post">
-      <div class="lang-list">
-        <% settingsLangs.forEach(function(l){ %>
-        <label class="check">
-          <input type="checkbox" name="visible" value="<%= l.code %>"
-                 <%= l.hidden ? "" : "checked" %> <%= l.code === docLangDefault ? "disabled" : "" %>>
-          <%= l.label %>
-        </label>
-        <% }); %>
+      <%# Zwei Ebenen: aussen der Scroll-Behaelter (traegt Rahmen und
+          Bildlaufleiste, js/core/scrollbars.js), innen die Liste. In einen
+          Behaelter mit eigener Leiste darf kein eigenes Layout — OverlayScroll-
+          bars zwingt ihn auf flex-row und die Liste verlor dadurch ihre
+          Spalten (Grundregel in js/core/scrollbars.js). %>
+      <div class="lang-scroll">
+        <div class="lang-list">
+          <% settingsLangs.forEach(function(l){ %>
+          <label class="check">
+            <input type="checkbox" name="visible" value="<%= l.code %>"
+                   <%= l.hidden ? "" : "checked" %> <%= l.code === docLangDefault ? "disabled" : "" %>>
+            <%= l.label %>
+          </label>
+          <% }); %>
+        </div>
       </div>
       <button class="btn btn-sm dialog-submit">Speichern</button>
     </form>

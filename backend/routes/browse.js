@@ -100,6 +100,11 @@ function noteInfoFor(owner, relpath, isNote) {
 // ToDo markierten Notizen — eigene UND geteilte — global (ordnerunabhaengig),
 // jeweils mit gemerkter Position (falls der Nutzer das Icon verschoben hat).
 function desktopNotesFor(me) {
+  // Je Nutzer abschaltbar (Mein Konto). Aus heisst: gar nichts liefern — die
+  // Notizen selbst bleiben unberuehrt, sie liegen weiter im Board und in der
+  // Liste, und die gemerkten Icon-Positionen ueberstehen das Ausschalten.
+  const u = users.get(me);
+  if (u && !u.desk_notes) return [];
   const posRows = notemeta.desktopPositions(me);
   const posOf = (owner, filename) => {
     const r = posRows.find((p) => p.owner === owner && p.filename === filename);
@@ -320,6 +325,8 @@ router.get("/", loginRequired, (req, res) => {
     crumbs,
     curDir: cur,
     // frei platzierbare Notiz-Icons neben der Liste (ordnerunabhaengig sichtbar)
+    // Schalter aus "Mein Konto": liegen die Notiz-Icons auf dem Desktop?
+    deskNotes: !!(users.get(me) || {}).desk_notes,
     // <symbol> der Notiz-Icons, erzeugt aus public/img/note.svg
     noteSymbol: noteicon.symbolMarkup(),
     desktopNotes: desktopNotesFor(me),
