@@ -1,11 +1,12 @@
-<dialog id="dlg-account" class="dialog dialog-wide">
+<dialog id="dlg-account" class="dialog dialog-wide dialog-glass">
   <header class="dialog-head">
     <% if (hasAvatar) { %>
     <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="22" height="22">
     <% } else { %>
     <img src="<%= base %>/static/img/relay.svg" alt="" width="22" height="22">
     <% } %>
-    <h2>Mein Konto <span class="muted">· <%= user %></span></h2>
+    <%# Kein Name im Titel — der steht direkt darunter im Feld "Anzeigename" %>
+    <h2>Mein Konto</h2>
     <form method="dialog">
       <button class="dialog-x" aria-label="Schließen">×</button>
     </form>

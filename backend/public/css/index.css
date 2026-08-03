@@ -261,12 +261,12 @@ body:not(.desk-ready) .note-desktop{opacity:0}
    Alle Farben INNERHALB der Leiste kommen aus den --glass-*-Variablen, damit
    sich der Ton an einer Stelle nachjustieren laesst. */
 .topbar{
-  --glass-bg:rgba(17, 17, 18, 0.28);
-  --glass-line:rgba(2,6,20,.12);
+  --glass-bg:rgba(17, 17, 18, 0.65);
+  --glass-line:rgba(2,6,20,.1);
   --glass-ink:rgba(255,255,255,.95);
-  --glass-ink-muted:rgba(255,255,255,.62);
+  --glass-ink-muted:rgba(255,255,255,.95);
   --glass-hover:rgba(255,255,255,.14);
-  --glass-active:rgba(255,255,255,.2);
+  --glass-active:rgba(255,255,255,.95);
 
   position:sticky;top:0;z-index:30;
   display:flex;justify-content:space-between;align-items:center;gap:1rem;
@@ -1361,8 +1361,13 @@ a.crumb:hover{text-decoration:underline}
 }
 .user-names{display:flex;flex-direction:column;line-height:1.25}
 .user-names .muted{font-size:.78rem}
+/* Die drei Aktionen stehen in je eigenem <form>. Als inline-block richten die
+   sich an der Schriftlinie aus — der Icon-Knopf hat aber keinen Text und damit
+   keine Schriftlinie, er haengt an seiner Unterkante und sitzt dadurch schief.
+   Also mittig ausrichten und ihm die Hoehe der .btn-sm daneben geben. */
 .users-actions{text-align:right;white-space:nowrap}
-.users-actions form{display:inline-block;margin:0 0 0 .3rem}
+.users-actions form{display:inline-flex;vertical-align:middle;margin:0 0 0 .3rem}
+.users-actions .iconbtn{width:31px;height:31px}   /* = Hoehe von .btn-sm */
 .users-wrap .user-create{border-top:1px solid var(--line);margin-top:.9rem;padding:.9rem 0 0}
 .user-create-row{display:flex;gap:.5rem;flex-wrap:wrap}
 .user-create-foot{display:flex;align-items:center;justify-content:space-between}
@@ -1407,8 +1412,8 @@ a.crumb:hover{text-decoration:underline}
    Sie stehen absichtlich NICHT in eigenen Zahlen hier — wer den Ton der
    Leiste dreht, dreht die Menues mit. */
 .topbar .menu-panel{
-  --glass-bg:rgba(17, 17, 18, 0.28);
-  --glass-line:rgba(2,6,20,.12);
+  --glass-bg:rgba(17, 17, 18, 0.65);
+  --glass-line:rgba(2,6,20,.1);
   --glass-ink:rgba(255,255,255,.95);
   --glass-ink-muted:rgba(255,255,255,.6);
   --glass-hover:rgba(255,255,255,.12);
@@ -1553,6 +1558,9 @@ a.crumb:hover{text-decoration:underline}
   border-radius:14px 14px 0 0;
 }
 .dialog-head img,.dialog-head .note-ico{display:block;flex:0 0 auto}
+/* .avatar zieht sich per negativem Rand an den Namen daneben (Titelleiste).
+   Im Dialogkopf gibt es keinen Namen — dort gilt der normale Icon-Abstand. */
+.dialog-head .avatar{margin-right:0}
 /* Titel (oft mit Dateinamen) bleibt einzeilig und kuerzt per Ellipsis —
    lange Namen duerfen den Dialog nicht horizontal aufschieben; der volle
    Titel kommt als data-tip-Tooltip (index.js, nur wenn abgeschnitten) */
@@ -1670,4 +1678,129 @@ a.crumb:hover{text-decoration:underline}
 @media (max-width:560px){
   .page{padding:18px 16px 22px}
   .col-date{display:none}
+}
+
+/* === Dialoge in Rauchglas ==============================================
+   Dieselbe Anmutung wie die Menues der Titelleiste, angewandt auf die vier
+   Verwaltungs-Dialoge (Mein Konto, Nutzerverwaltung, Einstellungen, Backup).
+   Ein weiterer Dialog braucht nur die Klasse .dialog-glass.
+
+   Bewusst NICHT auf alle Dialoge: die Notiz-Ansicht, der Bild-Betrachter und
+   die Zeilen-Dialoge zeigen INHALTE (Markdown, Fotos, Dateinamen) — die
+   gehoeren auf ruhigen hellen Grund, nicht auf getoentes Glas.
+
+   Fuellung 0,45 statt der 0,28 aus der Leiste. Der Backdrop (rgba(16,24,40,.4))
+   dunkelt zwar schon ab, das reicht aber nicht: liegt die WEISSE Dateikarte
+   dahinter, kam die Dialogflaeche mit 0,28 auf 120/122/125 — 4,3:1 zu weissem
+   Text und damit unter der Lesbarkeitsgrenze. Mit 0,45 sind es rund 6:1, und
+   ueber dem Desktop bleibt es sichtbar durchscheinend.
+
+   Wie ueberall: der Filter sitzt auf dem ::before, nicht auf dem Dialog.
+   backdrop-filter machte ihn sonst zum Bezugsrahmen fuer position:fixed —
+   und mehrere Knoepfe darin tragen data-tip-Tooltips, die fix sind. */
+.dialog-glass{
+  --glass-bg:rgba(17,17,18,.65);
+  --glass-line:rgba(255,255,255,.1);
+  --glass-ink:rgba(255,255,255,.95);
+  --glass-ink-muted:rgba(255,255,255,.62);
+  --glass-hover:rgba(255,255,255,.12);
+  --glass-well:rgba(0,0,0,.22);
+
+  background:transparent;color:var(--glass-ink);
+  border-color:rgba(255,255,255,.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 16px 48px rgba(0,0,0,.45);
+}
+.dialog-glass::before{
+  content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;
+  background:var(--glass-bg);
+  -webkit-backdrop-filter:blur(5px) saturate(75%);
+  backdrop-filter:blur(5px) saturate(75%);
+}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .dialog-glass::before{background:rgba(17,17,18,.93)}
+}
+
+/* Kopfzeile: der helle Streifen wuerde als weisser Balken stehenbleiben */
+.dialog-glass .dialog-head{
+  background:rgba(255,255,255,.06);border-bottom-color:var(--glass-line);
+}
+.dialog-glass .dialog-x{color:var(--glass-ink-muted)}
+.dialog-glass .dialog-x:hover{background:var(--glass-hover);color:var(--glass-ink)}
+
+/* Abschnitte, Beschriftungen, Hinweise */
+.dialog-glass .account-section{border-top-color:var(--glass-line)}
+.dialog-glass .account-section h3,
+.dialog-glass .dialog-label,
+.dialog-glass .muted,
+.dialog-glass .tokhint,
+.dialog-glass .account-fold summary::after{color:var(--glass-ink-muted)}
+.dialog-glass .switch-text,.dialog-glass .check{color:var(--glass-ink)}
+
+/* Eingaben als eingetiefte Mulden statt weisser Kaesten — dieselbe
+   Entscheidung wie beim Suchfeld: Weiss auf Glas addiert sich zu einer
+   Flaeche, auf der heller Text nicht mehr steht. */
+.dialog-glass .field{
+  background:var(--glass-well);border-color:var(--glass-line);color:var(--glass-ink);
+}
+.dialog-glass .field::placeholder{color:var(--glass-ink-muted)}
+.dialog-glass .field:focus{
+  border-color:var(--brand);background:rgba(0,0,0,.3);
+  box-shadow:0 0 0 3px rgba(37,99,235,.25);
+}
+.dialog-glass #tok{
+  background:var(--glass-well);border-color:var(--glass-line);color:var(--glass-ink);
+}
+.dialog-glass .tokhint code{background:rgba(255,255,255,.12);color:var(--glass-ink)}
+
+/* Avatar-Bereich: Platzhalter und der Stift daneben */
+.dialog-glass .avatar-empty{background:rgba(255,255,255,.1);color:var(--glass-ink-muted)}
+.dialog-glass .avatar-edit{
+  background:rgba(255,255,255,.14);border-color:var(--glass-line);
+}
+.dialog-glass .avatar-edit:hover{background:rgba(255,255,255,.24)}
+/* edit.svg ist ein dunkles Glyph und haengt als <img> drin — umkehren */
+.dialog-glass .avatar-edit img{filter:invert(1) brightness(1.6)}
+
+/* Schalter: die graue Bahn verschwaende auf dem dunklen Grund */
+.dialog-glass .switch-ui{background:rgba(255,255,255,.22)}
+.dialog-glass .switch-label:hover{color:var(--glass-ink)}
+
+/* --- Nutzerverwaltung --------------------------------------------------- */
+.dialog-glass .users-table th{color:var(--glass-ink-muted);border-bottom-color:var(--glass-line)}
+.dialog-glass .users-table td{border-bottom-color:rgba(255,255,255,.08)}
+.dialog-glass .users-wrap .user-create{border-top-color:var(--glass-line)}
+/* helle Knoepfe (Rechte geben, sperren) als Glasplaettchen */
+.dialog-glass .btn-secondary{
+  background:rgba(255,255,255,.12);color:var(--glass-ink);border-color:var(--glass-line);
+}
+.dialog-glass .btn-secondary:hover{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.3)}
+.dialog-glass .iconbtn{
+  background:rgba(255,255,255,.1);border-color:var(--glass-line);color:var(--glass-ink);
+}
+.dialog-glass .iconbtn:hover{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.3)}
+.dialog-glass .iconbtn img{filter:invert(1) brightness(1.6)}
+/* die roten Loeschen-Knoepfe behalten ihre Warnfarbe */
+.dialog-glass .iconbtn-danger:hover{
+  background:rgba(220,38,38,.3);border-color:var(--danger);
+}
+/* Badges: die hellen Pastellflaechen wirken auf Glas wie Aufkleber */
+.dialog-glass .badge{background:rgba(120,170,255,.22);color:#cfe0ff}
+.dialog-glass .badge-lock,.dialog-glass .badge-err{background:rgba(220,38,38,.28);color:#ffd6d6}
+.dialog-glass .badge-ok{background:rgba(34,150,83,.3);color:#c9f2d8}
+
+/* --- Einstellungen (Sprachliste) ---------------------------------------- */
+.dialog-glass .lang-scroll{
+  background:var(--glass-well);border-color:var(--glass-line);
+}
+
+/* --- Backup (rsync-Ausgabe) --------------------------------------------- */
+.dialog-glass .backup-log{
+  background:var(--glass-well);border-color:var(--glass-line);color:var(--glass-ink);
+}
+
+/* Bildlaufleisten in diesen Dialogen: dunkel auf dunkel waeren sie weg */
+.dialog-glass .os-scrollbar{
+  --os-handle-bg:rgba(255,255,255,.3);
+  --os-handle-bg-hover:rgba(255,255,255,.45);
+  --os-handle-bg-active:rgba(255,255,255,.6);
 }
