@@ -51,6 +51,11 @@ test.describe("Notizen auf dem Desktop", () => {
     // Board und Liste zeigen die Notiz weiter
     if (await page.locator("#board.page-min").count()) await page.click("#board-toggle");
     await expect(page.locator(".board-card")).toHaveCount(1);
+    // Die Liste zeigt sie im Ordner "Notizen" — dort liegen alle Notizen
+    // (routes/notes.js). Das Speichern des Profils hat uns in die Wurzel
+    // zurueckgebracht, also nochmal hin.
+    await page.goto("/?p=Notizen");
+    await waitAppReady(page);
     await expect(page.locator("table.files .note-open")).toHaveCount(1);
   });
 

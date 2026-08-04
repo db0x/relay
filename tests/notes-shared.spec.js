@@ -129,35 +129,39 @@ test.describe("Freigegebene Notizen kennzeichnen", () => {
       const icon = deskIcon(p, shared);
       const eigen = deskIcon(p, mine);
 
+      // Gemessen wird die LAGE, nicht der CSS-Wert: bei positionierten
+      // Pseudo-Elementen liefert getComputedStyle den benutzten Wert, ein
+      // geschriebenes "auto" kommt dort nie an. Also fragen wir, in welcher
+      // Haelfte des Icons die Oberkante des Overlays sitzt.
+      const ecken = (el) => el.evaluate((n) => {
+        const w = n.querySelector(".note-ico-wrap");
+        const h = w.getBoundingClientRect().height;
+        const lies = (pseudo) => {
+          const c = getComputedStyle(w, pseudo);
+          return { an: c.display, unten: parseFloat(c.top) > h / 2 };
+        };
+        return { haken: lies("::before"), freigabe: lies("::after") };
+      });
+
       // die eigene Notiz auf erledigt -> Haken ALLEIN, also unten rechts
       await eigen.click({ button: "right" });
       await p.locator('#note-status-menu [data-status="closed"]').click();
       await expect(eigen).toHaveClass(/note-desk-done/);
-      const allein = await eigen.evaluate((el) => {
-        const c = getComputedStyle(el.querySelector(".note-ico-wrap"), "::before");
-        return { an: c.display, oben: c.top, unten: c.bottom };
-      });
-      expect(allein.an).toBe("block");
-      expect(allein.oben).toBe("auto"); // unten verankert
+      const allein = await ecken(eigen);
+      expect(allein.haken.an).toBe("block");
+      expect(allein.freigabe.an).toBe("none");
+      expect(allein.haken.unten).toBe(true);
 
       await icon.click({ button: "right" });
       await p.locator('#note-status-menu [data-status="closed"]').click();
       await expect(icon).toHaveClass(/note-desk-done/);
 
-      const ecken = await icon.evaluate((el) => {
-        const w = el.querySelector(".note-ico-wrap");
-        const a = getComputedStyle(w, "::after");   // Freigabe
-        const bf = getComputedStyle(w, "::before"); // Haken
-        return {
-          freigabe: { an: a.display, unten: a.bottom, oben: a.top },
-          haken: { an: bf.display, unten: bf.bottom, oben: bf.top },
-        };
-      });
-      expect(ecken.freigabe.an).toBe("block");
-      expect(ecken.haken.an).toBe("block");
-      // verschiedene Ecken: das eine ist unten verankert, das andere oben
-      expect(ecken.freigabe.oben).toBe("auto");
-      expect(ecken.haken.unten).toBe("auto");
+      const beide = await ecken(icon);
+      expect(beide.freigabe.an).toBe("block");
+      expect(beide.haken.an).toBe("block");
+      // verschiedene Ecken: die Freigabe bleibt unten, der Haken weicht hoch
+      expect(beide.freigabe.unten).toBe(true);
+      expect(beide.haken.unten).toBe(false);
       await ctx.close();
     });
 });

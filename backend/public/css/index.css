@@ -2,6 +2,11 @@
   /* Hoehe darf zu "auto" animieren (einklappbare Konto-Abschnitte) */
   interpolate-size:allow-keywords;
   --bg:#eef1f5;
+  /* Grundton des Desktop-Bildes — die Farbe, die steht, solange das Bild noch
+     nicht da ist. MUSS mit dem kritischen Inline-Stil in
+     views/partials/head.ejs uebereinstimmen: der faerbt die Seite, bevor
+     dieses Stylesheet ueberhaupt geladen ist. Zwei Werte, eine Farbe. */
+  --desk-bg:#375998;
   --card:#ffffff;
   --ink:#1f2937;
   --muted:#6b7280;
@@ -38,9 +43,13 @@
 }
 
 *{box-sizing:border-box}
-/* Desktop-Hintergrundbild (hinter Karte + Notiz-Icons); var(--bg) als Fallback */
+/* Desktop-Hintergrundbild (hinter Karte + Notiz-Icons).
+   Die Farbe DARUNTER ist --desk-bg, nicht --bg: sie ist zwischen dem Parsen
+   dieses Stylesheets und dem Eintreffen des Bildes ganzflaechig zu sehen.
+   Mit dem hellen --bg gab das beim Neuladen einen weissen Blitz — mit dem
+   Grundton des Bildes ist der Moment nahtlos. */
 html{
-  background:var(--bg) url(../img/background/desktop.jpg) center/cover fixed no-repeat;
+  background:var(--desk-bg) url(../img/background/desktop.jpg) center/cover fixed no-repeat;
 }
 body{
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -249,80 +258,15 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .page a,.page button,.page summary,.page label,.page .fname,.page .crumb{cursor:pointer}
 .page input,.page select,.page textarea{cursor:auto}
 
-/* --- Titelleiste: dunkles Rauchglas -------------------------------------
-   Die Leiste liegt ueber allem und laesst das Hintergrundbild gedaempft
-   durchscheinen. Drei Zutaten machen den Glas-Eindruck aus:
-     1. eine dunkle, TEILDURCHLAESSIGE Fuellung (nicht deckend, sonst waere es
-        einfach eine graue Leiste),
-     2. backdrop-filter: blur streut, was dahinter liegt; saturate holt die
-        Farbe zurueck, die das Weichzeichnen sonst ausbleichen laesst,
-     3. eine haarfeine helle Linie an der Oberkante — das ist die Lichtkante,
-        an der echtes Glas erkennbar wird.
-   Alle Farben INNERHALB der Leiste kommen aus den --glass-*-Variablen, damit
-   sich der Ton an einer Stelle nachjustieren laesst. */
+/* --- Titelleiste --------------------------------------------------------
+   Hier stehen nur Aufbau und Lage. Die Glas-Anmutung der Leiste (Fuellung,
+   Filter, helle Inhalte) steht gesammelt am Dateiende unter „Rauchglas" —
+   zusammen mit der der Menues und der Dialoge. Am Ton wird dort gedreht,
+   und nur dort. */
 .topbar{
-  --glass-bg:rgba(17, 17, 18, 0.65);
-  --glass-line:rgba(2,6,20,.1);
-  --glass-ink:rgba(255,255,255,.95);
-  --glass-ink-muted:rgba(255,255,255,.95);
-  --glass-hover:rgba(255,255,255,.14);
-  --glass-active:rgba(255,255,255,.95);
-
   position:sticky;top:0;z-index:30;
   display:flex;justify-content:space-between;align-items:center;gap:1rem;
   padding:.5rem clamp(16px,4vw,36px);
-  border-bottom:1px solid var(--glass-line);
-  color:var(--glass-ink);
-  /* Lichtkante oben, darunter derselbe Schatten wie die Fenster — die Leiste
-     liegt ueber allem und soll das auch zeigen. Nicht die Aktiv-Variante:
-     aktiv ist immer genau EIN Fenster, die Leiste steht daneben. */
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.14),var(--win-shadow);
-}
-/* Glas auf einem ::before statt auf der Leiste selbst — WICHTIG:
-   backdrop-filter macht ein Element zum Bezugsrahmen fuer position:fixed
-   darin. Die data-tip-Tooltips sind fix und werden von core/tooltips.js in
-   VIEWPORT-Koordinaten gesetzt; laege der Filter auf .topbar, haetten sie
-   sich beim ersten Versatz der Leiste verschoben. Dieselbe Falle wie
-   frueher mit transform auf den Erstellen-Knoepfen. */
-.topbar::before{
-  content:"";position:absolute;inset:0;z-index:-1;
-  background:var(--glass-bg);
-  /* WENIG Weichzeichnung mit Absicht: Rauchglas ist getoentes Glas, kein
-     Milchglas. Gemessen am Hintergrundbild — dessen feine Gitterlinien liegen
-     nur rund 2 Helligkeitsstufen ueber ihrer Umgebung und verschwinden schon
-     bei 6px Radius restlos. Bei 3px bleiben sie erahnbar (Feinstruktur im
-     gerenderten Streifen: 0,60 statt 0,09 bei den frueheren 20px).
-     saturate holt die Farbe zurueck, die das Weichzeichnen ausbleicht. */
-  -webkit-backdrop-filter:blur(5px) saturate(75%);
-  backdrop-filter:blur(5px) saturate(75%);
-}
-/* Ohne backdrop-filter (aeltere Browser) gaebe es keine Streuung — dann lieber
-   deckender, sonst wirkt die Leiste nur schmutzig statt glaesern. */
-@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .topbar::before{background:rgba(22,26,36,.93)}
-}
-
-/* Alles in der Leiste auf hell umstellen. Nur Text und Flaechen — die
-   Anwendungs-Icons (Logo, Dateiliste, Board, Glocke) bleiben farbig, die
-   sollen auf dem dunklen Grund genauso aussehen wie ueberall sonst. */
-.topbar .uname{color:var(--glass-ink-muted)}
-.topbar .brand-btn:hover,
-.topbar .view-btn:hover,.topbar .view-btn:focus-visible{background:var(--glass-hover)}
-.topbar .brand-btn:active,.topbar .view-btn:active{background:var(--glass-active)}
-/* Der Kebab ist der einzige Knopf mit eigenem Rahmen — als Glasplaettchen */
-.topbar .iconbtn{
-  background:rgba(255,255,255,.1);border-color:var(--glass-line);
-  color:var(--glass-ink);
-}
-.topbar .iconbtn:hover{
-  background:var(--glass-hover);border-color:rgba(255,255,255,.28);color:var(--glass-ink);
-}
-/* open-menu.svg ist ein dunkles Glyph und haengt als <img> drin — die
-   Seitenfarbe erreicht es nicht, also hier umkehren */
-.topbar .iconbtn img{filter:invert(1) brightness(1.6)}
-/* Der Ring um den Avatar setzt sich sonst mit Weiss vom Untergrund ab */
-.topbar .avatar-btn:focus-visible .avatar{
-  box-shadow:0 0 0 2px rgba(22,26,36,.9),0 0 0 4px var(--brand);
 }
 /* Brand + Werkzeugleiste zusammen links; Nutzer bleibt rechts */
 .topbar-left{display:flex;align-items:center;gap:clamp(.6rem,2vw,1.5rem);min-width:0}
@@ -1403,93 +1347,16 @@ a.crumb:hover{text-decoration:underline}
 /* muss das display:flex oben schlagen, sonst ignoriert das Panel [hidden] */
 .menu-panel[hidden]{display:none}
 
-/* --- Die drei Menues der Titelleiste in Rauchglas -----------------------
-   Anwendungs-Menue, Nachrichten und Kebab. Bewusst NUR diese drei: die
-   Zeilenmenues der Dateiliste und das Status-Kontextmenue haengen ueber
-   hellen Karten, dort waere dunkles Glas ein Fremdkoerper.
+/* Die drei Menues der Titelleiste (Anwendungen, Nachrichten, Kebab) haengen
+   tiefer, damit ihre Kante nicht auf der Unterkante der Leiste klebt. Der
+   Wert setzt sich zusammen aus: 8px Innenabstand der Leiste unter dem Knopf
+   + ~4px Hoehenunterschied durch die zentrierte Ausrichtung + 10px
+   gewuenschter Spalt. Gemessen lagen die Panels vorher 4-5px OBERHALB der
+   Leistenkante, die Raender lagen also uebereinander. Aendert sich das
+   Polster der Leiste, gehoert dieser Wert nachgezogen.
+   Ihre Glas-Anmutung steht am Dateiende unter „Rauchglas". */
+.topbar .menu-panel{top:calc(100% + 22px)}
 
-   Werte 1:1 aus der Leiste: gleiche Fuellung, gleiche Linie, gleicher Filter.
-   Sie stehen absichtlich NICHT in eigenen Zahlen hier — wer den Ton der
-   Leiste dreht, dreht die Menues mit. */
-.topbar .menu-panel{
-  --glass-bg:rgba(17, 17, 18, 0.65);
-  --glass-line:rgba(2,6,20,.1);
-  --glass-ink:rgba(255,255,255,.95);
-  --glass-ink-muted:rgba(255,255,255,.6);
-  --glass-hover:rgba(255,255,255,.12);
-  --glass-active:rgba(255,255,255,.18);
-
-  background:transparent;
-  border-color:var(--glass-line);
-  color:var(--glass-ink);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 10px 34px rgba(0,0,0,.38);
-}
-/* Glas auf dem ::before — wie bei der Leiste: backdrop-filter machte das
-   Panel sonst zum Bezugsrahmen fuer die fixen data-tip-Tooltips der Kacheln.
-   Ein Pseudo-Element bleibt am Panel, auch wenn OverlayScrollbars den Inhalt
-   des Nachrichten-Menues in seinen Viewport umhaengt. */
-.topbar .menu-panel::before{
-  content:"";position:absolute;inset:0;z-index:-1;
-  border-radius:inherit;
-  background:var(--glass-bg);
-  -webkit-backdrop-filter:blur(5px) saturate(75%);
-  backdrop-filter:blur(5px) saturate(75%);
-}
-@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .topbar .menu-panel::before{background:rgba(17,17,18,.93)}
-}
-/* Der Rahmen darf nicht dieselbe fast unsichtbare Linie sein wie in der
-   Leiste — ein freischwebendes Panel braucht eine erkennbare Kante. */
-.topbar .menu-panel{
-  border-color:rgba(255,255,255,.16);
-  /* Tiefer aufklappen, damit die Panel-Kante nicht auf der Unterkante der
-     Leiste klebt. Der Wert setzt sich zusammen aus: 8px Innenabstand der
-     Leiste unter dem Knopf + ~4px Hoehenunterschied durch die zentrierte
-     Ausrichtung + 10px gewuenschter Spalt. Gemessen lagen die Panels vorher
-     4-5px OBERHALB der Leistenkante, die Raender lagen also uebereinander.
-     Aendert sich das Polster der Leiste, gehoert dieser Wert nachgezogen. */
-  top:calc(100% + 22px);
-}
-
-/* Inhalte auf hell. Farbige Icons (Dateitypen, Anwendungen, Avatare) bleiben
-   wie sie sind — nur Text, Flaechen und Trennlinien wechseln. */
-.topbar .menu-panel .menu-item{color:var(--glass-ink)}
-.topbar .menu-panel .menu-item:hover{background:var(--glass-hover)}
-.topbar .menu-version{color:var(--glass-ink-muted);border-top-color:var(--glass-line)}
-/* Nachrichten */
-.topbar .notif-head{color:var(--glass-ink-muted);border-bottom-color:var(--glass-line)}
-.topbar .notif-head img{filter:invert(1);opacity:.75}
-.topbar .notif-when{color:var(--glass-ink-muted)}
-.topbar .notif-empty{color:var(--glass-ink-muted)}
-.topbar .notif-read-all{color:var(--glass-ink-muted);border-top-color:var(--glass-line)}
-/* Anwendungs-Menue */
-.topbar .app-group + .app-group,
-.topbar .app-search-out + .app-group{border-top-color:var(--glass-line)}
-.topbar .app-group-title{color:var(--glass-ink-muted)}
-.topbar .app-btn{color:var(--glass-ink)}
-.topbar .app-btn:hover,.topbar .app-btn:focus-visible{background:var(--glass-hover)}
-.topbar .app-btn:active{background:var(--glass-active)}
-/* Suchfeld: die Kapsel wird EINGETIEFT statt aufgehellt. Weiss auf Glas
-   ueber der weissen Karte addiert sich sonst zu einer hellen Flaeche, auf der
-   weisser Text nicht mehr steht (gemessen 4,2:1). Dunkel getoent bleibt es
-   ueberall eine Mulde. */
-.topbar .app-search-input{
-  background:rgba(0,0,0,.22);color:var(--glass-ink);
-}
-.topbar .app-search-input::placeholder{color:var(--glass-ink-muted)}
-.topbar .app-search-input:focus{background:rgba(0,0,0,.32)}
-.topbar .app-search-icon{filter:invert(1);opacity:.6}
-/* Treffer */
-.topbar .app-hit{color:var(--glass-ink)}
-.topbar .app-hit-hint{color:var(--glass-ink-muted)}
-.topbar .app-hit:hover,.topbar .app-hit-active{background:var(--glass-hover)}
-.topbar .app-search-empty{color:var(--glass-ink-muted)}
-/* Die Bildlaufleisten in diesen Panels sind sonst dunkel auf dunkel */
-.topbar .menu-panel .os-scrollbar{
-  --os-handle-bg:rgba(255,255,255,.3);
-  --os-handle-bg-hover:rgba(255,255,255,.45);
-  --os-handle-bg-active:rgba(255,255,255,.6);
-}
 /* Kontextmenue der Desktop-Icons: haengt an keinem Knopf, sondern wird von
    js/notes/status.js an die Mausposition gesetzt -> fixed statt absolute.
    z-index ueber den Icons (die liegen als fixe Overlay-Ebene auf der Seite). */
@@ -1680,46 +1547,160 @@ a.crumb:hover{text-decoration:underline}
   .col-date{display:none}
 }
 
-/* === Dialoge in Rauchglas ==============================================
-   Dieselbe Anmutung wie die Menues der Titelleiste, angewandt auf die vier
-   Verwaltungs-Dialoge (Mein Konto, Nutzerverwaltung, Einstellungen, Backup).
-   Ein weiterer Dialog braucht nur die Klasse .dialog-glass.
+/* ========================================================================
+   RAUCHGLAS — die eine Definition
+   ========================================================================
+   Drei Flaechen tragen dunkles Rauchglas: die Titelleiste, ihre drei Menues
+   (Anwendungen, Nachrichten, Kebab) und die vier Verwaltungs-Dialoge
+   (Mein Konto, Nutzerverwaltung, Einstellungen, Backup). Sie standen frueher
+   an drei weit auseinanderliegenden Stellen der Datei — wer am Ton drehte,
+   traf nur eine davon. Jetzt gilt: gedreht wird HIER.
 
-   Bewusst NICHT auf alle Dialoge: die Notiz-Ansicht, der Bild-Betrachter und
-   die Zeilen-Dialoge zeigen INHALTE (Markdown, Fotos, Dateinamen) — die
-   gehoeren auf ruhigen hellen Grund, nicht auf getoentes Glas.
+   Bewusst NICHT ueberall: die Zeilenmenues der Dateiliste, das
+   Status-Kontextmenue, die Notiz-Ansicht und der Bild-Betrachter zeigen
+   INHALTE oder haengen ueber hellen Karten — dort waere getoentes Glas ein
+   Fremdkoerper.
 
-   Fuellung 0,45 statt der 0,28 aus der Leiste. Der Backdrop (rgba(16,24,40,.4))
-   dunkelt zwar schon ab, das reicht aber nicht: liegt die WEISSE Dateikarte
-   dahinter, kam die Dialogflaeche mit 0,28 auf 120/122/125 — 4,3:1 zu weissem
-   Text und damit unter der Lesbarkeitsgrenze. Mit 0,45 sind es rund 6:1, und
-   ueber dem Desktop bleibt es sichtbar durchscheinend.
+   Der Aufbau in drei Teilen:
+     1. die Rezeptur (Marken + Grundflaeche) — gilt fuer alle drei,
+     2. was jede Flaeche fuer sich anders macht — nur Lage und Schattenwurf,
+     3. die Inhalte auf hell, nach Flaeche gruppiert.
 
-   Wie ueberall: der Filter sitzt auf dem ::before, nicht auf dem Dialog.
-   backdrop-filter machte ihn sonst zum Bezugsrahmen fuer position:fixed —
-   und mehrere Knoepfe darin tragen data-tip-Tooltips, die fix sind. */
-.dialog-glass{
-  --glass-bg:rgba(17,17,18,.65);
-  --glass-line:rgba(255,255,255,.1);
+   Eine vierte Glasflaeche braucht nur die Klasse .glass (bei Dialogen
+   zusaetzlich .dialog-glass fuer deren Innenleben aus Teil 3).
+
+   Drei Zutaten machen den Glas-Eindruck aus:
+     1. eine dunkle, TEILDURCHLAESSIGE Fuellung (nicht deckend, sonst waere es
+        einfach eine graue Flaeche),
+     2. backdrop-filter: blur streut, was dahinter liegt; saturate holt die
+        Farbe zurueck, die das Weichzeichnen sonst ausbleichen laesst,
+     3. eine haarfeine helle Linie an der Oberkante (--glass-sheen) — das ist
+        die Lichtkante, an der echtes Glas erkennbar wird.
+
+   WENIG Weichzeichnung mit Absicht: Rauchglas ist getoentes Glas, kein
+   Milchglas. Gemessen am Hintergrundbild — dessen feine Gitterlinien liegen
+   nur rund 2 Helligkeitsstufen ueber ihrer Umgebung und verschwinden schon
+   bei 6px Radius restlos.
+
+   Die Fuellung 0,65 ist die Lesbarkeitsgrenze, nicht Geschmack: liegt die
+   WEISSE Dateikarte hinter einem Dialog, kam die Flaeche mit 0,28 auf
+   120/122/125 — 4,3:1 zu weissem Text. Wer heller will, muss den Text
+   mitpruefen.
+
+   WICHTIG, gilt fuer alle drei: der Filter sitzt auf einem ::before, nie auf
+   der Flaeche selbst. backdrop-filter macht ein Element zum Bezugsrahmen
+   fuer position:fixed darin — die data-tip-Tooltips sind fix und werden von
+   core/tooltips.js in VIEWPORT-Koordinaten gesetzt. Laege der Filter auf der
+   Flaeche, wanderten sie mit ihr davon. Ein Pseudo-Element bleibt der
+   Flaeche ausserdem auch dann erhalten, wenn OverlayScrollbars den Inhalt in
+   seinen eigenen Viewport umhaengt. */
+
+/* --- 1. Die Rezeptur ---------------------------------------------------- */
+.glass,.topbar,.topbar .menu-panel,.dialog-glass{
+  --glass-bg:rgba(17,17,18,.65);        /* Fuellung */
+  --glass-solid:rgba(17,17,18,.93);     /* Ersatz ohne backdrop-filter */
+  --glass-filter:blur(5px) saturate(75%);
+  --glass-edge:rgba(255,255,255,.16);   /* Aussenkante der Flaeche */
+  --glass-line:rgba(255,255,255,.1);    /* Trennlinien INNERHALB */
   --glass-ink:rgba(255,255,255,.95);
   --glass-ink-muted:rgba(255,255,255,.62);
   --glass-hover:rgba(255,255,255,.12);
-  --glass-well:rgba(0,0,0,.22);
+  --glass-active:rgba(255,255,255,.18);
+  --glass-well:rgba(0,0,0,.22);         /* eingetiefte Felder */
+  --glass-well-focus:rgba(0,0,0,.3);
+  --glass-sheen:inset 0 1px 0 rgba(255,255,255,.12);
+  --glass-drop:0 16px 48px rgba(0,0,0,.45);
 
   background:transparent;color:var(--glass-ink);
-  border-color:rgba(255,255,255,.16);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 16px 48px rgba(0,0,0,.45);
+  border-color:var(--glass-edge);
+  box-shadow:var(--glass-sheen),var(--glass-drop);
 }
-.dialog-glass::before{
+.glass::before,.topbar::before,.topbar .menu-panel::before,.dialog-glass::before{
   content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;
   background:var(--glass-bg);
-  -webkit-backdrop-filter:blur(5px) saturate(75%);
-  backdrop-filter:blur(5px) saturate(75%);
+  -webkit-backdrop-filter:var(--glass-filter);
+  backdrop-filter:var(--glass-filter);
 }
+/* Ohne backdrop-filter (aeltere Browser) gaebe es keine Streuung — dann
+   lieber deckender, sonst wirkt die Flaeche nur schmutzig statt glaesern. */
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .dialog-glass::before{background:rgba(17,17,18,.93)}
+  .glass::before,.topbar::before,.topbar .menu-panel::before,.dialog-glass::before{
+    background:var(--glass-solid);
+  }
 }
 
+/* --- 2. Was jede Flaeche fuer sich anders macht -------------------------- */
+/* Die Leiste liegt an der Kante und hat nur unten einen Rand. Sie wirft den
+   Fensterschatten, nicht den eigenen — sie liegt ueber allem und soll das
+   auch zeigen. Nicht die Aktiv-Variante: aktiv ist immer genau EIN Fenster,
+   die Leiste steht daneben. */
+.topbar{
+  --glass-drop:var(--win-shadow);
+  /* fast weisser Aufblitzen beim Druecken — die Leiste ist der einzige Ort
+     mit dieser kraeftigen Rueckmeldung */
+  --glass-active:rgba(255,255,255,.95);
+  border:0;border-bottom:1px solid var(--glass-edge);
+}
+/* Freischwebende Panels: kuerzerer, engerer Schlagschatten als die Dialoge */
+.topbar .menu-panel{--glass-drop:0 10px 34px rgba(0,0,0,.38)}
+/* .dialog-glass nimmt die Vorgaben unveraendert */
+
+/* --- 3a. Inhalte der Titelleiste ----------------------------------------
+   Nur Text und Flaechen wechseln auf hell — die Anwendungs-Icons (Logo,
+   Dateiliste, Board, Glocke) bleiben farbig, die sollen auf dem dunklen
+   Grund genauso aussehen wie ueberall sonst. */
+.topbar .uname{color:var(--glass-ink-muted)}
+.topbar .brand-btn:hover,
+.topbar .view-btn:hover,.topbar .view-btn:focus-visible{background:var(--glass-hover)}
+.topbar .brand-btn:active,.topbar .view-btn:active{background:var(--glass-active)}
+/* Der Kebab ist der einzige Knopf mit eigenem Rahmen — als Glasplaettchen */
+.topbar .iconbtn{
+  background:rgba(255,255,255,.1);border-color:var(--glass-line);
+  color:var(--glass-ink);
+}
+.topbar .iconbtn:hover{
+  background:var(--glass-hover);border-color:rgba(255,255,255,.28);color:var(--glass-ink);
+}
+/* open-menu.svg ist ein dunkles Glyph und haengt als <img> drin — die
+   Seitenfarbe erreicht es nicht, also hier umkehren */
+.topbar .iconbtn img{filter:invert(1) brightness(1.6)}
+/* Der Ring um den Avatar setzt sich sonst mit Weiss vom Untergrund ab */
+.topbar .avatar-btn:focus-visible .avatar{
+  box-shadow:0 0 0 2px rgba(22,26,36,.9),0 0 0 4px var(--brand);
+}
+
+/* --- 3b. Inhalte der drei Menues ---------------------------------------- */
+.topbar .menu-panel .menu-item{color:var(--glass-ink)}
+.topbar .menu-panel .menu-item:hover{background:var(--glass-hover)}
+.topbar .menu-version{color:var(--glass-ink-muted);border-top-color:var(--glass-line)}
+/* Nachrichten */
+.topbar .notif-head{color:var(--glass-ink-muted);border-bottom-color:var(--glass-line)}
+.topbar .notif-head img{filter:invert(1);opacity:.75}
+.topbar .notif-when{color:var(--glass-ink-muted)}
+.topbar .notif-empty{color:var(--glass-ink-muted)}
+.topbar .notif-read-all{color:var(--glass-ink-muted);border-top-color:var(--glass-line)}
+/* Anwendungs-Menue */
+.topbar .app-group + .app-group,
+.topbar .app-search-out + .app-group{border-top-color:var(--glass-line)}
+.topbar .app-group-title{color:var(--glass-ink-muted)}
+.topbar .app-btn{color:var(--glass-ink)}
+.topbar .app-btn:hover,.topbar .app-btn:focus-visible{background:var(--glass-hover)}
+.topbar .app-btn:active{background:var(--glass-active)}
+/* Suchfeld: die Kapsel wird EINGETIEFT statt aufgehellt. Weiss auf Glas
+   ueber der weissen Karte addiert sich sonst zu einer hellen Flaeche, auf der
+   weisser Text nicht mehr steht (gemessen 4,2:1). Dunkel getoent bleibt es
+   ueberall eine Mulde — dieselbe Entscheidung wie bei den Feldern in 3c. */
+.topbar .app-search-input{background:var(--glass-well);color:var(--glass-ink)}
+.topbar .app-search-input::placeholder{color:var(--glass-ink-muted)}
+.topbar .app-search-input:focus{background:var(--glass-well-focus)}
+.topbar .app-search-icon{filter:invert(1);opacity:.6}
+/* Treffer */
+.topbar .app-hit{color:var(--glass-ink)}
+.topbar .app-hit-hint{color:var(--glass-ink-muted)}
+.topbar .app-hit:hover,.topbar .app-hit-active{background:var(--glass-hover)}
+.topbar .app-search-empty{color:var(--glass-ink-muted)}
+
+/* --- 3c. Inhalte der Dialoge -------------------------------------------- */
 /* Kopfzeile: der helle Streifen wuerde als weisser Balken stehenbleiben */
 .dialog-glass .dialog-head{
   background:rgba(255,255,255,.06);border-bottom-color:var(--glass-line);
@@ -1744,7 +1725,7 @@ a.crumb:hover{text-decoration:underline}
 }
 .dialog-glass .field::placeholder{color:var(--glass-ink-muted)}
 .dialog-glass .field:focus{
-  border-color:var(--brand);background:rgba(0,0,0,.3);
+  border-color:var(--brand);background:var(--glass-well-focus);
   box-shadow:0 0 0 3px rgba(37,99,235,.25);
 }
 .dialog-glass #tok{
@@ -1798,8 +1779,27 @@ a.crumb:hover{text-decoration:underline}
   background:var(--glass-well);border-color:var(--glass-line);color:var(--glass-ink);
 }
 
-/* Bildlaufleisten in diesen Dialogen: dunkel auf dunkel waeren sie weg */
-.dialog-glass .os-scrollbar{
+/* --- 3d. Gemeinsam auf allen Glasflaechen -------------------------------
+   Tooltips (data-tip): der weisse Chip stand als heller Fleck vor dem
+   dunklen Glas. Hier erscheint er in dessen Palette.
+   Bewusst FAST deckend (--glass-solid statt --glass-bg): die Schrift ist
+   klein, sie braucht Kontrast, keine Durchsicht. Deshalb auch kein
+   backdrop-filter — er waere hier ohnehin der einzige Ort, an dem er direkt
+   auf dem sichtbaren Element saesse, denn ein ::after hat kein ::before,
+   das ihn tragen koennte. Bei .93 Deckung saehe man ihn nicht. */
+.glass [data-tip]::after,
+.topbar [data-tip]::after,
+.dialog-glass [data-tip]::after{
+  background:var(--glass-solid);
+  border-color:var(--glass-edge);
+  color:var(--glass-ink);
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+
+/* Bildlaufleisten: die Standard-Griffe sind dunkel — auf dunklem Glas waeren
+   sie weg. Betrifft Nachrichten- und Anwendungsmenue ebenso wie Sprachliste
+   und Backup-Ausgabe, deshalb hier zusammen. */
+.glass .os-scrollbar,.topbar .menu-panel .os-scrollbar,.dialog-glass .os-scrollbar{
   --os-handle-bg:rgba(255,255,255,.3);
   --os-handle-bg-hover:rgba(255,255,255,.45);
   --os-handle-bg-active:rgba(255,255,255,.6);
