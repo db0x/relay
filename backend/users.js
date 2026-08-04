@@ -74,6 +74,11 @@ function setDisplayName(username, displayName) {
 }
 
 // optionale E-Mail-Adresse; null loescht sie wieder
+// Notiz-Icons auf dem Desktop ein-/ausschalten (je Nutzer, Mein Konto)
+function setDeskNotes(username, on) {
+  db().prepare("UPDATE users SET desk_notes=? WHERE username=?").run(on ? 1 : 0, username);
+}
+
 function setEmail(username, email) {
   const r = db().prepare("UPDATE users SET email=? WHERE username=?")
     .run(email, username);
@@ -103,5 +108,5 @@ if (db().prepare("SELECT COUNT(*) AS c FROM users").get().c === 0) {
 
 module.exports = {
   addUser, setAdmin, setLocked, verify, get, getByToken, resetToken, setPassword,
-  setDisplayName, setEmail, del, listUsers,
+  setDisplayName, setEmail, setDeskNotes, del, listUsers,
 };

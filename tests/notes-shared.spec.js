@@ -14,11 +14,14 @@ const { BASE_URL } = require("./test-env");
 
 const boardCard = (page, title) => page.locator(`.board-card[data-label="${title}"]`);
 
-// Ob am Icon des Knopfes wirklich ein Overlay gezeichnet wird — die Klasse
-// allein sagt noch nicht, dass die CSS-Regel greift.
+// Ob am Icon des Knopfes wirklich ein Freigabe-Overlay gezeichnet wird — die
+// Klasse allein sagt noch nicht, dass die CSS-Regel greift.
+// Geprueft wird DISPLAY, nicht content: seit es zwei Overlays gibt (Freigabe
+// unten rechts, Haken oben rechts) tragen beide Pseudo-Elemente immer ein
+// content:"" und werden ueber display ein- und ausgeschaltet.
 function hasOverlay(locator) {
   return locator.evaluate((el) =>
-    getComputedStyle(el.querySelector(".note-ico-wrap"), "::after").content !== "none");
+    getComputedStyle(el.querySelector(".note-ico-wrap"), "::after").display !== "none");
 }
 
 test.describe("Freigegebene Notizen kennzeichnen", () => {
@@ -115,5 +118,50 @@ test.describe("Freigegebene Notizen kennzeichnen", () => {
       await deskIcon(page, shared).hover();
       await expect(page.locator("#note-tip")).toHaveClass(/open/);
       await expect(page.locator("#note-tip")).not.toContainText("Freigegeben von");
+    });
+
+  test("Freigabe- und Erledigt-Overlay stehen in verschiedenen Ecken",
+    async ({ page, browser }) => {
+      // Unten rechts ist der Standardplatz — wer allein da ist, sitzt dort.
+      // Kommen BEIDE zusammen, weicht der Haken nach oben rechts aus.
+      // Unten links bleibt frei: dort ist die umgeknickte Ecke der Notiz.
+      const { ctx, page: p } = await setup(page, browser, "edit");
+      const icon = deskIcon(p, shared);
+      const eigen = deskIcon(p, mine);
+
+      // Gemessen wird die LAGE, nicht der CSS-Wert: bei positionierten
+      // Pseudo-Elementen liefert getComputedStyle den benutzten Wert, ein
+      // geschriebenes "auto" kommt dort nie an. Also fragen wir, in welcher
+      // Haelfte des Icons die Oberkante des Overlays sitzt.
+      const ecken = (el) => el.evaluate((n) => {
+        const w = n.querySelector(".note-ico-wrap");
+        const h = w.getBoundingClientRect().height;
+        const lies = (pseudo) => {
+          const c = getComputedStyle(w, pseudo);
+          return { an: c.display, unten: parseFloat(c.top) > h / 2 };
+        };
+        return { haken: lies("::before"), freigabe: lies("::after") };
+      });
+
+      // die eigene Notiz auf erledigt -> Haken ALLEIN, also unten rechts
+      await eigen.click({ button: "right" });
+      await p.locator('#note-status-menu [data-status="closed"]').click();
+      await expect(eigen).toHaveClass(/note-desk-done/);
+      const allein = await ecken(eigen);
+      expect(allein.haken.an).toBe("block");
+      expect(allein.freigabe.an).toBe("none");
+      expect(allein.haken.unten).toBe(true);
+
+      await icon.click({ button: "right" });
+      await p.locator('#note-status-menu [data-status="closed"]').click();
+      await expect(icon).toHaveClass(/note-desk-done/);
+
+      const beide = await ecken(icon);
+      expect(beide.freigabe.an).toBe("block");
+      expect(beide.haken.an).toBe("block");
+      // verschiedene Ecken: die Freigabe bleibt unten, der Haken weicht hoch
+      expect(beide.freigabe.unten).toBe(true);
+      expect(beide.haken.unten).toBe(false);
+      await ctx.close();
     });
 });

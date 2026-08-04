@@ -20,7 +20,9 @@ function db() {
       pw_hash      TEXT NOT NULL,
       api_token    TEXT NOT NULL UNIQUE,
       is_admin     INTEGER NOT NULL DEFAULT 0,
-      locked       INTEGER NOT NULL DEFAULT 0
+      locked       INTEGER NOT NULL DEFAULT 0,
+      -- Notiz-Icons auf dem Desktop zeigen? Je Nutzer umschaltbar (Mein Konto)
+      desk_notes   INTEGER NOT NULL DEFAULT 1
     );
 
     -- Freigabe einer Datei (owner/filename) an einen anderen Nutzer (target).
@@ -101,6 +103,10 @@ function db() {
     _db.exec("ALTER TABLE users ADD COLUMN locked INTEGER NOT NULL DEFAULT 0");
   if (!cols.includes("email"))
     _db.exec("ALTER TABLE users ADD COLUMN email TEXT"); // optional, NULL = nicht gepflegt
+  // Schalter "Notizen auf dem Desktop" (Mein Konto). Default 1: Bestandsnutzer
+  // finden ihren Desktop unveraendert vor.
+  if (!cols.includes("desk_notes"))
+    _db.exec("ALTER TABLE users ADD COLUMN desk_notes INTEGER NOT NULL DEFAULT 1");
   // note_meta.color kam mit den farbigen Notiz-Icons dazu, status mit dem
   // Bearbeitungsstand (Offen/In Arbeit/Erledigt). Beide vertragen NULL:
   // Altbestand liest sich als Standardfarbe bzw. als "open".

@@ -90,6 +90,9 @@ router.post("/profile", loginRequired, (req, res) => {
   users.setDisplayName(req.session.user, name);
   req.session.name = name; // Session sofort nachziehen, nicht erst beim naechsten Login
   users.setEmail(req.session.user, email || null);
+  // Schalter: unangehakte Checkboxen schicken gar nichts mit — fehlt das Feld,
+  // ist er aus. Er steht im selben Formular, also EIN Speichern fuer alles.
+  users.setDeskNotes(req.session.user, req.body.deskNotes === "1");
   req.flash("ok", "Profil gespeichert.");
   res.redirect(`${BASE}/`);
 });

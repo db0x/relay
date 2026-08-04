@@ -44,7 +44,7 @@ var AREAS = [
   ".note-preview", // Vorschau im Notiz-Editor (Inhalt in #note-preview-body)
   ".emoji-panel",  // Emoji-Auswahl
   ".backup-log",   // rsync-Ausgabe im Backup-Dialog (Text im <code> darin)
-  ".lang-list",    // Sprachauswahl in den Einstellungen
+  ".lang-scroll",  // Sprachauswahl in den Einstellungen (Liste liegt darin)
 ].join(",");
 
 function lib() {

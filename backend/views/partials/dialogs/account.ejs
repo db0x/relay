@@ -1,11 +1,12 @@
-<dialog id="dlg-account" class="dialog dialog-wide">
+<dialog id="dlg-account" class="dialog dialog-wide dialog-glass">
   <header class="dialog-head">
     <% if (hasAvatar) { %>
     <img class="avatar" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="" width="22" height="22">
     <% } else { %>
     <img src="<%= base %>/static/img/relay.svg" alt="" width="22" height="22">
     <% } %>
-    <h2>Mein Konto <span class="muted">· <%= user %></span></h2>
+    <%# Kein Name im Titel — der steht direkt darunter im Feld "Anzeigename" %>
+    <h2>Mein Konto</h2>
     <form method="dialog">
       <button class="dialog-x" aria-label="Schließen">×</button>
     </form>
@@ -43,6 +44,14 @@
              value="<%= email %>" placeholder="name@beispiel.de" maxlength="120"
              autocomplete="email" pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
              title="Bitte eine gültige E-Mail-Adresse eingeben (oder das Feld leeren).">
+      <%# Schalter im SELBEN Formular — ein Speichern fuer den ganzen Abschnitt
+          (Konvention des Dialogs). Unangehakte Checkboxen schicken nichts mit,
+          die Route wertet das Fehlen als "aus". %>
+      <label class="switch-label account-switch">
+        <input type="checkbox" name="deskNotes" value="1"<%= deskNotes ? " checked" : "" %>>
+        <span class="switch-ui" aria-hidden="true"></span>
+        <span class="switch-text">ToDo-Notizen auf dem Desktop zeigen</span>
+      </label>
       <button class="btn btn-sm dialog-submit">Speichern</button>
     </form>
   </section>

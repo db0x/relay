@@ -2,6 +2,11 @@
   /* Hoehe darf zu "auto" animieren (einklappbare Konto-Abschnitte) */
   interpolate-size:allow-keywords;
   --bg:#eef1f5;
+  /* Grundton des Desktop-Bildes — die Farbe, die steht, solange das Bild noch
+     nicht da ist. MUSS mit dem kritischen Inline-Stil in
+     views/partials/head.ejs uebereinstimmen: der faerbt die Seite, bevor
+     dieses Stylesheet ueberhaupt geladen ist. Zwei Werte, eine Farbe. */
+  --desk-bg:#375998;
   --card:#ffffff;
   --ink:#1f2937;
   --muted:#6b7280;
@@ -38,9 +43,13 @@
 }
 
 *{box-sizing:border-box}
-/* Desktop-Hintergrundbild (hinter Karte + Notiz-Icons); var(--bg) als Fallback */
+/* Desktop-Hintergrundbild (hinter Karte + Notiz-Icons).
+   Die Farbe DARUNTER ist --desk-bg, nicht --bg: sie ist zwischen dem Parsen
+   dieses Stylesheets und dem Eintreffen des Bildes ganzflaechig zu sehen.
+   Mit dem hellen --bg gab das beim Neuladen einen weissen Blitz — mit dem
+   Grundton des Bildes ist der Moment nahtlos. */
 html{
-  background:var(--bg) url(../img/background/desktop.jpg) center/cover fixed no-repeat;
+  background:var(--desk-bg) url(../img/background/desktop.jpg) center/cover fixed no-repeat;
 }
 body{
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -249,16 +258,15 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .page a,.page button,.page summary,.page label,.page .fname,.page .crumb{cursor:pointer}
 .page input,.page select,.page textarea{cursor:auto}
 
-/* Titelleiste als voller Streifen über die ganze Breite */
+/* --- Titelleiste --------------------------------------------------------
+   Hier stehen nur Aufbau und Lage. Die Glas-Anmutung der Leiste (Fuellung,
+   Filter, helle Inhalte) steht gesammelt am Dateiende unter „Rauchglas" —
+   zusammen mit der der Menues und der Dialoge. Am Ton wird dort gedreht,
+   und nur dort. */
 .topbar{
   position:sticky;top:0;z-index:30;
   display:flex;justify-content:space-between;align-items:center;gap:1rem;
-  background:var(--card);border-bottom:1px solid var(--line);
   padding:.5rem clamp(16px,4vw,36px);
-  /* Derselbe Schatten wie die Fenster — die Leiste liegt ueber allem und soll
-     das auch zeigen. Nicht die Aktiv-Variante: aktiv ist immer genau EIN
-     Fenster, die Leiste steht daneben und nicht darueber. */
-  box-shadow:var(--win-shadow);
 }
 /* Brand + Werkzeugleiste zusammen links; Nutzer bleibt rechts */
 .topbar-left{display:flex;align-items:center;gap:clamp(.6rem,2vw,1.5rem);min-width:0}
@@ -901,28 +909,50 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* grauer Overlay-Hover funktioniert auf hellem UND dunklem Hintergrund */
 .note-desk:hover{background:rgba(127,127,127,.16)}
 .note-desk.dragging{cursor:grabbing;opacity:.85}
-/* Erledigte ToDo-Notizen bleiben liegen, treten aber zurueck — der Fortschritt
-   bleibt sichtbar und ein versehentliches Schliessen ist per Rechtsklick
-   sofort ruecknehmbar. Beim Hover wieder voll da, damit man sie sicher trifft. */
-.note-desk-done{opacity:.5}
-.note-desk-done:hover{opacity:1}
+/* Erledigte Notizen bleiben liegen — der Fortschritt bleibt sichtbar und ein
+   versehentliches Schliessen ist per Rechtsklick sofort ruecknehmbar.
+   Kenntlich gemacht wird das mit dem Haken-Overlay weiter unten, NICHT mehr
+   ueber Transparenz: gedaempfte Icons wirkten eher wie "kaputt geladen" als
+   wie "abgehakt", und auf dem Board waren sie in der Spalte "Erledigt"
+   doppelt gemoppelt. */
 .note-desk .note-ico{
   width:46px;height:46px;display:block;pointer-events:none;
   filter:drop-shadow(0 2px 4px rgba(16,24,40,.3));
 }
-/* Freigabe-Overlay am Notiz-Icon (Desktop UND Board): kleines share.svg unten
-   rechts, gleiche Machart wie der Stift am Avatar.
-   Es sitzt am Wrapper, nicht am Knopf — so bleibt es am Icon kleben, egal wie
+/* --- Overlays am Notiz-Icon (Desktop UND Board) --------------------------
+   Zwei Stueck, und sie koennen ZUSAMMEN auftreten (eine freigegebene Notiz,
+   die erledigt ist). Regel:
+     unten rechts = der Standardplatz. Ist nur EIN Overlay da, sitzt es hier.
+     oben rechts  = Ausweichplatz. Sind BEIDE da, rueckt der Haken hierhin,
+                    weil die Freigabe unten rechts schon steht.
+   Unten LINKS bleibt frei: dort sitzt die umgeknickte Ecke der Notiz.
+   Sie haengen am Wrapper, nicht am Knopf — so kleben sie am Icon, egal wie
    breit oder hoch der Knopf drumherum gerade ist.
-   ACHTUNG background-size wie beim Plus: share.svg zeichnet nur auf rund zwei
-   Dritteln seiner Flaeche, 12px ergeben also ~8px sichtbares Symbol. */
+   z-index:1 ist noetig: .note-ico traegt einen drop-shadow-Filter und wird
+   damit selbst zum Stapel-Element; ohne den z-index verschwaende das ::before
+   (es steht VOR dem <svg> im Baum) hinter dem Icon.
+   ACHTUNG background-size: die Symbole zeichnen unterschiedlich viel ihrer
+   Flaeche aus — share.svg rund zwei Drittel, check.svg fast ganz. Darum
+   verschiedene Werte, damit beide gleich gross WIRKEN. */
 .note-ico-wrap{position:relative;display:block}
-.note-shared .note-ico-wrap::after{
-  content:"";position:absolute;right:-3px;bottom:-1px;width:16px;height:16px;
+.note-ico-wrap::before,.note-ico-wrap::after{
+  content:"";position:absolute;z-index:1;width:16px;height:16px;
+  right:-3px;bottom:-1px; /* Standardplatz */
   border-radius:50%;border:1px solid var(--line);
-  background:#fff url(../img/share.svg) center/12px 12px no-repeat;
+  background-color:#fff;background-repeat:no-repeat;background-position:center;
   box-shadow:0 1px 3px rgba(16,24,40,.18);pointer-events:none;
+  display:none; /* nur die Zustaende unten schalten sie ein */
 }
+.note-shared .note-ico-wrap::after{
+  display:block;
+  background-image:url(../img/share.svg);background-size:12px 12px;
+}
+.note-desk-done .note-ico-wrap::before{
+  display:block;
+  background-image:url(../img/check.svg);background-size:11px 11px;
+}
+/* beide da -> der Haken weicht nach oben aus */
+.note-shared.note-desk-done .note-ico-wrap::before{bottom:auto;top:-2px}
 /* Label als halbtransparenter weisser Chip mit dunklem Text -> lesbar auf
    hellem App-Hintergrund wie auf dunklem (Voltage-)Fensterhintergrund */
 .note-desk-label{
@@ -990,6 +1020,9 @@ button.fname{
   display:flex;justify-content:flex-end;align-items:center;
   margin-top:0;padding:var(--page-gap) 0 0;border-top:1px solid var(--line-soft);
 }
+/* Schalter im Konto-Dialog: etwas Luft nach oben, damit er sich von den
+   Eingabefeldern darueber absetzt (das Formular hat sonst gleiche Abstaende) */
+.account-switch{margin:.25rem 0 .1rem}
 .switch-label{
   display:inline-flex;align-items:center;gap:.55em;cursor:pointer;
   color:var(--muted);font-size:.88rem;line-height:20px;user-select:none;
@@ -1272,8 +1305,13 @@ a.crumb:hover{text-decoration:underline}
 }
 .user-names{display:flex;flex-direction:column;line-height:1.25}
 .user-names .muted{font-size:.78rem}
+/* Die drei Aktionen stehen in je eigenem <form>. Als inline-block richten die
+   sich an der Schriftlinie aus — der Icon-Knopf hat aber keinen Text und damit
+   keine Schriftlinie, er haengt an seiner Unterkante und sitzt dadurch schief.
+   Also mittig ausrichten und ihm die Hoehe der .btn-sm daneben geben. */
 .users-actions{text-align:right;white-space:nowrap}
-.users-actions form{display:inline-block;margin:0 0 0 .3rem}
+.users-actions form{display:inline-flex;vertical-align:middle;margin:0 0 0 .3rem}
+.users-actions .iconbtn{width:31px;height:31px}   /* = Hoehe von .btn-sm */
 .users-wrap .user-create{border-top:1px solid var(--line);margin-top:.9rem;padding:.9rem 0 0}
 .user-create-row{display:flex;gap:.5rem;flex-wrap:wrap}
 .user-create-foot{display:flex;align-items:center;justify-content:space-between}
@@ -1308,6 +1346,17 @@ a.crumb:hover{text-decoration:underline}
 }
 /* muss das display:flex oben schlagen, sonst ignoriert das Panel [hidden] */
 .menu-panel[hidden]{display:none}
+
+/* Die drei Menues der Titelleiste (Anwendungen, Nachrichten, Kebab) haengen
+   tiefer, damit ihre Kante nicht auf der Unterkante der Leiste klebt. Der
+   Wert setzt sich zusammen aus: 8px Innenabstand der Leiste unter dem Knopf
+   + ~4px Hoehenunterschied durch die zentrierte Ausrichtung + 10px
+   gewuenschter Spalt. Gemessen lagen die Panels vorher 4-5px OBERHALB der
+   Leistenkante, die Raender lagen also uebereinander. Aendert sich das
+   Polster der Leiste, gehoert dieser Wert nachgezogen.
+   Ihre Glas-Anmutung steht am Dateiende unter „Rauchglas". */
+.topbar .menu-panel{top:calc(100% + 22px)}
+
 /* Kontextmenue der Desktop-Icons: haengt an keinem Knopf, sondern wird von
    js/notes/status.js an die Mausposition gesetzt -> fixed statt absolute.
    z-index ueber den Icons (die liegen als fixe Overlay-Ebene auf der Seite). */
@@ -1376,6 +1425,9 @@ a.crumb:hover{text-decoration:underline}
   border-radius:14px 14px 0 0;
 }
 .dialog-head img,.dialog-head .note-ico{display:block;flex:0 0 auto}
+/* .avatar zieht sich per negativem Rand an den Namen daneben (Titelleiste).
+   Im Dialogkopf gibt es keinen Namen — dort gilt der normale Icon-Abstand. */
+.dialog-head .avatar{margin-right:0}
 /* Titel (oft mit Dateinamen) bleibt einzeilig und kuerzt per Ellipsis —
    lange Namen duerfen den Dialog nicht horizontal aufschieben; der volle
    Titel kommt als data-tip-Tooltip (index.js, nur wenn abgeschnitten) */
@@ -1418,11 +1470,18 @@ a.crumb:hover{text-decoration:underline}
    Breiter Dialog + umbruchfaehige Eintraege: die Endonym-Labels sind lang,
    und horizontal scrollen soll hier nichts. */
 .dialog-xwide{width:min(94vw,680px)}
-.lang-list{
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));
-  gap:.4rem .9rem;max-height:min(340px,45vh);overflow-y:auto;
+/* Aussen wird gescrollt (und gerahmt), innen gelistet. Beides in EINEM
+   Element ginge nicht: OverlayScrollbars setzt seinen Behaelter zwingend auf
+   flex-row, das Raster der Liste war damit hin und die Auswahl unbedienbar. */
+.lang-scroll{
+  max-height:min(340px,45vh);overflow-y:auto;
   padding:.5rem;border:1px solid var(--line);border-radius:var(--radius-sm);
   background:#fff;
+}
+/* EINE Spalte (Nutzerwunsch): die Namen sind unterschiedlich lang, mehrspaltig
+   riss es sie auseinander. */
+.lang-list{
+  display:flex;flex-direction:column;gap:.4rem;
 }
 .lang-list .check{font-size:.86rem;align-items:flex-start}
 .lang-list .check input{margin-top:.2em;flex:0 0 auto}
@@ -1486,4 +1545,259 @@ a.crumb:hover{text-decoration:underline}
 @media (max-width:560px){
   .page{padding:18px 16px 22px}
   .col-date{display:none}
+}
+
+/* ========================================================================
+   RAUCHGLAS — die eine Definition
+   ========================================================================
+   Drei Flaechen tragen dunkles Rauchglas: die Titelleiste, ihre drei Menues
+   (Anwendungen, Nachrichten, Kebab) und die vier Verwaltungs-Dialoge
+   (Mein Konto, Nutzerverwaltung, Einstellungen, Backup). Sie standen frueher
+   an drei weit auseinanderliegenden Stellen der Datei — wer am Ton drehte,
+   traf nur eine davon. Jetzt gilt: gedreht wird HIER.
+
+   Bewusst NICHT ueberall: die Zeilenmenues der Dateiliste, das
+   Status-Kontextmenue, die Notiz-Ansicht und der Bild-Betrachter zeigen
+   INHALTE oder haengen ueber hellen Karten — dort waere getoentes Glas ein
+   Fremdkoerper.
+
+   Der Aufbau in drei Teilen:
+     1. die Rezeptur (Marken + Grundflaeche) — gilt fuer alle drei,
+     2. was jede Flaeche fuer sich anders macht — nur Lage und Schattenwurf,
+     3. die Inhalte auf hell, nach Flaeche gruppiert.
+
+   Eine vierte Glasflaeche braucht nur die Klasse .glass (bei Dialogen
+   zusaetzlich .dialog-glass fuer deren Innenleben aus Teil 3).
+
+   Drei Zutaten machen den Glas-Eindruck aus:
+     1. eine dunkle, TEILDURCHLAESSIGE Fuellung (nicht deckend, sonst waere es
+        einfach eine graue Flaeche),
+     2. backdrop-filter: blur streut, was dahinter liegt; saturate holt die
+        Farbe zurueck, die das Weichzeichnen sonst ausbleichen laesst,
+     3. eine haarfeine helle Linie an der Oberkante (--glass-sheen) — das ist
+        die Lichtkante, an der echtes Glas erkennbar wird.
+
+   WENIG Weichzeichnung mit Absicht: Rauchglas ist getoentes Glas, kein
+   Milchglas. Gemessen am Hintergrundbild — dessen feine Gitterlinien liegen
+   nur rund 2 Helligkeitsstufen ueber ihrer Umgebung und verschwinden schon
+   bei 6px Radius restlos.
+
+   Die Fuellung 0,65 ist die Lesbarkeitsgrenze, nicht Geschmack: liegt die
+   WEISSE Dateikarte hinter einem Dialog, kam die Flaeche mit 0,28 auf
+   120/122/125 — 4,3:1 zu weissem Text. Wer heller will, muss den Text
+   mitpruefen.
+
+   WICHTIG, gilt fuer alle drei: der Filter sitzt auf einem ::before, nie auf
+   der Flaeche selbst. backdrop-filter macht ein Element zum Bezugsrahmen
+   fuer position:fixed darin — die data-tip-Tooltips sind fix und werden von
+   core/tooltips.js in VIEWPORT-Koordinaten gesetzt. Laege der Filter auf der
+   Flaeche, wanderten sie mit ihr davon. Ein Pseudo-Element bleibt der
+   Flaeche ausserdem auch dann erhalten, wenn OverlayScrollbars den Inhalt in
+   seinen eigenen Viewport umhaengt. */
+
+/* --- 1. Die Rezeptur ---------------------------------------------------- */
+.glass,.topbar,.topbar .menu-panel,.dialog-glass{
+  --glass-bg:rgba(17,17,18,.65);        /* Fuellung */
+  --glass-solid:rgba(17,17,18,.93);     /* Ersatz ohne backdrop-filter */
+  --glass-filter:blur(5px) saturate(75%);
+  --glass-edge:rgba(255,255,255,.16);   /* Aussenkante der Flaeche */
+  --glass-line:rgba(255,255,255,.1);    /* Trennlinien INNERHALB */
+  --glass-ink:rgba(255,255,255,.95);
+  --glass-ink-muted:rgba(255,255,255,.62);
+  --glass-hover:rgba(255,255,255,.12);
+  --glass-active:rgba(255,255,255,.18);
+  --glass-well:rgba(0,0,0,.22);         /* eingetiefte Felder */
+  --glass-well-focus:rgba(0,0,0,.3);
+  --glass-sheen:inset 0 1px 0 rgba(255,255,255,.12);
+  --glass-drop:0 16px 48px rgba(0,0,0,.45);
+
+  background:transparent;color:var(--glass-ink);
+  border-color:var(--glass-edge);
+  box-shadow:var(--glass-sheen),var(--glass-drop);
+}
+.glass::before,.topbar::before,.topbar .menu-panel::before,.dialog-glass::before{
+  content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;
+  background:var(--glass-bg);
+  -webkit-backdrop-filter:var(--glass-filter);
+  backdrop-filter:var(--glass-filter);
+}
+/* Ohne backdrop-filter (aeltere Browser) gaebe es keine Streuung — dann
+   lieber deckender, sonst wirkt die Flaeche nur schmutzig statt glaesern. */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .glass::before,.topbar::before,.topbar .menu-panel::before,.dialog-glass::before{
+    background:var(--glass-solid);
+  }
+}
+
+/* --- 2. Was jede Flaeche fuer sich anders macht -------------------------- */
+/* Die Leiste liegt an der Kante und hat nur unten einen Rand. Sie wirft den
+   Fensterschatten, nicht den eigenen — sie liegt ueber allem und soll das
+   auch zeigen. Nicht die Aktiv-Variante: aktiv ist immer genau EIN Fenster,
+   die Leiste steht daneben. */
+.topbar{
+  --glass-drop:var(--win-shadow);
+  border:0;border-bottom:1px solid var(--glass-edge);
+}
+/* Freischwebende Panels: kuerzerer, engerer Schlagschatten als die Dialoge */
+.topbar .menu-panel{--glass-drop:0 10px 34px rgba(0,0,0,.38)}
+/* .dialog-glass nimmt die Vorgaben unveraendert */
+
+/* --- 3a. Inhalte der Titelleiste ----------------------------------------
+   Nur Text und Flaechen wechseln auf hell — die Anwendungs-Icons (Logo,
+   Dateiliste, Board, Glocke) bleiben farbig, die sollen auf dem dunklen
+   Grund genauso aussehen wie ueberall sonst. */
+.topbar .uname{color:var(--glass-ink-muted)}
+.topbar .brand-btn:hover,
+.topbar .view-btn:hover,.topbar .view-btn:focus-visible{background:var(--glass-hover)}
+.topbar .brand-btn:active,.topbar .view-btn:active{background:var(--glass-active)}
+/* Der Kebab ist der einzige Knopf mit eigenem Rahmen — als Glasplaettchen */
+.topbar .iconbtn{
+  background:rgba(255,255,255,.1);border-color:var(--glass-line);
+  color:var(--glass-ink);
+}
+.topbar .iconbtn:hover{
+  background:var(--glass-hover);border-color:rgba(255,255,255,.28);color:var(--glass-ink);
+}
+/* open-menu.svg ist ein dunkles Glyph und haengt als <img> drin — die
+   Seitenfarbe erreicht es nicht, also hier umkehren */
+.topbar .iconbtn img{filter:invert(1) brightness(1.6)}
+/* Der Ring um den Avatar setzt sich sonst mit Weiss vom Untergrund ab */
+.topbar .avatar-btn:focus-visible .avatar{
+  box-shadow:0 0 0 2px rgba(22,26,36,.9),0 0 0 4px var(--brand);
+}
+
+/* --- 3b. Inhalte der drei Menues ---------------------------------------- */
+.topbar .menu-panel .menu-item{color:var(--glass-ink)}
+.topbar .menu-panel .menu-item:hover{background:var(--glass-hover)}
+.topbar .menu-version{color:var(--glass-ink-muted);border-top-color:var(--glass-line)}
+/* Nachrichten */
+.topbar .notif-head{color:var(--glass-ink-muted);border-bottom-color:var(--glass-line)}
+.topbar .notif-head img{filter:invert(1);opacity:.75}
+.topbar .notif-when{color:var(--glass-ink-muted)}
+.topbar .notif-empty{color:var(--glass-ink-muted)}
+.topbar .notif-read-all{color:var(--glass-ink-muted);border-top-color:var(--glass-line)}
+/* Anwendungs-Menue */
+.topbar .app-group + .app-group,
+.topbar .app-search-out + .app-group{border-top-color:var(--glass-line)}
+.topbar .app-group-title{color:var(--glass-ink-muted)}
+.topbar .app-btn{color:var(--glass-ink)}
+.topbar .app-btn:hover,.topbar .app-btn:focus-visible{background:var(--glass-hover)}
+.topbar .app-btn:active{background:var(--glass-active)}
+/* Suchfeld: die Kapsel wird EINGETIEFT statt aufgehellt. Weiss auf Glas
+   ueber der weissen Karte addiert sich sonst zu einer hellen Flaeche, auf der
+   weisser Text nicht mehr steht (gemessen 4,2:1). Dunkel getoent bleibt es
+   ueberall eine Mulde — dieselbe Entscheidung wie bei den Feldern in 3c. */
+.topbar .app-search-input{background:var(--glass-well);color:var(--glass-ink)}
+.topbar .app-search-input::placeholder{color:var(--glass-ink-muted)}
+.topbar .app-search-input:focus{background:var(--glass-well-focus)}
+.topbar .app-search-icon{filter:invert(1);opacity:.6}
+/* Treffer */
+.topbar .app-hit{color:var(--glass-ink)}
+.topbar .app-hit-hint{color:var(--glass-ink-muted)}
+.topbar .app-hit:hover,.topbar .app-hit-active{background:var(--glass-hover)}
+.topbar .app-search-empty{color:var(--glass-ink-muted)}
+
+/* --- 3c. Inhalte der Dialoge -------------------------------------------- */
+/* Kopfzeile: der helle Streifen wuerde als weisser Balken stehenbleiben */
+.dialog-glass .dialog-head{
+  background:rgba(255,255,255,.06);border-bottom-color:var(--glass-line);
+}
+.dialog-glass .dialog-x{color:var(--glass-ink-muted)}
+.dialog-glass .dialog-x:hover{background:var(--glass-hover);color:var(--glass-ink)}
+
+/* Abschnitte, Beschriftungen, Hinweise */
+.dialog-glass .account-section{border-top-color:var(--glass-line)}
+.dialog-glass .account-section h3,
+.dialog-glass .dialog-label,
+.dialog-glass .muted,
+.dialog-glass .tokhint,
+.dialog-glass .account-fold summary::after{color:var(--glass-ink-muted)}
+.dialog-glass .switch-text,.dialog-glass .check{color:var(--glass-ink)}
+
+/* Eingaben als eingetiefte Mulden statt weisser Kaesten — dieselbe
+   Entscheidung wie beim Suchfeld: Weiss auf Glas addiert sich zu einer
+   Flaeche, auf der heller Text nicht mehr steht. */
+.dialog-glass .field{
+  background:var(--glass-well);border-color:var(--glass-line);color:var(--glass-ink);
+}
+.dialog-glass .field::placeholder{color:var(--glass-ink-muted)}
+.dialog-glass .field:focus{
+  border-color:var(--brand);background:var(--glass-well-focus);
+  box-shadow:0 0 0 3px rgba(37,99,235,.25);
+}
+.dialog-glass #tok{
+  background:var(--glass-well);border-color:var(--glass-line);color:var(--glass-ink);
+}
+.dialog-glass .tokhint code{background:rgba(255,255,255,.12);color:var(--glass-ink)}
+
+/* Avatar-Bereich: Platzhalter und der Stift daneben */
+.dialog-glass .avatar-empty{background:rgba(255,255,255,.1);color:var(--glass-ink-muted)}
+.dialog-glass .avatar-edit{
+  background:rgba(255,255,255,.14);border-color:var(--glass-line);
+}
+.dialog-glass .avatar-edit:hover{background:rgba(255,255,255,.24)}
+/* edit.svg ist ein dunkles Glyph und haengt als <img> drin — umkehren */
+.dialog-glass .avatar-edit img{filter:invert(1) brightness(1.6)}
+
+/* Schalter: die graue Bahn verschwaende auf dem dunklen Grund */
+.dialog-glass .switch-ui{background:rgba(255,255,255,.22)}
+.dialog-glass .switch-label:hover{color:var(--glass-ink)}
+
+/* --- Nutzerverwaltung --------------------------------------------------- */
+.dialog-glass .users-table th{color:var(--glass-ink-muted);border-bottom-color:var(--glass-line)}
+.dialog-glass .users-table td{border-bottom-color:rgba(255,255,255,.08)}
+.dialog-glass .users-wrap .user-create{border-top-color:var(--glass-line)}
+/* helle Knoepfe (Rechte geben, sperren) als Glasplaettchen */
+.dialog-glass .btn-secondary{
+  background:rgba(255,255,255,.12);color:var(--glass-ink);border-color:var(--glass-line);
+}
+.dialog-glass .btn-secondary:hover{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.3)}
+.dialog-glass .iconbtn{
+  background:rgba(255,255,255,.1);border-color:var(--glass-line);color:var(--glass-ink);
+}
+.dialog-glass .iconbtn:hover{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.3)}
+.dialog-glass .iconbtn img{filter:invert(1) brightness(1.6)}
+/* die roten Loeschen-Knoepfe behalten ihre Warnfarbe */
+.dialog-glass .iconbtn-danger:hover{
+  background:rgba(220,38,38,.3);border-color:var(--danger);
+}
+/* Badges: die hellen Pastellflaechen wirken auf Glas wie Aufkleber */
+.dialog-glass .badge{background:rgba(120,170,255,.22);color:#cfe0ff}
+.dialog-glass .badge-lock,.dialog-glass .badge-err{background:rgba(220,38,38,.28);color:#ffd6d6}
+.dialog-glass .badge-ok{background:rgba(34,150,83,.3);color:#c9f2d8}
+
+/* --- Einstellungen (Sprachliste) ---------------------------------------- */
+.dialog-glass .lang-scroll{
+  background:var(--glass-well);border-color:var(--glass-line);
+}
+
+/* --- Backup (rsync-Ausgabe) --------------------------------------------- */
+.dialog-glass .backup-log{
+  background:var(--glass-well);border-color:var(--glass-line);color:var(--glass-ink);
+}
+
+/* --- 3d. Gemeinsam auf allen Glasflaechen -------------------------------
+   Tooltips (data-tip): der weisse Chip stand als heller Fleck vor dem
+   dunklen Glas. Hier erscheint er in dessen Palette.
+   Bewusst FAST deckend (--glass-solid statt --glass-bg): die Schrift ist
+   klein, sie braucht Kontrast, keine Durchsicht. Deshalb auch kein
+   backdrop-filter — er waere hier ohnehin der einzige Ort, an dem er direkt
+   auf dem sichtbaren Element saesse, denn ein ::after hat kein ::before,
+   das ihn tragen koennte. Bei .93 Deckung saehe man ihn nicht. */
+.glass [data-tip]::after,
+.topbar [data-tip]::after,
+.dialog-glass [data-tip]::after{
+  background:var(--glass-solid);
+  border-color:var(--glass-edge);
+  color:var(--glass-ink);
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+
+/* Bildlaufleisten: die Standard-Griffe sind dunkel — auf dunklem Glas waeren
+   sie weg. Betrifft Nachrichten- und Anwendungsmenue ebenso wie Sprachliste
+   und Backup-Ausgabe, deshalb hier zusammen. */
+.glass .os-scrollbar,.topbar .menu-panel .os-scrollbar,.dialog-glass .os-scrollbar{
+  --os-handle-bg:rgba(255,255,255,.3);
+  --os-handle-bg-hover:rgba(255,255,255,.45);
+  --os-handle-bg-active:rgba(255,255,255,.6);
 }

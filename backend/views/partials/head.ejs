@@ -4,7 +4,13 @@
     bevor das Hintergrundbild greift -> schwarzer Blitz. Die Grundfarbe ist der
     Mittelton des Desktop-Bildes, damit der Moment vor dem Bild nahtlos wirkt. %>
 <meta name="color-scheme" content="light">
+<%# Dieselbe Farbe steht als --desk-bg in index.css — beide gehoeren zusammen. %>
 <style>html{background:#375998;color-scheme:light}</style>
+<%# Das Hintergrundbild steckt in index.css und wird darum erst entdeckt, wenn
+    das Stylesheet geladen UND geparst ist. Der Vorabruf startet es sofort mit
+    dem Dokument; die URL muss exakt die aus dem CSS sein (ohne ?v=), sonst
+    holt der Browser es zweimal. %>
+<link rel="preload" as="image" href="<%= base %>/static/img/background/desktop.jpg">
 <%- include('favicon') %>
 <%# Eigene Bildlaufleisten: die nativen sind auf vielen Systemen Overlay-
     Leisten, die keinen Platz belegen und ausblenden — in einem langen
