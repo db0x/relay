@@ -35,6 +35,11 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   const acc = accessFor(req.session.user, uid, fid);
   if (!acc) return res.sendStatus(404);
   const ext = fid.split(".").pop().toLowerCase();
+  // Nur Formate, die OnlyOffice ueberhaupt oeffnet. Frueher gab es fuer JEDE
+  // vorhandene Datei einen Editor — und damit auch einen signierten /files-Link
+  // auf beliebige Inhalte. Fuer alles andere gibt es Download bzw. die eigenen
+  // Ansichten (Bilder, Notizen).
+  if (!DOCTYPE[ext]) return res.sendStatus(404);
   // PDFs sind reine Ansicht (Viewer): kein Bearbeiten, kein Speichern-Callback —
   // unabhaengig davon, ob Besitzer oder Freigabe mit Bearbeiten-Recht
   const canEdit = (acc === "owner" || acc === "edit") && ext !== "pdf";
@@ -126,7 +131,7 @@ router.get("/edit/:fid", (req, res, next) => {
     const auth = req.get("Authorization") || "";
     const tok = auth.startsWith("Bearer ") ? auth.slice(7) : (req.query.token || "");
     const row = users.getByToken(tok);
-    if (row && !row.locked) {
+    if (row && !row.locked && !row.must_change) {
       req.session.user = row.username;
       req.session.name = row.display_name;
     }
@@ -152,7 +157,14 @@ router.get("/files/:uid/*", (req, res) => {
     tok.length === good.length &&
     crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(good));
   if (!ok) return res.sendStatus(403);
-  res.sendFile(pathFor(uid, fid));
+  // Immer als ANHANG ausliefern, nie eingebettet: hier landen ungeprueft
+  // hochgeladene Dateien, und diese Route braucht kein Login — es zaehlt nur
+  // die Signatur. Ohne diese beiden Kopfzeilen liesse sich eine hochgeladene
+  // HTML-Datei ueber einen weitergegebenen Link als Seite UNTER UNSERER
+  // HERKUNFT ausfuehren (Sitzungsklau). Der DocumentServer stoert sich nicht
+  // daran, er liest den Rumpf.
+  res.set("X-Content-Type-Options", "nosniff");
+  res.download(pathFor(uid, fid), path.basename(fid));
 });
 
 // Callback verlangt JWT (Body oder Authorization-Header) -> muss roh gelesen werden

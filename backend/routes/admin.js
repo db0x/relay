@@ -45,7 +45,7 @@ router.post("/settings/langs", adminRequired, (req, res) => {
   res.redirect(`${BASE}/`);
 });
 
-router.post("/users/create", adminRequired, (req, res) => {
+router.post("/users/create", adminRequired, async (req, res) => {
   const name = (req.body.username || "").trim();
   const display = (req.body.display || "").trim() || name;
   const pw = req.body.password || "";
@@ -58,7 +58,7 @@ router.post("/users/create", adminRequired, (req, res) => {
   } else if (pw.length < 8) {
     req.flash("err", "Das Startpasswort braucht mindestens 8 Zeichen.");
   } else {
-    users.addUser(name, display, pw, isAdmin);
+    await users.addUser(name, display, pw, isAdmin);
     req.flash("ok", `Nutzer „${display}“ angelegt${isAdmin ? " (Admin)" : ""}.`);
   }
   res.redirect(`${BASE}/`);

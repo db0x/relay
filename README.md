@@ -49,10 +49,21 @@ through and passes things on — documents between family members.
    it behind nginx as well (`PUBLIC_DS_URL=http://moria/ds`, only port 80
    exposed via `BIND_ADDR=127.0.0.1`), see the same example file.
 2. `docker compose up -d --build`
-3. Browser (any device on the LAN): `http://<SERVER_HOST>:5001` — with an empty
-   user database, the user **`admin` with password `admin`** exists (with admin
-   rights). Log in with it, **change the password immediately**, and create the
-   first users via menu → "Nutzerverwaltung" (user management).
+3. On the very first start with an empty user database, Relay creates the
+   admin account **`admin` with a random one-time password** and prints it
+   once into the container log:
+   ```bash
+   docker compose logs backend | grep -A2 "Einmal-Passwort"
+   ```
+   (Set `ADMIN_PASSWORD` in `.env` beforehand to choose it yourself.)
+4. Browser (any device on the LAN): `http://<SERVER_HOST>:5001` — log in as
+   `admin` with that password. Relay then **requires** a new password before
+   anything else is reachable. Afterwards create the first users via
+   menu → "Nutzerverwaltung" (user management).
+
+For an installation reachable from the internet, use
+`deploy/nginx-relay-tls.conf.example` — it needs `BIND_ADDR=127.0.0.1` and
+`TRUST_PROXY=1` in addition to the settings above.
 
 Alternatively, users can still be created via CLI (prompts for the password
 interactively):

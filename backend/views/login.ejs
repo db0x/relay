@@ -11,7 +11,7 @@
   <button>Anmelden</button>
   <div class="version">Relay v<%= version %></div>
 </form>
-<script>
+<script nonce="<%= nonce %>">
   // Cursor direkt ins Namensfeld setzen — das autofocus-Attribut greift in
   // eingebetteten Ansichten (Voltage-Webview) nicht zuverlaessig. Hat der
   // Browser den Namen schon ausgefuellt, direkt weiter ins Passwortfeld.

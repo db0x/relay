@@ -40,6 +40,9 @@ services:
       - INSTANCE_NAME=${INSTANCE_NAME:-Relay}           # Anzeigename der Instanz in der UI
       - BASE_PATH=${BASE_PATH:-}                        # Unterpfad hinter Reverse Proxy, z.B. /relay
       - EDITOR_THEME=${EDITOR_THEME:-}                  # Editor-Theme; leer = theme-white ("Modern Hell")
+      - NODE_ENV=production                             # keine Stapelspuren an den Client, View-Cache an
+      - TRUST_PROXY=${TRUST_PROXY:-0}                   # >0 nur MIT Reverse Proxy davor (X-Forwarded-* gelten dann)
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}              # nur bei Erstinstallation; leer = Zufallspasswort im Log
       - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-}                # Browser-Upload-Limit; leer = 128
       - MAX_FILE_MB=${MAX_FILE_MB:-}                    # harte Datei-Obergrenze (API); leer = 512
     volumes:

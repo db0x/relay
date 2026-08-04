@@ -21,7 +21,10 @@ function apiAuth(req, res, next) {
   const auth = req.get("Authorization") || "";
   const tok = auth.startsWith("Bearer ") ? auth.slice(7) : (req.query.token || "");
   const row = users.getByToken(tok);
-  if (!row || row.locked) return res.status(401).json({ error: "unauthorized" });
+  // must_change: der Zugang hat noch sein Einmal-Passwort — bis das gewechselt
+  // ist, gilt er auch fuer die API als nicht eingerichtet
+  if (!row || row.locked || row.must_change)
+    return res.status(401).json({ error: "unauthorized" });
   // fid gegen Pfad-Tricks absichern und mit dem Roh-Namen abgleichen
   const fid = req.params[0];
   if (fid !== undefined && (securePath(fid) !== fid || fid === ""))

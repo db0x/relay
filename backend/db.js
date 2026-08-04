@@ -22,7 +22,10 @@ function db() {
       is_admin     INTEGER NOT NULL DEFAULT 0,
       locked       INTEGER NOT NULL DEFAULT 0,
       -- Notiz-Icons auf dem Desktop zeigen? Je Nutzer umschaltbar (Mein Konto)
-      desk_notes   INTEGER NOT NULL DEFAULT 1
+      desk_notes   INTEGER NOT NULL DEFAULT 1,
+      -- Zugang muss erst ein eigenes Passwort bekommen (Bootstrap-Admin):
+      -- solange gesetzt, fuehrt jede Seite zur Passwort-Aenderung
+      must_change  INTEGER NOT NULL DEFAULT 0
     );
 
     -- Freigabe einer Datei (owner/filename) an einen anderen Nutzer (target).
@@ -107,6 +110,10 @@ function db() {
   // finden ihren Desktop unveraendert vor.
   if (!cols.includes("desk_notes"))
     _db.exec("ALTER TABLE users ADD COLUMN desk_notes INTEGER NOT NULL DEFAULT 1");
+  // must_change: Zugang muss erst ein eigenes Passwort bekommen (Bootstrap-Admin).
+  // Default 0 — Bestandsnutzer sind davon nicht betroffen.
+  if (!cols.includes("must_change"))
+    _db.exec("ALTER TABLE users ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0");
   // note_meta.color kam mit den farbigen Notiz-Icons dazu, status mit dem
   // Bearbeitungsstand (Offen/In Arbeit/Erledigt). Beide vertragen NULL:
   // Altbestand liest sich als Standardfarbe bzw. als "open".

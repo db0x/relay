@@ -35,8 +35,17 @@ function dsFetchUrl(dsUrl) {
   return process.env.DS_INTERNAL + p + (u.search || "");
 }
 
+// Steht ein Reverse Proxy davor? Dann darf Express X-Forwarded-Proto/-For
+// glauben — und nur dann. Ohne Proxy waeren diese Kopfzeilen frei erfunden:
+// jeder Absender koennte sich eine beliebige IP andichten (und damit die
+// Anmeldebremse umgehen) oder eine sichere Verbindung vortaeuschen.
+// Wert: Anzahl der vertrauenswuerdigen Zwischenstationen (hinter einem nginx
+// auf demselben Rechner also 1), leer/0 = keiner.
+const trustProxy = Math.max(0, parseInt(process.env.TRUST_PROXY, 10) || 0);
+
 module.exports = {
   BASE: base,
+  TRUST_PROXY: trustProxy,
   DOCS: "/data/documents",                        // Wurzel der Nutzer-Dateien
   STATE_DIR: process.env.STATE_DIR || "/data/state", // Nutzerdatenbank + Avatare
   BACKUP_DIR: "/data/backup",                     // Ziel fuer "Backup ausfuehren" (rsync)

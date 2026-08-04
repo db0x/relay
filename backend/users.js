@@ -1,17 +1,28 @@
 // Nutzerdatenbank. Passwoerter gehasht (bcrypt), plus API-Token pro Nutzer.
+//
+// bcrypt laeuft hier durchgaengig ASYNCHRON. Das ist keine Stilfrage: mit
+// Kostenfaktor 12 braucht ein Durchlauf ~250ms, und die synchrone Variante
+// belegt dabei den einzigen Node-Thread. Gemessen legten 60 gleichzeitige
+// Anmeldeversuche Relay ueber 16 Sekunden lang fuer ALLE lahm — ein
+// Denial-of-Service, der kein einziges Passwort erraten muss.
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const { db } = require("./db");
+
+const COST = 12;
 
 // url-sicheres Zufalls-Token wie Pythons secrets.token_urlsafe(24)
 function newToken() {
   return crypto.randomBytes(24).toString("base64url");
 }
 
-function addUser(username, displayName, password, isAdmin = false) {
+// mustChange: der Nutzer kommt nur bis zur Passwort-Seite, bis er ein eigenes
+// Passwort gesetzt hat (routes/auth.js). Gedacht fuer den Bootstrap-Admin.
+async function addUser(username, displayName, password, isAdmin = false, mustChange = false) {
+  const hash = await bcrypt.hash(password, COST);
   db().prepare(
-    "INSERT INTO users (username, display_name, pw_hash, api_token, is_admin) VALUES (?,?,?,?,?)"
-  ).run(username, displayName, bcrypt.hashSync(password, 12), newToken(), isAdmin ? 1 : 0);
+    "INSERT INTO users (username, display_name, pw_hash, api_token, is_admin, must_change) VALUES (?,?,?,?,?,?)"
+  ).run(username, displayName, hash, newToken(), isAdmin ? 1 : 0, mustChange ? 1 : 0);
 }
 
 // Admin-Rechte geben oder entziehen. Gesperrte Nutzer koennen keine Admins
@@ -36,11 +47,14 @@ function setLocked(username, locked) {
     .run(locked ? 1 : 0, username);
 }
 
-// Nutzerzeile, wenn Name+Passwort stimmen, sonst null
-function verify(username, password) {
+// Nutzerzeile, wenn Name+Passwort stimmen, sonst null.
+// Auch fuer einen unbekannten Namen wird ein Hash geprueft (gegen einen
+// Wegwerf-Hash), damit die Antwortzeit nicht verraet, ob es den Zugang gibt.
+const DUMMY_HASH = bcrypt.hashSync("nicht-vergeben", 10);
+async function verify(username, password) {
   const row = db().prepare("SELECT * FROM users WHERE username=?").get(username);
-  if (row && bcrypt.compareSync(password, row.pw_hash)) return row;
-  return null;
+  const ok = await bcrypt.compare(password || "", row ? row.pw_hash : DUMMY_HASH);
+  return row && ok ? row : null;
 }
 
 function get(username) {
@@ -61,9 +75,11 @@ function resetToken(username) {
   return tok;
 }
 
-function setPassword(username, password) {
-  const r = db().prepare("UPDATE users SET pw_hash=? WHERE username=?")
-    .run(bcrypt.hashSync(password, 12), username);
+// Setzt das Passwort und loescht damit zugleich den Zwang, es zu aendern.
+async function setPassword(username, password) {
+  const hash = await bcrypt.hash(password, COST);
+  const r = db().prepare("UPDATE users SET pw_hash=?, must_change=0 WHERE username=?")
+    .run(hash, username);
   if (r.changes === 0) throw new Error(`Unbekannter Nutzer: ${username}`);
 }
 
@@ -99,14 +115,38 @@ function listUsers() {
 }
 
 // Bootstrap: gibt es ueberhaupt keinen Nutzer (Erstinstallation oder alle
-// geloescht), wird "admin" mit Passwort "admin" als Admin angelegt, damit man
-// sich einloggen und die ersten Nutzer anlegen kann. Passwort danach aendern!
-if (db().prepare("SELECT COUNT(*) AS c FROM users").get().c === 0) {
-  addUser("admin", "Admin", "admin", true);
-  console.log('Kein Nutzer vorhanden — Standard-Admin "admin" (Passwort "admin") angelegt.');
+// geloescht), wird ein Admin-Zugang angelegt, damit man sich anmelden und die
+// ersten Nutzer erzeugen kann.
+//
+// Das Passwort ist ZUFAELLIG und steht einmalig im Container-Log. Frueher war
+// es "admin" — eine bekannte Vorgabe ist im Internet keine Huerde, sondern die
+// erste Kombination, die jeder Scanner probiert. Zusaetzlich steht der Zugang
+// auf must_change: bis ein eigenes Passwort gesetzt ist, kommt er nur bis zur
+// Passwort-Seite.
+//
+// ADMIN_PASSWORD setzt das Passwort stattdessen fest (Erstinstallation per
+// .env, automatisierte Tests). Dann ist es eine bewusste Wahl des Betreibers
+// und der Aenderungszwang entfaellt.
+async function bootstrap() {
+  if (db().prepare("SELECT COUNT(*) AS c FROM users").get().c > 0) return;
+  const fest = process.env.ADMIN_PASSWORD || "";
+  const pw = fest || crypto.randomBytes(18).toString("base64url");
+  await addUser("admin", "Admin", pw, true, !fest);
+  if (fest) {
+    console.log('Kein Nutzer vorhanden — Admin "admin" mit dem Passwort aus ADMIN_PASSWORD angelegt.');
+  } else {
+    console.log("\n" + "=".repeat(66));
+    console.log('  Kein Nutzer vorhanden — Admin-Zugang "admin" angelegt.');
+    console.log(`  Einmal-Passwort: ${pw}`);
+    console.log("  Beim ersten Anmelden muss ein eigenes Passwort gesetzt werden.");
+    console.log("=".repeat(66) + "\n");
+  }
 }
+// Beim Modul-Laden angestossen; app.js wartet darauf (ready), bevor es lauscht.
+const ready = bootstrap();
 
 module.exports = {
+  ready,
   addUser, setAdmin, setLocked, verify, get, getByToken, resetToken, setPassword,
   setDisplayName, setEmail, setDeskNotes, del, listUsers,
 };

@@ -49,10 +49,10 @@ async function main() {
   const [cmd, ...args] = process.argv.slice(2);
   try {
     if (cmd === "add" && args.length === 2) {
-      users.addUser(args[0], args[1], await askPassword());
+      await users.addUser(args[0], args[1], await askPassword());
       console.log(`Nutzer '${args[0]}' angelegt.`);
     } else if (cmd === "passwd" && args.length === 1) {
-      users.setPassword(args[0], await askPassword());
+      await users.setPassword(args[0], await askPassword());
       console.log("Passwort geaendert.");
     } else if (cmd === "token" && args.length === 1) {
       const row = users.get(args[0]);

@@ -1,0 +1,122 @@
+# Relay im Internet, hinter einer Domain mit TLS-Zertifikat.
+#
+# Unterschied zu nginx-relay.conf.example (LAN, http): TLS-Abschluss, HSTS,
+# eine Bremse fuer die Anmeldemaske und eine ENGE Freigabe des
+# DocumentServers. Die Zertifikatszeilen sind Platzhalter — bei certbot
+# stehen dort die Pfade aus /etc/letsencrypt/live/<domain>/.
+#
+# Passende .env auf dem Server:
+#   BASE_PATH=/relay
+#   PUBLIC_DS_URL=https://relay.beispiel.de/ds
+#   BIND_ADDR=127.0.0.1     # PFLICHT: die Container-Ports duerfen aus dem
+#                           # Internet nicht direkt erreichbar sein
+#   TRUST_PROXY=1           # damit Relay X-Forwarded-Proto/-For glaubt
+#   ADMIN_PASSWORD=         # leer lassen: Einmal-Passwort kommt ins Log
+#
+# Danach pruefen:
+#   curl -sI https://relay.beispiel.de/relay/login | grep -i 'strict-transport\|set-cookie'
+#   -> Strict-Transport-Security vorhanden, Cookie mit "Secure"
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ""      close;
+}
+
+# Bremse fuer die Anmeldemaske. Relay hat eine eigene (loginguard.js); diese
+# hier greift schon davor und kostet das Backend gar nichts. 10 Anfragen pro
+# Minute je Adresse, kurze Spitzen erlaubt.
+limit_req_zone $binary_remote_addr zone=relay_login:10m rate=10r/m;
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name relay.beispiel.de;
+    # alles auf TLS; erst danach greift HSTS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name relay.beispiel.de;
+
+    ssl_certificate     /etc/letsencrypt/live/relay.beispiel.de/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/relay.beispiel.de/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_stapling on;
+    ssl_stapling_verify on;
+
+    # HSTS gehoert hierher, nicht ins Backend: hier endet TLS, und nur hier
+    # ist bekannt, ob die Domain wirklich durchgaengig verschluesselt ist.
+    # Erst mit kurzer Laufzeit testen, dann erhoehen. includeSubDomains nur,
+    # wenn WIRKLICH jede Subdomain TLS spricht.
+    add_header Strict-Transport-Security "max-age=86400" always;
+
+    # muss >= MAX_FILE_MB aus der .env sein, sonst schneidet nginx grosse
+    # Uploads ab, bevor Relay sie sieht (413)
+    client_max_body_size 512m;
+
+    # --- Relay UI + API ---------------------------------------------------
+    location /relay {
+        proxy_pass http://127.0.0.1:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # ohne diese Zeile haelt Relay die Verbindung fuer unverschluesselt
+        # und liesse die Secure-Marke am Sitzungs-Cookie weg
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Anmeldemaske gebremst (nur der POST kostet ein Passwort-Hashing)
+    location = /relay/login {
+        limit_req zone=relay_login burst=5 nodelay;
+        limit_req_status 429;
+        proxy_pass http://127.0.0.1:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Optional, wenn der Sync-Client (Voltage) nur zuhause laeuft: die
+    # Datei-API gar nicht erst ins Internet geben. Eine ganze Angriffsflaeche
+    # weniger — auskommentiert lassen, wenn von unterwegs synchronisiert wird.
+    # location /relay/api/ {
+    #     allow 192.168.1.0/24;
+    #     deny all;
+    #     proxy_pass http://127.0.0.1:5001;
+    #     proxy_set_header Host $host;
+    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #     proxy_set_header X-Forwarded-Proto $scheme;
+    # }
+
+    # --- OnlyOffice DocumentServer unter /ds/ ------------------------------
+    # Der DS ist das groesste Stueck Fremdsoftware im Stapel. Deshalb gehen
+    # NUR die Pfade durch, die der Editor im Browser wirklich braucht — seine
+    # Beispiel- und Statusseiten (/welcome, /info, /example) bleiben draussen.
+    location ~ ^/ds/(welcome|info|example|internal) {
+        return 404;
+    }
+
+    location /ds/ {
+        rewrite ^/ds/(.*)$ /$1 break;
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        # MIT Pfad: der DS baut daraus seine eigenen absoluten Adressen
+        proxy_set_header X-Forwarded-Host $host/ds;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Co-Editing laeuft ueber WebSockets — die duerfen nicht nach 60s fallen
+        proxy_read_timeout 3600s;
+    }
+
+    location = / {
+        return 302 /relay/;
+    }
+}

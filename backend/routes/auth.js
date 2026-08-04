@@ -3,9 +3,15 @@
 const express = require("express");
 
 const users = require("../users");
+const guard = require("../loginguard");
 const { BASE } = require("../config");
 
 const router = express.Router();
+
+// Seite, auf der ein Zugang mit must_change landet — und die einzigen Pfade,
+// die er ausser ihr noch erreichen darf.
+const PW_SETZEN = "/passwort-setzen";
+const ERLAUBT_BEI_ZWANG = new Set([PW_SETZEN, "/logout", "/login"]);
 
 // Prueft den Nutzer bei jedem Request frisch gegen die DB: wer inzwischen
 // gesperrt oder geloescht wurde, fliegt sofort raus — auch mit gueltigem Cookie.
@@ -15,43 +21,87 @@ function loginRequired(req, res, next) {
     return res.redirect(`${BASE}/login?next=` + encodeURIComponent(BASE + req.path));
   const row = users.get(req.session.user);
   if (!row || row.locked) return req.session.destroy(() => res.redirect(`${BASE}/login`));
+  // Erstpasswort noch nicht gesetzt: nichts anderes ist erreichbar
+  if (row.must_change && !ERLAUBT_BEI_ZWANG.has(req.path))
+    return res.redirect(BASE + PW_SETZEN);
   next();
+}
+
+// Ziel nach dem Login: nur INNERHALB dieser Anwendung. Statt auf Zeichenketten
+// zu pruefen (dabei rutschte "/\fremde.example" durch — Browser machen daraus
+// "//fremde.example" und verlassen damit unsere Herkunft) wird die Adresse
+// geparst und nur Pfad + Query weiterverwendet.
+function internesZiel(roh) {
+  try {
+    const u = new URL(String(roh || ""), "http://relay.invalid");
+    const ziel = u.pathname + u.search;
+    return ziel.startsWith("/") ? ziel : `${BASE}/`;
+  } catch (e) {
+    return `${BASE}/`;
+  }
 }
 
 router.get("/login", (req, res) => {
   res.render("login", { error: null, next: req.query.next || "" });
 });
 
-router.post("/login", (req, res) => {
-  const row = users.verify((req.body.username || "").trim(), req.body.password || "");
+router.post("/login", async (req, res) => {
+  const name = (req.body.username || "").trim();
+  const zeigeFehler = (msg) =>
+    res.render("login", { error: msg, next: req.body.next || "" });
+
+  // Zu viele Fehlversuche? Dann gar nicht erst hashen — genau das ist der
+  // teure Teil und damit auch der Hebel fuer einen Denial-of-Service.
+  const gebremst = guard.pruefe(name, req.ip);
+  if (gebremst) {
+    res.status(429);
+    return zeigeFehler(`Zu viele Fehlversuche. Bitte in ${Math.ceil(gebremst.sekunden / 60)} Minuten erneut versuchen.`);
+  }
+
+  const row = await users.verify(name, req.body.password || "");
   // Sperre erst NACH korrektem Passwort melden — Fremde erfahren so nicht,
   // welche Zugaenge existieren oder gesperrt sind
   if (row && row.locked) {
-    return setTimeout(() =>
-      res.render("login", { error: "Dieser Zugang ist gesperrt.", next: req.body.next || "" }),
-      400);
+    guard.fehlversuch(name, req.ip);
+    return zeigeFehler("Dieser Zugang ist gesperrt.");
   }
   if (row) {
-    req.session.user = row.username;
-    req.session.name = row.display_name;
-    // Bootstrap-Admin erinnert sich selbst ans Passwort-Aendern
-    if (row.is_admin && (req.body.password || "") === "admin")
-      req.flash("err", "Es gilt noch das Standard-Passwort „admin“ — bitte gleich ändern (Menü → Mein Konto).");
-    let nxt = req.body.next || "";
-    // nur interne Pfade, sonst waere das ein Open Redirect
-    if (!nxt.startsWith("/") || nxt.startsWith("//")) nxt = `${BASE}/`;
-    return res.redirect(nxt);
+    guard.erfolg(name);
+    // Sitzungs-ID nach dem Anmelden neu vergeben (gegen Session Fixation):
+    // ein vorher untergeschobenes Cookie ist damit wertlos.
+    return req.session.regenerate((err) => {
+      if (err) return zeigeFehler("Anmeldung fehlgeschlagen, bitte erneut versuchen.");
+      req.session.user = row.username;
+      req.session.name = row.display_name;
+      if (row.must_change) return res.redirect(BASE + PW_SETZEN);
+      res.redirect(internesZiel(req.body.next));
+    });
   }
-  setTimeout(() => // bremst Passwort-Raten
-    res.render("login", { error: "Name oder Passwort falsch.", next: req.body.next || "" }),
-    400);
+  guard.fehlversuch(name, req.ip);
+  setTimeout(() => zeigeFehler("Name oder Passwort falsch."), 400); // bremst zusaetzlich
+});
+
+// --- Erstpasswort setzen (must_change) ----------------------------------
+router.get(PW_SETZEN, loginRequired, (req, res) => {
+  res.render("password-change", { error: null, user: req.session.name || req.session.user });
+});
+
+router.post(PW_SETZEN, loginRequired, async (req, res) => {
+  const { new1, new2 } = req.body;
+  const fehler = (msg) =>
+    res.render("password-change", { error: msg, user: req.session.name || req.session.user });
+  if (new1 !== new2) return fehler("Die Passwörter stimmen nicht überein.");
+  if ((new1 || "").length < 12) return fehler("Das Passwort braucht mindestens 12 Zeichen.");
+  await users.setPassword(req.session.user, new1); // loescht must_change mit
+  req.flash("ok", "Passwort gesetzt. Willkommen!");
+  res.redirect(`${BASE}/`);
 });
 
 router.get("/logout", (req, res) => {
   req.session.destroy(() => res.redirect(`${BASE}/login`));
 });
 
-router.post("/password", loginRequired, (req, res) => {
+router.post("/password", loginRequired, async (req, res) => {
   const { old, new1, new2 } = req.body;
   // pwError merkt sich einmalig das fehlerhafte Feld ("old" | "new"):
   // die Startseite markiert es rot und oeffnet den Konto-Dialog wieder
@@ -60,12 +110,17 @@ router.post("/password", loginRequired, (req, res) => {
     req.flash("err", msg);
     res.redirect(`${BASE}/`);
   };
-  if (!users.verify(req.session.user, old || "")) {
+  // dieselbe Bremse wie beim Login: hier laesst sich ein Passwort genauso raten
+  const gebremst = guard.pruefe(req.session.user, req.ip);
+  if (gebremst) return fail("old", "Zu viele Fehlversuche. Bitte später erneut versuchen.");
+  if (!(await users.verify(req.session.user, old || ""))) {
+    guard.fehlversuch(req.session.user, req.ip);
     return setTimeout(() => fail("old", "Das aktuelle Passwort ist falsch."), 400); // bremst Passwort-Raten
   }
+  guard.erfolg(req.session.user);
   if (new1 !== new2) return fail("new", "Die neuen Passwörter stimmen nicht überein.");
   if ((new1 || "").length < 8) return fail("new", "Das neue Passwort braucht mindestens 8 Zeichen.");
-  users.setPassword(req.session.user, new1);
+  await users.setPassword(req.session.user, new1);
   req.flash("ok", "Passwort geändert.");
   res.redirect(`${BASE}/`);
 });

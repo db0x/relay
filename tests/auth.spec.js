@@ -35,11 +35,6 @@ test.describe("Anmelden", () => {
     await expect(page.locator(".uname")).toBeVisible();
   });
 
-  test("Bootstrap-Admin wird ans Standard-Passwort erinnert", async ({ page }) => {
-    await loginAsAdmin(page);
-    await expectFlash(page, "Standard-Passwort");
-  });
-
   test("next-Parameter fuehrt nach dem Login auf das gewuenschte Ziel", async ({ page }) => {
     await page.goto("/?p=");
     await expect(page).toHaveURL(/\/login\?next=/);

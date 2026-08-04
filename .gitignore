@@ -4,6 +4,7 @@
 # Nutzerdaten: echte Dokumente und die Nutzerdatenbank (gehashte Passwörter, API-Token)
 documents/
 state/
+docs/
 
 # Node
 node_modules/
