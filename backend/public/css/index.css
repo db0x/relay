@@ -1636,9 +1636,6 @@ a.crumb:hover{text-decoration:underline}
    die Leiste steht daneben. */
 .topbar{
   --glass-drop:var(--win-shadow);
-  /* fast weisser Aufblitzen beim Druecken — die Leiste ist der einzige Ort
-     mit dieser kraeftigen Rueckmeldung */
-  --glass-active:rgba(255,255,255,.95);
   border:0;border-bottom:1px solid var(--glass-edge);
 }
 /* Freischwebende Panels: kuerzerer, engerer Schlagschatten als die Dialoge */
