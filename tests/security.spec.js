@@ -306,3 +306,76 @@ test.describe("Admin-Zugaenge nur aus dem Heimnetz", () => {
     expect(res.status()).toBe(404);
   });
 });
+
+test.describe("Hinter einem Reverse Proxy mit Unterpfad", () => {
+  // Eigener Container mit BASE_PATH: die uebrige Suite laeuft an der Wurzel,
+  // und genau dort faellt ein falsches Anmelde-Ziel NICHT auf. Auf dem Server
+  // (BASE_PATH=/relay) landete man dadurch nach dem Login auf der Landingpage
+  // des Nachbarn statt in Relay.
+  const { execFileSync } = require("child_process");
+  const { EXTERNAL, IMAGE } = require("./test-env");
+  const NAME = "relay-e2e-unterpfad";
+  const PORT = 5997;
+  const URL = `http://localhost:${PORT}`;
+  const BASIS = "/relay";
+
+  test.skip(EXTERNAL, "braucht einen eigenen Container");
+
+  test.beforeAll(async () => {
+    try { execFileSync("docker", ["rm", "-f", NAME], { stdio: "ignore" }); } catch (e) { /* war nicht da */ }
+    execFileSync("docker", [
+      "run", "-d", "--name", NAME, "-p", `${PORT}:5000`,
+      "-e", "SERVER_HOST=localhost",
+      "-e", `BASE_PATH=${BASIS}`,
+      "-e", "ADMIN_PASSWORD=admin",
+      "-e", "JWT_SECRET=e2e-dummy-secret-e2e-dummy-secret",
+      "-e", "FILE_SECRET=e2e-dummy-secret-e2e-dummy-secret",
+      "-e", "SESSION_SECRET=e2e-dummy-secret-e2e-dummy-secret",
+      "-e", `HOST_INTERNAL=${URL}`,
+      "-e", "DS_INTERNAL=http://documentserver",
+      IMAGE,
+    ], { stdio: "pipe" });
+    const frist = Date.now() + 60000;
+    while (Date.now() < frist) {
+      try { if ((await fetch(`${URL}${BASIS}/login`)).ok) break; } catch (e) { /* noch nicht da */ }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  });
+
+  test.afterAll(() => {
+    try { execFileSync("docker", ["rm", "-f", NAME], { stdio: "ignore" }); } catch (e) { /* egal */ }
+  });
+
+  const anmelden = (page, next) => page.request.post(`${URL}${BASIS}/login`, {
+    form: next === undefined
+      ? { username: "admin", password: "admin" }
+      : { username: "admin", password: "admin", next },
+    maxRedirects: 0,
+  });
+
+  test("ohne Ziel landet man in Relay, nicht auf der Wurzel", async ({ page }) => {
+    const res = await anmelden(page);
+    expect(res.status()).toBe(302);
+    expect(res.headers()["location"]).toBe(`${BASIS}/`);
+  });
+
+  test("ein Ziel innerhalb von Relay bleibt erhalten", async ({ page }) => {
+    const res = await anmelden(page, `${BASIS}/?p=Notizen`);
+    expect(res.headers()["location"]).toBe(`${BASIS}/?p=Notizen`);
+  });
+
+  test("ein Nachbar am selben Server ist kein gueltiges Ziel", async ({ page }) => {
+    // /gogs/ liegt auf demselben Rechner, gehoert aber nicht zu Relay
+    for (const fremd of ["/gogs/", "/", "//fremde.example", "https://fremde.example"]) {
+      const res = await anmelden(page, fremd);
+      expect(res.headers()["location"], `next=${fremd}`).toBe(`${BASIS}/`);
+    }
+  });
+
+  test("der Weg zurueck nach dem Anmelden traegt den Unterpfad", async ({ page }) => {
+    const res = await page.request.get(`${URL}${BASIS}/?p=Notizen`, { maxRedirects: 0 });
+    expect(res.status()).toBe(302);
+    expect(res.headers()["location"]).toContain(`${BASIS}/login?next=`);
+    expect(decodeURIComponent(res.headers()["location"])).toContain(`next=${BASIS}/`);
+  });
+});

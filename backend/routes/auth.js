@@ -42,13 +42,23 @@ function loginRequired(req, res, next) {
 // zu pruefen (dabei rutschte "/\fremde.example" durch — Browser machen daraus
 // "//fremde.example" und verlassen damit unsere Herkunft) wird die Adresse
 // geparst und nur Pfad + Query weiterverwendet.
+//
+// "Innerhalb" heisst mit BASE_PATH auch: unterhalb dieses Praefixes. Sonst
+// landet man nach dem Anmelden auf dem NACHBARN am selben Server — bei leerem
+// next auf dessen Startseite (genau dieser Fehler trat auf black auf: Login
+// unter /relay/ fuehrte auf /, die Landingpage), bei "/gogs/" eben dort.
 function internesZiel(roh) {
+  const heim = `${BASE}/`;
   try {
     const u = new URL(String(roh || ""), "http://relay.invalid");
     const ziel = u.pathname + u.search;
-    return ziel.startsWith("/") ? ziel : `${BASE}/`;
+    if (!ziel.startsWith("/")) return heim;
+    // ohne BASE_PATH ist jeder Pfad einer von uns
+    if (!BASE) return ziel;
+    const drin = ziel === BASE || ziel.startsWith(`${BASE}/`) || ziel.startsWith(`${BASE}?`);
+    return drin ? ziel : heim;
   } catch (e) {
-    return `${BASE}/`;
+    return heim;
   }
 }
 
