@@ -4,7 +4,14 @@ const express = require("express");
 
 const users = require("../users");
 const guard = require("../loginguard");
+const { darfVonHier } = require("../zone");
 const { BASE } = require("../config");
+
+// Meldung fuer Admins, die von ausserhalb des Heimnetzes anklopfen. Bewusst
+// klar formuliert und erst NACH korrektem Passwort — dasselbe Muster wie bei
+// gesperrten Zugaengen: Fremde erfahren nichts, der Betroffene versteht sofort,
+// woran es liegt.
+const ZONE_MELDUNG = "Admin-Zugänge sind nur aus dem Heimnetz erreichbar.";
 
 const router = express.Router();
 
@@ -21,6 +28,10 @@ function loginRequired(req, res, next) {
     return res.redirect(`${BASE}/login?next=` + encodeURIComponent(BASE + req.path));
   const row = users.get(req.session.user);
   if (!row || row.locked) return req.session.destroy(() => res.redirect(`${BASE}/login`));
+  // Admin unterwegs: die Sitzung endet an der Haustuer. Ohne diese Pruefung
+  // wuerde eine zuhause begonnene Sitzung im Zug einfach weiterlaufen.
+  if (!darfVonHier(req, row))
+    return req.session.destroy(() => res.redirect(`${BASE}/login?zone=1`));
   // Erstpasswort noch nicht gesetzt: nichts anderes ist erreichbar
   if (row.must_change && !ERLAUBT_BEI_ZWANG.has(req.path))
     return res.redirect(BASE + PW_SETZEN);
@@ -42,7 +53,12 @@ function internesZiel(roh) {
 }
 
 router.get("/login", (req, res) => {
-  res.render("login", { error: null, next: req.query.next || "" });
+  // ?zone=1 setzt loginRequired, wenn es eine Admin-Sitzung ausserhalb des
+  // Heimnetzes beendet hat — sonst staende man ohne Erklaerung vor dem Login
+  res.render("login", {
+    error: req.query.zone ? ZONE_MELDUNG : null,
+    next: req.query.next || "",
+  });
 });
 
 router.post("/login", async (req, res) => {
@@ -64,6 +80,12 @@ router.post("/login", async (req, res) => {
   if (row && row.locked) {
     guard.fehlversuch(name, req.ip);
     return zeigeFehler("Dieser Zugang ist gesperrt.");
+  }
+  // Passwort stimmt, aber es ist ein Admin von ausserhalb: kein Fehlversuch
+  // (geraten hat hier niemand), aber auch keine Sitzung.
+  if (row && !darfVonHier(req, row)) {
+    res.status(403);
+    return zeigeFehler(ZONE_MELDUNG);
   }
   if (row) {
     guard.erfolg(name);

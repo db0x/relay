@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 const users = require("../users");
 const avatars = require("../avatars");
 const { accessFor } = require("../access");
+const { darfVonHier } = require("../zone");
 const { secureFilename, encPath, securePath, dirFor, pathFor, walkFiles } = require("../storage");
 const { PUBLIC_DS, HOST_INTERNAL, DS_INTERNAL, JWT_SECRET, FILE_SECRET, DOCTYPE, BASE, EDITOR_THEME, dsFetchUrl } = require("../config");
 const { loginRequired } = require("./auth");
@@ -131,7 +132,7 @@ router.get("/edit/:fid", (req, res, next) => {
     const auth = req.get("Authorization") || "";
     const tok = auth.startsWith("Bearer ") ? auth.slice(7) : (req.query.token || "");
     const row = users.getByToken(tok);
-    if (row && !row.locked && !row.must_change) {
+    if (row && !row.locked && !row.must_change && darfVonHier(req, row)) {
       req.session.user = row.username;
       req.session.name = row.display_name;
     }

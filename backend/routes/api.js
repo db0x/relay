@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 
 const users = require("../users");
 const { securePath, dirFor, pathFor, walkFiles } = require("../storage");
+const { darfVonHier } = require("../zone");
 const { DS_INTERNAL, JWT_SECRET, MAX_FILE_MB } = require("../config");
 const { activeEditorKey } = require("./editor");
 
@@ -22,8 +23,10 @@ function apiAuth(req, res, next) {
   const tok = auth.startsWith("Bearer ") ? auth.slice(7) : (req.query.token || "");
   const row = users.getByToken(tok);
   // must_change: der Zugang hat noch sein Einmal-Passwort — bis das gewechselt
-  // ist, gilt er auch fuer die API als nicht eingerichtet
-  if (!row || row.locked || row.must_change)
+  // ist, gilt er auch fuer die API als nicht eingerichtet.
+  // darfVonHier: ein ADMIN-Token waere sonst die offene Hintertuer neben der
+  // LAN-Regel. Fuer alle anderen aendert sich nichts (Voltage & Co).
+  if (!row || row.locked || row.must_change || !darfVonHier(req, row))
     return res.status(401).json({ error: "unauthorized" });
   // fid gegen Pfad-Tricks absichern und mit dem Roh-Namen abgleichen
   const fid = req.params[0];

@@ -10,7 +10,7 @@
 // Gehege zu kommen.
 const crypto = require("crypto");
 const { test, expect } = require("@playwright/test");
-const { loginAsAdmin, uniqueName, uploadFile, waitAppReady } = require("./helpers/relay");
+const { loginAsAdmin, createUser, uniqueName, uploadFile, waitAppReady } = require("./helpers/relay");
 const { BASE_URL } = require("./test-env");
 
 // Dasselbe Geheimnis, das global-setup.js dem Container gibt — damit lassen
@@ -228,5 +228,81 @@ test.describe("Erstinstallation", () => {
     await Promise.all([page.waitForNavigation(), page.click("form button")]);
     await waitAppReady(page);
     await expect(page.locator("table.files")).toBeVisible();
+  });
+});
+
+test.describe("Admin-Zugaenge nur aus dem Heimnetz", () => {
+  // Der Container laeuft mit ADMIN_LAN_ONLY=1 und TRUST_PROXY=1; die Zone
+  // kommt aus X-Relay-Zone (global "lan", siehe playwright.config.js).
+  // "wan" heisst hier: dieselbe Anfrage, aber ueber den oeffentlichen Eingang.
+  const VON_AUSSEN = { "X-Relay-Zone": "wan" };
+
+  test("mit richtigem Passwort, aber von aussen: kein Zutritt", async ({ page }) => {
+    const res = await page.request.post(`${BASE_URL}/login`, {
+      form: { username: "admin", password: "admin" },
+      headers: VON_AUSSEN,
+      maxRedirects: 0,
+    });
+    expect(res.status()).toBe(403);
+    expect(await res.text()).toContain("nur aus dem Heimnetz");
+    // Ein Cookie kommt zwar (jede Anfrage bekommt eine leere Sitzung), aber
+    // es ist keine ANGEMELDETE Sitzung — das ist der Punkt. Also nachfassen:
+    const danach = await page.request.get(`${BASE_URL}/`, { maxRedirects: 0 });
+    expect(danach.status()).toBe(302);
+    expect(danach.headers()["location"]).toContain("/login");
+  });
+
+  test("normale Nutzer sind davon unberuehrt", async ({ page }) => {
+    await loginAsAdmin(page);
+    const u = await createUser(page);
+    const res = await page.request.post(`${BASE_URL}/login`, {
+      form: { username: u.username, password: u.password },
+      headers: VON_AUSSEN,
+      maxRedirects: 0,
+    });
+    expect(res.status(), "ein normaler Zugang kommt von ueberall herein").toBe(302);
+    expect(res.headers()["location"]).toBe("/");
+  });
+
+  test("eine Admin-Sitzung endet, wenn sie das Heimnetz verlaesst", async ({ page }) => {
+    await loginAsAdmin(page);
+    // dieselbe Sitzung, aber ueber den oeffentlichen Eingang
+    const draussen = await page.request.get(`${BASE_URL}/`, {
+      headers: VON_AUSSEN, maxRedirects: 0,
+    });
+    expect(draussen.status()).toBe(302);
+    expect(draussen.headers()["location"]).toContain("/login?zone=1");
+
+    // die Sitzung ist damit weg — auch von zuhause aus
+    const zuhause = await page.request.get(`${BASE_URL}/`, { maxRedirects: 0 });
+    expect(zuhause.status(), "Sitzung muss beendet sein, nicht nur blockiert").toBe(302);
+
+    // und die Login-Seite erklaert, warum
+    await page.goto("/login?zone=1");
+    await expect(page.locator(".err")).toContainText("nur aus dem Heimnetz");
+  });
+
+  test("das API-Token eines Admins greift von aussen nicht", async ({ page }) => {
+    await loginAsAdmin(page);
+    const token = (await page.locator("#tok").textContent()).trim();
+    expect(token.length).toBeGreaterThan(20);
+
+    const drinnen = await page.request.get(`${BASE_URL}/api/files?token=${token}`);
+    expect(drinnen.status()).toBe(200);
+
+    const draussen = await page.request.get(`${BASE_URL}/api/files?token=${token}`,
+      { headers: VON_AUSSEN });
+    expect(draussen.status()).toBe(401);
+  });
+
+  test("die Verwaltungsrouten antworten von aussen mit 404", async ({ page }) => {
+    await loginAsAdmin(page);
+    const res = await page.request.post(`${BASE_URL}/users/create`, {
+      form: { username: uniqueName("x"), display: "X", password: "geheim123" },
+      headers: VON_AUSSEN,
+      maxRedirects: 0,
+    });
+    // 404 statt 403: dieselbe Sprache wie ueberall, verraet nichts
+    expect(res.status()).toBe(404);
   });
 });

@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY package.json ./
 RUN npm install --omit=dev
-COPY app.js config.js storage.js access.js avatars.js db.js doclang.js settings.js users.js loginguard.js shares.js notemeta.js notifications.js noteicon.js manage.js maintenance.js format.js ./
+COPY app.js config.js storage.js access.js avatars.js db.js doclang.js settings.js users.js loginguard.js zone.js shares.js notemeta.js notifications.js noteicon.js manage.js maintenance.js format.js ./
 COPY routes ./routes
 COPY views ./views
 COPY public ./public

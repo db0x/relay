@@ -11,6 +11,7 @@ const settings = require("../settings");
 const doclang = require("../doclang");
 const maintenance = require("../maintenance");
 const { secureFilename, dirFor } = require("../storage");
+const { darfVonHier } = require("../zone");
 const { BASE, DOCS, STATE_DIR, BACKUP_DIR } = require("../config");
 const { formatDate, formatDuration } = require("../format");
 
@@ -25,6 +26,9 @@ function adminRequired(req, res, next) {
     req.flash("err", "Dafür braucht es Admin-Rechte.");
     return res.redirect(`${BASE}/`);
   }
+  // Doppelter Boden: loginRequired hat die Zone schon geprueft, aber die
+  // Verwaltungsrouten sind der Grund fuer die ganze Regel — die pruefen selbst.
+  if (!darfVonHier(req, row)) return res.sendStatus(404);
   next();
 }
 

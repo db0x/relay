@@ -42,6 +42,7 @@ services:
       - EDITOR_THEME=${EDITOR_THEME:-}                  # Editor-Theme; leer = theme-white ("Modern Hell")
       - NODE_ENV=production                             # keine Stapelspuren an den Client, View-Cache an
       - TRUST_PROXY=${TRUST_PROXY:-0}                   # >0 nur MIT Reverse Proxy davor (X-Forwarded-* gelten dann)
+      - ADMIN_LAN_ONLY=${ADMIN_LAN_ONLY:-}              # 1 = Admin-Zugaenge nur aus dem Heimnetz (erst nginx-Zonen setzen!)
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}              # nur bei Erstinstallation; leer = Zufallspasswort im Log
       - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-}                # Browser-Upload-Limit; leer = 128
       - MAX_FILE_MB=${MAX_FILE_MB:-}                    # harte Datei-Obergrenze (API); leer = 512

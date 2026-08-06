@@ -36,9 +36,11 @@ server {
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
+    # HTTP/2 hier in der ALTEN Schreibweise: die getrennte Direktive
+    # `http2 on;` gibt es erst ab nginx 1.25.1. Ubuntu 22.04 liefert 1.18,
+    # dort verweigert `nginx -t` sonst den Dienst.
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name relay.beispiel.de;
 
     ssl_certificate     /etc/letsencrypt/live/relay.beispiel.de/fullchain.pem;
@@ -68,6 +70,10 @@ server {
         # ohne diese Zeile haelt Relay die Verbindung fuer unverschluesselt
         # und liesse die Secure-Marke am Sitzungs-Cookie weg
         proxy_set_header X-Forwarded-Proto $scheme;
+        # Zone: MUSS hier stehen und MUSS "wan" sein. Wuerde die Kopfzeile
+        # weggelassen, koennte ein Aufrufer sie selbst mitschicken und sich
+        # als Heimnetz ausgeben. Relay wertet sie nur mit TRUST_PROXY aus.
+        proxy_set_header X-Relay-Zone wan;
     }
 
     # Anmeldemaske gebremst (nur der POST kostet ein Passwort-Hashing)
@@ -79,6 +85,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Relay-Zone wan;
     }
 
     # Optional, wenn der Sync-Client (Voltage) nur zuhause laeuft: die
@@ -116,7 +123,49 @@ server {
         proxy_read_timeout 3600s;
     }
 
+    # Doppelter Boden: die reinen Verwaltungspfade gehen aus dem Internet gar
+    # nicht erst an Relay. Relay lehnt sie ohnehin ab (ADMIN_LAN_ONLY) — was
+    # hier abprallt, kostet aber nicht einmal eine Anfrage im Backend.
+    location ~ ^/relay/(users|settings|backup)/ {
+        return 404;
+    }
+
     location = / {
         return 302 /relay/;
+    }
+}
+
+# --- Zweiter Eingang: nur aus dem Heimnetz -------------------------------
+# Dieselbe Instanz, andere Tuer. Hier melden sich die Admins an; erkennbar
+# ausschliesslich an X-Relay-Zone, nicht an einer Adresse (deshalb stoeren
+# weder wechselnde IPv6-Praefixe noch Hairpin-NAT).
+# Die LAN-Adresse eintragen, auf der der Server im Heimnetz erreichbar ist —
+# ein Port-Forwarding auf diesen Block darf es NICHT geben.
+server {
+    listen 192.168.1.10:80;          # <- LAN-Adresse des Servers
+    server_name black;
+
+    client_max_body_size 512m;
+
+    location /relay {
+        proxy_pass http://127.0.0.1:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Relay-Zone lan;
+    }
+
+    location /ds/ {
+        rewrite ^/ds/(.*)$ /$1 break;
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host/ds;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 3600s;
     }
 }

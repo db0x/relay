@@ -33,6 +33,11 @@ module.exports = defineConfig({
   use: {
     baseURL: BASE_URL,
     locale: "de-DE",
+    // Die Suite arbeitet wie aus dem Heimnetz: der Container laeuft mit
+    // ADMIN_LAN_ONLY=1 und TRUST_PROXY=1, die Zone kommt also aus dieser
+    // Kopfzeile (backend/zone.js). Tests, die das Gegenteil pruefen, setzen
+    // sie pro Anfrage auf "wan".
+    extraHTTPHeaders: { "X-Relay-Zone": "lan" },
     // Spur/Screenshot nur bei Fehlern -- macht CI-Fehler nachvollziehbar,
     // ohne jeden gruenen Lauf mit Artefakten zuzumuellen.
     trace: "retain-on-failure",

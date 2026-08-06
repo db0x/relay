@@ -73,6 +73,10 @@ module.exports = async () => {
     // X-Forwarded-Proto (Secure-Marke am Cookie) und X-Forwarded-For
     // (Absender-Adresse fuer die Anmeldebremse) -- security.spec.js prueft beides.
     "-e", "TRUST_PROXY=1",
+    // Admin-Zugaenge nur aus dem Heimnetz -- die Suite schickt dazu global
+    // X-Relay-Zone: lan (playwright.config.js), einzelne Tests ueberschreiben
+    // das gezielt mit "wan".
+    "-e", "ADMIN_LAN_ONLY=1",
     IMAGE,
   ]);
 
