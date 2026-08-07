@@ -1,44 +1,101 @@
+/* Anmeldeseiten: Login, Erstpasswort, zweite Stufe.
+ *
+ * Diese Seiten laden index.css NICHT — sie brauchen die Anwendung nicht,
+ * sondern nur ein Formular. Die Glas-Anmutung kommt aus css/glass.css, das
+ * VOR dieser Datei eingebunden wird; hier steht nur, was die Anmeldeseiten
+ * daraus machen.
+ */
 :root{
-  --bg:#eef1f5;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;
+  --ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;
   --brand:#2563eb;--brand-dark:#1d4ed8;--radius-sm:9px;
+  /* Grundton des Desktop-Bildes — dieselbe Farbe wie der kritische Inline-Stil
+     in den Vorlagen und wie --desk-bg in index.css. Drei Stellen, eine Farbe. */
+  --desk-bg:#375998;
 }
 *{box-sizing:border-box}
+
+/* Derselbe Desktop wie in der Anwendung: das Bild traegt die Seite, die
+   Farbe darunter ist sein Grundton (sonst blitzt es hell, bis das Bild da ist). */
+html{
+  background:var(--desk-bg) url(../img/background/desktop.jpg) center/cover fixed no-repeat;
+}
 body{
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  display:flex;justify-content:center;align-items:center;min-height:100vh;
-  margin:0;background:var(--bg);color:var(--ink);padding:16px;
+  display:flex;justify-content:center;
+  /* dvh statt vh: auf dem Handy zaehlt vh die ein- und ausfahrende
+     Adressleiste mit, die Seite springt dann beim Scrollen */
+  min-height:100vh;min-height:100dvh;
+  margin:0;background:transparent;color:var(--glass-ink);padding:16px;
 }
+/* Zentriert wird ueber margin:auto, NICHT ueber align-items:center. Sonst
+   waechst ein hoher Inhalt (die Einrichtungsseite mit QR-Code) im Querformat
+   nach OBEN aus dem Bild heraus und der Anfang ist nicht mehr erreichbar. */
+form{margin:auto}
+
+/* Das Formular IST die Glasflaeche (Klasse .glass in den Vorlagen).
+   position:relative ist dabei Pflicht, nicht Kosmetik: das ::before mit dem
+   Filter liegt auf inset:0 — ohne positionierten Vorfahren spannte es sich
+   ueber den ganzen Viewport. */
 form{
-  background:#fff;padding:2rem;border-radius:14px;border:1px solid var(--line);
-  box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
-  display:flex;flex-direction:column;gap:.8em;width:300px;
+  position:relative;
+  padding:2rem;border-radius:14px;border:1px solid var(--glass-edge);
+  display:flex;flex-direction:column;gap:.8em;
+  /* nimmt die volle Breite, bis 300px erreicht sind — auf dem Handy also
+     die Breite des Bildschirms minus Rand, auf dem Schreibtisch wie bisher */
+  width:min(100%,300px);
 }
 h1{font-size:1.25rem;margin:0 0 .4em;display:flex;align-items:center;gap:.5em}
 h1 img{display:block}
+
+/* Eingaben als eingetiefte Mulden statt weisser Kaesten — dieselbe
+   Entscheidung wie in den Glas-Dialogen: Weiss auf Glas addiert sich zu einer
+   Flaeche, auf der heller Text nicht mehr steht. */
 input{
-  padding:.6em .7em;border:1px solid var(--line);border-radius:var(--radius-sm);
-  font:inherit;background:#fff;color:var(--ink);
+  padding:.6em .7em;border:1px solid var(--glass-line);border-radius:var(--radius-sm);
+  font:inherit;background:var(--glass-well);color:var(--glass-ink);
 }
-input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+input::placeholder{color:var(--glass-ink-muted)}
+input:focus{
+  outline:none;border-color:var(--brand);background:var(--glass-well-focus);
+  box-shadow:0 0 0 3px rgba(37,99,235,.25);
+}
 button{
   padding:.6em;border:0;border-radius:var(--radius-sm);background:var(--brand);
   color:#fff;font:inherit;font-weight:550;cursor:pointer;transition:background .12s;
 }
 button:hover{background:var(--brand-dark)}
-.err{color:#dc2626;font-size:.9em}
-/* Erklaerung auf der Seite „Passwort setzen“ (password-change.ejs) */
-.hinweis{color:var(--muted);font-size:.88rem;margin:0 0 .2em;line-height:1.4}
-.version{color:var(--muted);font-size:.78rem;text-align:center;margin-top:.2em}
+/* Rot muss auf dunklem Grund heller sein als das --danger der Anwendung */
+.err{color:#ffb3b3;font-size:.9em}
+.hinweis{color:var(--glass-ink-muted);font-size:.88rem;margin:0 0 .2em;line-height:1.4}
+.version{color:var(--glass-ink-muted);font-size:.78rem;text-align:center;margin-top:.2em}
+.version a{color:var(--glass-ink-muted)}
 :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 
 /* --- Zwei-Faktor-Seiten ------------------------------------------------- */
 /* etwas breiter: QR-Code bzw. zehn Codes brauchen Platz */
-form.breit{width:340px}
+form.breit{width:min(100%,340px)}
+/* Der QR-Code braucht weissen Grund — dunkel auf dunkel liest keine Kamera */
 .qr{display:flex;justify-content:center;background:#fff;padding:8px;border-radius:var(--radius-sm)}
-.qr svg{display:block;width:232px;height:232px}
+/* Der QR-Code schrumpft mit, statt aus der Karte zu laufen. height:auto haelt
+   ihn dabei quadratisch — sonst wird er auf schmalen Geraeten gestaucht und
+   ist nicht mehr lesbar. */
+.qr svg{display:block;width:min(232px,100%);height:auto;aspect-ratio:1}
 .geheim{font-size:1rem;letter-spacing:.06em;word-spacing:.2em}
 .check{display:flex;align-items:center;gap:.5em;font-size:.9rem;cursor:pointer}
 .check input{width:auto}
 .codes{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.35em}
 .codes code{font-size:.92rem;letter-spacing:.03em}
-.version a{color:var(--muted)}
+
+/* --- Schmale Geraete ----------------------------------------------------
+   Alles darueber gilt auch hier; nur was auf einem Handy stoert, wird
+   angepasst: mehr Platz fuer den Inhalt, groessere Tippflaechen, eine Spalte. */
+@media (max-width:420px){
+  body{padding:12px}
+  form{padding:1.4rem;gap:.7em}
+  h1{font-size:1.15rem}
+  /* ~44px hoch: die uebliche Mindestgroesse fuer einen Fingertipp.
+     Die Schrift bleibt bei 16px — darunter zoomt iOS beim Antippen hinein. */
+  input,button{padding:.75em .8em}
+  /* zehn Wiederherstellungscodes nebeneinander sind auf 360px unlesbar */
+  .codes{grid-template-columns:1fr}
+}

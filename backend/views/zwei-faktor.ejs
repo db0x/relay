@@ -1,9 +1,18 @@
 <!doctype html><meta charset="utf-8"><title><%= appName %> — Bestätigung</title>
 <%- include('partials/favicon') %>
+<%# Grundfarbe kritisch inline — sonst malt der Browser vor dem Stylesheet
+    kurz seinen hellen Standard (derselbe Grund wie in partials/head.ejs). %>
+<%# Ohne diese Zeile rendert ein Handy die Seite auf gedachten 980px und
+    zoomt heraus -- alles wirkt winzig. Bewusst NUR hier: die Anwendung
+    selbst (Fenster, Desktop) braucht einen eigenen Ansatz. %>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<style>html{background:#375998;color-scheme:light}</style>
+<link rel="stylesheet" href="<%= base %>/static/css/glass.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/css/login.css?v=<%= v %>">
 <%# Zweite Stufe nach dem Passwort. Eigene, schlichte Seite — die Sitzung ist
     an dieser Stelle angemeldet, aber zu nichts berechtigt (routes/auth.js). %>
-<form method="post" action="<%= base %>/zwei-faktor">
+<form method="post" action="<%= base %>/zwei-faktor" class="glass">
   <input type="hidden" name="_csrf" value="<%= csrf %>">
   <h1><img src="<%= base %>/static/img/relay.svg" alt="" width="26" height="26">Bestätigung</h1>
   <p class="hinweis">Hallo <%= user %> — bitte den sechsstelligen Code aus deiner

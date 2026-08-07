@@ -1,9 +1,18 @@
 <!doctype html><meta charset="utf-8"><title><%= appName %> — Zwei-Faktor einrichten</title>
 <%- include('partials/favicon') %>
+<%# Grundfarbe kritisch inline — sonst malt der Browser vor dem Stylesheet
+    kurz seinen hellen Standard (derselbe Grund wie in partials/head.ejs). %>
+<%# Ohne diese Zeile rendert ein Handy die Seite auf gedachten 980px und
+    zoomt heraus -- alles wirkt winzig. Bewusst NUR hier: die Anwendung
+    selbst (Fenster, Desktop) braucht einen eigenen Ansatz. %>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<style>html{background:#375998;color-scheme:light}</style>
+<link rel="stylesheet" href="<%= base %>/static/css/glass.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/css/login.css?v=<%= v %>">
 <%# Der QR-Code wird serverseitig als SVG erzeugt (qrcode-svg) und steht direkt
     im Markup — kein externes Laden, keine Ausnahme in der CSP noetig. %>
-<form method="post" action="<%= base %>/zwei-faktor/einrichten" class="breit">
+<form method="post" action="<%= base %>/zwei-faktor/einrichten" class="breit glass">
   <input type="hidden" name="_csrf" value="<%= csrf %>">
   <h1><img src="<%= base %>/static/img/relay.svg" alt="" width="26" height="26">Zwei-Faktor einrichten</h1>
   <p class="hinweis">Verwaltungszugänge brauchen eine zweite Stufe. Scanne den

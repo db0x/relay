@@ -1595,39 +1595,9 @@ a.crumb:hover{text-decoration:underline}
    Flaeche ausserdem auch dann erhalten, wenn OverlayScrollbars den Inhalt in
    seinen eigenen Viewport umhaengt. */
 
-/* --- 1. Die Rezeptur ---------------------------------------------------- */
-.glass,.topbar,.topbar .menu-panel,.dialog-glass{
-  --glass-bg:rgba(17,17,18,.65);        /* Fuellung */
-  --glass-solid:rgba(17,17,18,.93);     /* Ersatz ohne backdrop-filter */
-  --glass-filter:blur(5px) saturate(75%);
-  --glass-edge:rgba(255,255,255,.16);   /* Aussenkante der Flaeche */
-  --glass-line:rgba(255,255,255,.1);    /* Trennlinien INNERHALB */
-  --glass-ink:rgba(255,255,255,.95);
-  --glass-ink-muted:rgba(255,255,255,.62);
-  --glass-hover:rgba(255,255,255,.12);
-  --glass-active:rgba(255,255,255,.18);
-  --glass-well:rgba(0,0,0,.22);         /* eingetiefte Felder */
-  --glass-well-focus:rgba(0,0,0,.3);
-  --glass-sheen:inset 0 1px 0 rgba(255,255,255,.12);
-  --glass-drop:0 16px 48px rgba(0,0,0,.45);
-
-  background:transparent;color:var(--glass-ink);
-  border-color:var(--glass-edge);
-  box-shadow:var(--glass-sheen),var(--glass-drop);
-}
-.glass::before,.topbar::before,.topbar .menu-panel::before,.dialog-glass::before{
-  content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;
-  background:var(--glass-bg);
-  -webkit-backdrop-filter:var(--glass-filter);
-  backdrop-filter:var(--glass-filter);
-}
-/* Ohne backdrop-filter (aeltere Browser) gaebe es keine Streuung — dann
-   lieber deckender, sonst wirkt die Flaeche nur schmutzig statt glaesern. */
-@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .glass::before,.topbar::before,.topbar .menu-panel::before,.dialog-glass::before{
-    background:var(--glass-solid);
-  }
-}
+/* --- 1. Die Rezeptur ----------------------------------------------------
+   steht in css/glass.css (wird VOR dieser Datei geladen, siehe head.ejs) —
+   dieselbe Datei benutzen die Anmeldeseiten, die index.css nicht laden. */
 
 /* --- 2. Was jede Flaeche fuer sich anders macht -------------------------- */
 /* Die Leiste liegt an der Kante und hat nur unten einen Rand. Sie wirft den

@@ -22,6 +22,10 @@
     MUSS vor index.css stehen: die Anmutung wird dort ueber dieselben Klassen
     gesetzt (.os-scrollbar) und soll gewinnen. %>
 <link rel="stylesheet" href="<%= base %>/static/vendor/overlayscrollbars.min.css?v=<%= v %>">
+<%# Die Glas-Rezeptur steht in einer eigenen Datei, weil die Anmeldeseiten
+    sie ebenfalls brauchen (die laden index.css nicht). MUSS davor stehen:
+    index.css enthaelt die Abweichungen je Flaeche und soll gewinnen. %>
+<link rel="stylesheet" href="<%= base %>/static/css/glass.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/css/index.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/vendor/codemirror.min.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/vendor/highlight-github.min.css?v=<%= v %>">

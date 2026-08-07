@@ -1,0 +1,81 @@
+/* Rauchglas — die Rezeptur.
+ *
+ * Bewusst eine EIGENE Datei: die Anmeldeseiten (login.ejs, password-change.ejs,
+ * zwei-faktor*.ejs) laden index.css nicht — sie brauchen die 90 KB der
+ * Anwendung nicht, sollen aber dieselbe Anmutung haben. Kopieren waere der
+ * Rueckfall in genau den Zustand, den wir aufgeraeumt haben (drei Definitionen
+ * desselben Effekts). Also: hier steht sie einmal, beide Seiten laden sie.
+ *
+ * MUSS vor index.css eingebunden werden — dort stehen die Abweichungen je
+ * Flaeche (Titelleiste, Menues, Dialoge), und die sollen gewinnen.
+ *
+ * Wer eine neue Glasflaeche baut, gibt ihr die Klasse .glass. Der Filter sitzt
+ * IMMER auf einem ::before, nie auf der Flaeche selbst: backdrop-filter macht
+ * ein Element zum Bezugsrahmen fuer position:fixed darin, und die
+ * data-tip-Tooltips sind fix (core/tooltips.js).
+ */
+
+.glass,.topbar,.topbar .menu-panel,.dialog-glass{
+  --glass-bg:rgba(17,17,18,.65);        /* Fuellung */
+  --glass-solid:rgba(17,17,18,.93);     /* Ersatz ohne backdrop-filter */
+  --glass-filter:blur(5px) saturate(75%);
+  --glass-edge:rgba(255,255,255,.16);   /* Aussenkante der Flaeche */
+  --glass-line:rgba(255,255,255,.1);    /* Trennlinien INNERHALB */
+  --glass-ink:rgba(255,255,255,.95);
+  --glass-ink-muted:rgba(255,255,255,.62);
+  --glass-hover:rgba(255,255,255,.12);
+  --glass-active:rgba(255,255,255,.18);
+  --glass-well:rgba(0,0,0,.22);         /* eingetiefte Felder */
+  --glass-well-focus:rgba(0,0,0,.3);
+  --glass-sheen:inset 0 1px 0 rgba(255,255,255,.12);
+  --glass-drop:0 16px 48px rgba(0,0,0,.45);
+
+  background:transparent;color:var(--glass-ink);
+  border-color:var(--glass-edge);
+  box-shadow:var(--glass-sheen),var(--glass-drop);
+}
+.glass::before,.topbar::before,.topbar .menu-panel::before,.dialog-glass::before{
+  content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;
+  background:var(--glass-bg);
+  -webkit-backdrop-filter:var(--glass-filter);
+  backdrop-filter:var(--glass-filter);
+}
+/* Ohne backdrop-filter (aeltere Browser) gaebe es keine Streuung — dann
+   lieber deckender, sonst wirkt die Flaeche nur schmutzig statt glaesern. */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .glass::before,.topbar::before,.topbar .menu-panel::before,.dialog-glass::before{
+    background:var(--glass-solid);
+  }
+}
+
+
+/* --- Vom Browser ausgefuellte Felder ------------------------------------
+   Chrome und Firefox malen automatisch ausgefuellte Eingaben mit einer
+   eigenen HELLEN Flaeche. Die laesst sich mit background-color nicht
+   uebersteuern — der Browser zeichnet sie in einer eigenen Ebene. Der
+   gaengige Ausweg ist ein Innenschatten, der die Flaeche vollstaendig
+   ueberdeckt, plus -webkit-text-fill-color fuer die Schrift (color allein
+   greift dort ebenfalls nicht).
+
+   Die absurd lange transition ist kein Tippfehler: Chrome blendet seine
+   Farbe nach dem Ausfuellen mit einer Animation ein. Wird die auf faktisch
+   unendlich gesetzt, kommt sie nie an. */
+.glass input:-webkit-autofill,
+.glass input:autofill,
+.dialog-glass input:-webkit-autofill,
+.dialog-glass input:autofill{
+  -webkit-text-fill-color:var(--glass-ink);
+  caret-color:var(--glass-ink);
+  border-color:var(--glass-line);
+  -webkit-box-shadow:0 0 0 1000px var(--glass-well) inset;
+  box-shadow:0 0 0 1000px var(--glass-well) inset;
+  transition:background-color 600000s 0s;
+}
+.glass input:-webkit-autofill:focus,
+.glass input:autofill:focus,
+.dialog-glass input:-webkit-autofill:focus,
+.dialog-glass input:autofill:focus{
+  border-color:var(--brand);
+  -webkit-box-shadow:0 0 0 1000px var(--glass-well-focus) inset,0 0 0 3px rgba(37,99,235,.25);
+  box-shadow:0 0 0 1000px var(--glass-well-focus) inset,0 0 0 3px rgba(37,99,235,.25);
+}
