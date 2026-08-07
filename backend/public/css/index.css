@@ -1406,8 +1406,15 @@ a.crumb:hover{text-decoration:underline}
 /* gemeinsamer Backdrop (ein Element fuer alle Dialoge, index.js schaltet
    .open): ::backdrop existiert nur fuer modale Dialoge. pointer-events
    blockt Klicks auf die Seite dahinter, solange ein Dialog offen ist. */
+/* Der Abdunkler traegt mehr als nur "Fokus auf den Dialog": Er ist der
+   Untergrund, gegen den die GLASKANTE gelesen wird. Mit 0.4 blieb die weisse
+   Dateikarte darunter bei Helligkeit ~91 stehen — die feine Kante
+   (rgba(255,255,255,.16), gemessen 107) verschmolz damit zu einem breiten
+   hellen Band, waehrend dieselbe Kante am Anwendungsmenue ueber dem dunklen
+   Desktop (~49) als schmale Linie wirkt. 0.62 bringt den Untergrund in
+   dieselbe Groessenordnung. */
 .dlg-backdrop{
-  position:fixed;inset:0;z-index:50;background:rgba(16,24,40,.4);
+  position:fixed;inset:0;z-index:50;background:rgba(16,24,40,.62);
   opacity:0;pointer-events:none;transition:opacity .18s ease;
 }
 .dlg-backdrop.open{opacity:1;pointer-events:auto}
