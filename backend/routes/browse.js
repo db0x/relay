@@ -12,6 +12,7 @@ const settings = require("../settings");
 const shares = require("../shares");
 const notemeta = require("../notemeta");
 const twofactor = require("../twofactor");
+const protokoll = require("../eventlog");
 const notifications = require("../notifications");
 const noteicon = require("../noteicon");
 const { accessFor } = require("../access");
@@ -368,6 +369,12 @@ router.get("/", loginRequired, (req, res) => {
     email: row.email || "",
     emailError: (() => { const e = !!req.session.emailError; delete req.session.emailError; return e; })(),
     isAdmin: !!row.is_admin,
+    // Ereignisprotokoll fuer den Admin-Dialog (eventlog.js). Zeit hier schon
+    // formatiert, damit die Vorlage nichts rechnen muss.
+    events: row.is_admin
+      ? protokoll.letzte(200).map((e) => ({ ...e, zeit: formatDate(e.at) }))
+      : [],
+    eventTage: protokoll.TAGE,
     // Zustand der zweiten Stufe fuer den Konto-Dialog (nur Admins betroffen)
     zweiFaktor: row.is_admin ? {
       aktiv: !!row.totp_active,

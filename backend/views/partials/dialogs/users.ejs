@@ -39,6 +39,7 @@
             <% if (u.is_admin || !u.locked) { %>
             <form class="unshare-form" action="<%= base %>/users/admin" method="post"
                   <% if (u.is_admin) { %>data-confirm="<%= u.display_name %> die Admin-Rechte entziehen?"<% } %>>
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
               <input type="hidden" name="target" value="<%= u.username %>">
               <input type="hidden" name="value" value="<%= u.is_admin ? 0 : 1 %>">
               <button class="btn btn-secondary btn-sm">
@@ -50,6 +51,7 @@
             <% if (u.locked || !u.is_admin) { %>
             <form class="unshare-form" action="<%= base %>/users/lock" method="post"
                   <% if (!u.locked) { %>data-confirm="<%= u.display_name %> sperren? Login, Sitzungen und API-Token sind dann blockiert."<% } %>>
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
               <input type="hidden" name="target" value="<%= u.username %>">
               <input type="hidden" name="value" value="<%= u.locked ? 0 : 1 %>">
               <button class="btn btn-secondary btn-sm<%= u.locked ? '' : ' btn-sm-danger' %>">
@@ -61,6 +63,7 @@
             <% if (!u.is_admin) { %>
             <form class="unshare-form" action="<%= base %>/users/delete" method="post"
                   data-confirm="<%= u.display_name %> endgültig löschen? ALLE Dateien, Freigaben und das Profil werden unwiderruflich entfernt.">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
               <input type="hidden" name="target" value="<%= u.username %>">
               <button class="iconbtn iconbtn-danger" data-tip="Nutzer löschen" aria-label="Nutzer löschen">
                 <img src="<%= base %>/static/img/delete.svg" alt="" width="16" height="16">
@@ -75,6 +78,7 @@
     </table>
 
     <form class="stack-form user-create" action="<%= base %>/users/create" method="post" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
       <span class="dialog-label">Neuen Nutzer anlegen</span>
       <div class="user-create-row">
         <input class="field grow" name="username" placeholder="Nutzername (Login)" required

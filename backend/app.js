@@ -17,6 +17,8 @@ const { SESSION_SECRET, APP_NAME, BASE, VERSION, TRUST_PROXY, PUBLIC_DS } = requ
 const { encPath } = require("./storage");
 const maintenance = require("./maintenance");
 const users = require("./users");
+const { SqliteStore } = require("./sessionstore");
+const { csrfSchutz } = require("./csrf");
 
 const app = express();
 
@@ -128,6 +130,9 @@ app.use((req, res, next) => {
 // sieht Express nur die unverschluesselte Strecke Proxy->Backend und liesse
 // die Marke weg); im LAN ohne TLS bleibt alles wie gehabt.
 app.use(session({
+  // Sitzungen liegen in SQLite (sessionstore.js) — sie ueberleben damit einen
+  // Neustart und lassen sich gezielt beenden.
+  store: new SqliteStore(),
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
@@ -146,6 +151,10 @@ app.use((req, res, next) => {
   req.flash = (cat, msg) => { (req.session.flashes ||= []).push([cat, msg]); };
   next();
 });
+
+// Nachweis gegen faelschende Fremdseiten. NACH der Session (braucht sie) und
+// VOR allen Routern; /api/ und /callback/ sind ausgenommen (siehe csrf.js).
+app.use(csrfSchutz);
 
 // Router: /edit/:owner/* (editor) muss vor /edit/:fid (Voltage-Kompat, ebenfalls
 // editor) liegen — die Reihenfolge innerhalb des Editor-Routers regelt das.

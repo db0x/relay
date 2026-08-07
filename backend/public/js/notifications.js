@@ -9,7 +9,7 @@
 // Schliessen per Escape und Klick daneben erledigt bindMenuButtons in
 // core/dialogs.js — hier bleibt nur das Verhalten der Eintraege.
 import { closeMenus } from "./core/dialogs.js";
-import { BASE_URL } from "./core/base.js";
+import { BASE_URL, schreibKopf } from "./core/base.js";
 
 // Zeile der Dateiliste zu owner/relpath finden. Freigegebene Dateien stehen
 // immer auf der obersten Ebene (siehe routes/browse.js), darum reicht die
@@ -65,7 +65,7 @@ export function initNotifications(config) {
   function markRead(id) {
     return fetch(BASE_URL + "/notifications/read", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: schreibKopf({ "Content-Type": "application/json" }),
       credentials: "same-origin",
       body: JSON.stringify({ id: Number(id) }),
     });

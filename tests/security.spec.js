@@ -10,7 +10,10 @@
 // Gehege zu kommen.
 const crypto = require("crypto");
 const { test, expect } = require("@playwright/test");
-const { loginAsAdmin, createUser, uniqueName, uploadFile, waitAppReady } = require("./helpers/relay");
+const {
+  loginAsAdmin, login, createUser, uniqueName, uploadFile, waitAppReady,
+  csrfToken, postForm,
+} = require("./helpers/relay");
 const { BASE_URL } = require("./test-env");
 
 // Dasselbe Geheimnis, das global-setup.js dem Container gibt — damit lassen
@@ -21,6 +24,20 @@ function fileLink(uid, fid) {
   const tok = crypto.createHmac("sha256", FILE_SECRET)
     .update(`${uid}:${fid}:${exp}`).digest("base64url");
   return `${BASE_URL}/files/${encodeURIComponent(uid)}/${fid}?expires=${exp}&token=${tok}`;
+}
+
+
+// Anmelden per direktem POST — mit Nachweis, den es seit dem CSRF-Schutz
+// braucht (backend/csrf.js). Der Wert steht als verstecktes Feld auf der
+// Anmeldeseite der jeweiligen Instanz; die Tests hier sprechen mehrere an.
+async function anmelden(page, basis, felder, extra = {}) {
+  const seite = await (await page.request.get(`${basis}/login`)).text();
+  const nachweis = (seite.match(/name="_csrf" value="([^"]+)"/) || [])[1] || "";
+  return page.request.post(`${basis}/login`, {
+    form: { ...felder, _csrf: nachweis },
+    maxRedirects: 0,
+    ...extra,
+  });
 }
 
 test.describe("Sicherheits-Zusicherungen", () => {
@@ -56,7 +73,7 @@ test.describe("Sicherheits-Zusicherungen", () => {
   test("Fehler geben keine Stapelspur nach draussen", async ({ page }) => {
     await loginAsAdmin(page);
     const res = await page.request.post(`${BASE_URL}/notes/desktop`, {
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": await csrfToken(page) },
       data: "{kaputt",
       maxRedirects: 0,
     });
@@ -96,37 +113,26 @@ test.describe("Sicherheits-Zusicherungen", () => {
     // "/\fremde.example" rutschte frueher durch: Browser machen daraus
     // "//fremde.example" und verlassen damit unsere Herkunft.
     for (const ziel of ["/\\fremde.example", "//fremde.example", "https://fremde.example"]) {
-      const res = await page.request.post(`${BASE_URL}/login`, {
-        form: { username: "admin", password: "admin", next: ziel },
-        maxRedirects: 0,
-      });
+      const res = await anmelden(page, BASE_URL, { username: "admin", password: "admin", next: ziel });
       expect(res.status()).toBe(302);
       const nach = res.headers()["location"];
       expect(nach, `next=${ziel}`).toBe("/");
     }
     // ein internes Ziel bleibt dagegen erhalten
-    const ok = await page.request.post(`${BASE_URL}/login`, {
-      form: { username: "admin", password: "admin", next: "/?p=Notizen" },
-      maxRedirects: 0,
-    });
+    const ok = await anmelden(page, BASE_URL, { username: "admin", password: "admin", next: "/?p=Notizen" });
     expect(ok.headers()["location"]).toBe("/?p=Notizen");
   });
 
   test("das Sitzungs-Cookie ist abgeschottet — und hinter TLS zusaetzlich Secure",
     async ({ page }) => {
-      const einfach = await page.request.post(`${BASE_URL}/login`, {
-        form: { username: "admin", password: "admin" }, maxRedirects: 0,
-      });
+      const einfach = await anmelden(page, BASE_URL, { username: "admin", password: "admin" });
       const keks = einfach.headers()["set-cookie"];
       expect(keks).toContain("HttpOnly");
       expect(keks).toContain("SameSite=Lax");
 
       // Wie hinter nginx mit TLS: dann MUSS die Secure-Marke dran sein
-      const hinterTls = await page.request.post(`${BASE_URL}/login`, {
-        form: { username: "admin", password: "admin" },
-        headers: { "X-Forwarded-Proto": "https" },
-        maxRedirects: 0,
-      });
+      const hinterTls = await anmelden(page, BASE_URL, { username: "admin", password: "admin" },
+        { headers: { "X-Forwarded-Proto": "https" } });
       expect(hinterTls.headers()["set-cookie"]).toContain("Secure");
     });
 
@@ -135,11 +141,8 @@ test.describe("Sicherheits-Zusicherungen", () => {
     // Absender-Adressen wechseln, um zu zeigen: die KONTO-Sperre greift auch
     // gegen ein Botnetz.
     const opfer = uniqueName("opfer");
-    const versuch = (i) => page.request.post(`${BASE_URL}/login`, {
-      form: { username: opfer, password: "geraten" + i },
-      headers: { "X-Forwarded-For": `198.51.100.${(i % 250) + 1}` },
-      maxRedirects: 0,
-    });
+    const versuch = (i) => anmelden(page, BASE_URL, { username: opfer, password: "geraten" + i },
+      { headers: { "X-Forwarded-For": `198.51.100.${(i % 250) + 1}` } });
 
     for (let i = 1; i <= 10; i++) {
       const r = await versuch(i);
@@ -197,9 +200,7 @@ test.describe("Erstinstallation", () => {
   test("es gibt kein Standard-Passwort mehr", async ({ page }) => {
     expect(einmalPasswort, "Einmal-Passwort muss im Container-Log stehen").toBeTruthy();
     expect(einmalPasswort.length).toBeGreaterThanOrEqual(20);
-    const res = await page.request.post(`${URL}/login`, {
-      form: { username: "admin", password: "admin" }, maxRedirects: 0,
-    });
+    const res = await anmelden(page, URL, { username: "admin", password: "admin" });
     expect(res.status()).toBe(200); // kein Redirect = nicht angemeldet
     expect(await res.text()).toContain("Name oder Passwort falsch");
   });
@@ -238,11 +239,8 @@ test.describe("Admin-Zugaenge nur aus dem Heimnetz", () => {
   const VON_AUSSEN = { "X-Relay-Zone": "wan" };
 
   test("mit richtigem Passwort, aber von aussen: kein Zutritt", async ({ page }) => {
-    const res = await page.request.post(`${BASE_URL}/login`, {
-      form: { username: "admin", password: "admin" },
-      headers: VON_AUSSEN,
-      maxRedirects: 0,
-    });
+    const res = await anmelden(page, BASE_URL, { username: "admin", password: "admin" },
+      { headers: VON_AUSSEN });
     expect(res.status()).toBe(403);
     expect(await res.text()).toContain("nur aus dem Heimnetz");
     // Ein Cookie kommt zwar (jede Anfrage bekommt eine leere Sitzung), aber
@@ -255,11 +253,8 @@ test.describe("Admin-Zugaenge nur aus dem Heimnetz", () => {
   test("normale Nutzer sind davon unberuehrt", async ({ page }) => {
     await loginAsAdmin(page);
     const u = await createUser(page);
-    const res = await page.request.post(`${BASE_URL}/login`, {
-      form: { username: u.username, password: u.password },
-      headers: VON_AUSSEN,
-      maxRedirects: 0,
-    });
+    const res = await anmelden(page, BASE_URL, { username: u.username, password: u.password },
+      { headers: VON_AUSSEN });
     expect(res.status(), "ein normaler Zugang kommt von ueberall herein").toBe(302);
     expect(res.headers()["location"]).toBe("/");
   });
@@ -299,7 +294,8 @@ test.describe("Admin-Zugaenge nur aus dem Heimnetz", () => {
     async ({ page }) => {
       await loginAsAdmin(page);
       const res = await page.request.post(`${BASE_URL}/users/create`, {
-        form: { username: uniqueName("x"), display: "X", password: "geheim123" },
+        form: { username: uniqueName("x"), display: "X", password: "geheim123",
+                _csrf: await csrfToken(page) },
         headers: VON_AUSSEN,
         maxRedirects: 0,
       });
@@ -354,28 +350,26 @@ test.describe("Hinter einem Reverse Proxy mit Unterpfad", () => {
     try { execFileSync("docker", ["rm", "-f", NAME], { stdio: "ignore" }); } catch (e) { /* egal */ }
   });
 
-  const anmelden = (page, next) => page.request.post(`${URL}${BASIS}/login`, {
-    form: next === undefined
+  const anmeldenDort = (page, next) => anmelden(page, `${URL}${BASIS}`,
+    next === undefined
       ? { username: "admin", password: "admin" }
-      : { username: "admin", password: "admin", next },
-    maxRedirects: 0,
-  });
+      : { username: "admin", password: "admin", next });
 
   test("ohne Ziel landet man in Relay, nicht auf der Wurzel", async ({ page }) => {
-    const res = await anmelden(page);
+    const res = await anmeldenDort(page);
     expect(res.status()).toBe(302);
     expect(res.headers()["location"]).toBe(`${BASIS}/`);
   });
 
   test("ein Ziel innerhalb von Relay bleibt erhalten", async ({ page }) => {
-    const res = await anmelden(page, `${BASIS}/?p=Notizen`);
+    const res = await anmeldenDort(page, `${BASIS}/?p=Notizen`);
     expect(res.headers()["location"]).toBe(`${BASIS}/?p=Notizen`);
   });
 
   test("ein Nachbar am selben Server ist kein gueltiges Ziel", async ({ page }) => {
     // /gogs/ liegt auf demselben Rechner, gehoert aber nicht zu Relay
     for (const fremd of ["/gogs/", "/", "//fremde.example", "https://fremde.example"]) {
-      const res = await anmelden(page, fremd);
+      const res = await anmeldenDort(page, fremd);
       expect(res.headers()["location"], `next=${fremd}`).toBe(`${BASIS}/`);
     }
   });
@@ -421,6 +415,17 @@ test.describe("Zweite Stufe für Admins (TOTP)", () => {
     return totp.codeFuerSchritt(geheimnis, letzterSchritt);
   };
 
+  // Nachweis von einer beliebigen Seite dieser Instanz holen
+  const nachweisVon = async (page, adresse) => {
+    const html = await (await page.request.get(adresse)).text();
+    return (html.match(/name="_csrf" value="([^"]+)"/)
+      || html.match(/name="csrf-token" content="([^"]+)"/) || [])[1] || "";
+  };
+  const zweiPost = async (page, felder) => page.request.post(`${URL}/zwei-faktor`, {
+    form: { ...felder, _csrf: await nachweisVon(page, `${URL}/zwei-faktor`) },
+    maxRedirects: 0,
+  });
+
   test.beforeAll(async () => {
     try { execFileSync("docker", ["rm", "-f", NAME], { stdio: "ignore" }); } catch (e) { /* war nicht da */ }
     execFileSync("docker", [
@@ -445,7 +450,7 @@ test.describe("Zweite Stufe für Admins (TOTP)", () => {
   });
 
   test("ein Admin ohne zweite Stufe kommt nur bis zur Einrichtung", async ({ page }) => {
-    const an = await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+    const an = await anmelden(page, URL, PW);
     expect(an.headers()["location"]).toBe("/zwei-faktor/einrichten");
     // und auch jeder andere Weg fuehrt dorthin
     const start = await page.request.get(`${URL}/`, { maxRedirects: 0 });
@@ -453,19 +458,20 @@ test.describe("Zweite Stufe für Admins (TOTP)", () => {
   });
 
   test("die Einrichtung verlangt einen gueltigen Probe-Code", async ({ page }) => {
-    await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+    await anmelden(page, URL, PW);
     const seite = await (await page.request.get(`${URL}/zwei-faktor/einrichten`)).text();
     geheimnis = (seite.match(/<code class="geheim">([^<]+)<\/code>/) || [])[1].replace(/\s/g, "");
+    const nachweis = (seite.match(/name="_csrf" value="([^"]+)"/) || [])[1];
     expect(geheimnis, "Geheimnis muss auf der Seite stehen").toBeTruthy();
     expect(seite, "QR-Code steht als SVG im Markup, nicht als externes Bild").toContain("<svg");
 
-    const falsch = await page.request.post(`${URL}/zwei-faktor/einrichten`, { form: { code: "000000" } });
+    const falsch = await page.request.post(`${URL}/zwei-faktor/einrichten`, { form: { code: "000000", _csrf: nachweis } });
     expect(await falsch.text()).toContain("stimmt nicht");
     // ohne bestandene Probe bleibt die Stufe inaktiv
     expect((await page.request.get(`${URL}/`, { maxRedirects: 0 })).headers()["location"])
       .toBe("/zwei-faktor/einrichten");
 
-    const gut = await page.request.post(`${URL}/zwei-faktor/einrichten`, { form: { code: await frischerCode() } });
+    const gut = await page.request.post(`${URL}/zwei-faktor/einrichten`, { form: { code: await frischerCode(), _csrf: nachweis } });
     const html = await gut.text();
     codes = [...html.matchAll(/<code>([0-9A-F-]{14})<\/code>/g)].map((m) => m[1]);
     expect(codes, "zehn Wiederherstellungscodes, einmalig angezeigt").toHaveLength(10);
@@ -473,13 +479,20 @@ test.describe("Zweite Stufe für Admins (TOTP)", () => {
   });
 
   test("wer nur das Passwort kennt, kommt nirgendwo hin", async ({ page }) => {
-    const an = await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+    const an = await anmelden(page, URL, PW);
     expect(an.headers()["location"]).toBe("/zwei-faktor");
+    // Der Nachweis kommt von der Codeseite — die halbe Sitzung darf sie ja
+    // laden. So prueft der Test wirklich das ZWEITE Tor und bleibt nicht
+    // schon am CSRF-Schutz haengen (der greift hier als eigene Schicht).
+    const nachweis = await nachweisVon(page, `${URL}/zwei-faktor`);
+    const ohneNachweis = await page.request.post(`${URL}/users/create`, { form: {}, maxRedirects: 0 });
+    expect(ohneNachweis.status(), "erste Schicht: kein Nachweis").toBe(403);
+
     for (const [pfad, meth] of [["/", "get"], ["/users/create", "post"], ["/zwei-faktor/neu", "post"],
                                 ["/zwei-faktor/einrichten", "get"]]) {
       const r = meth === "get"
         ? await page.request.get(URL + pfad, { maxRedirects: 0 })
-        : await page.request.post(URL + pfad, { form: {}, maxRedirects: 0 });
+        : await page.request.post(URL + pfad, { form: { _csrf: nachweis }, maxRedirects: 0 });
       expect(r.headers()["location"], `${meth} ${pfad}`).toBe("/zwei-faktor");
     }
     // auch das API-Token traegt die halbe Sitzung nicht
@@ -487,39 +500,165 @@ test.describe("Zweite Stufe für Admins (TOTP)", () => {
   });
 
   test("derselbe Code gilt kein zweites Mal", async ({ page }) => {
-    await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+    await anmelden(page, URL, PW);
     const code = await frischerCode();
-    const erste = await page.request.post(`${URL}/zwei-faktor`, { form: { code }, maxRedirects: 0 });
+    const erste = await zweiPost(page, { code });
     expect(erste.headers()["location"]).toBe("/");
 
-    await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
-    const zweite = await page.request.post(`${URL}/zwei-faktor`, { form: { code }, maxRedirects: 0 });
+    await anmelden(page, URL, PW);
+    const zweite = await zweiPost(page, { code });
     expect(await zweite.text(), "abgefangener Code darf nicht erneut gelten").toContain("stimmt nicht");
   });
 
   test("ein Wiederherstellungscode ersetzt die Zahl — genau einmal", async ({ page }) => {
-    await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
-    const erste = await page.request.post(`${URL}/zwei-faktor`, { form: { code: codes[0] }, maxRedirects: 0 });
+    await anmelden(page, URL, PW);
+    const erste = await zweiPost(page, { code: codes[0] });
     expect(erste.headers()["location"]).toBe("/");
 
-    await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
-    const zweite = await page.request.post(`${URL}/zwei-faktor`, { form: { code: codes[0] }, maxRedirects: 0 });
+    await anmelden(page, URL, PW);
+    const zweite = await zweiPost(page, { code: codes[0] });
     expect(await zweite.text()).toContain("stimmt nicht");
   });
 
   test("„diesem Gerät vertrauen“ spart den Code — bis man die Geräte vergisst",
     async ({ page }) => {
-      await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
-      const mit = await page.request.post(`${URL}/zwei-faktor`,
-        { form: { code: await frischerCode(), vertrauen: "1" }, maxRedirects: 0 });
+      await anmelden(page, URL, PW);
+      const mit = await zweiPost(page, { code: await frischerCode(), vertrauen: "1" });
       expect(mit.headers()["set-cookie"]).toContain("relay_td");
 
       // neue Anmeldung im selben Kontext: das Merkmal liegt im Cookie
-      const ohneCode = await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+      const ohneCode = await anmelden(page, URL, PW);
       expect(ohneCode.headers()["location"], "vertrautes Gerät -> direkt hinein").toBe("/");
 
-      await page.request.post(`${URL}/zwei-faktor/geraete`, { form: {}, maxRedirects: 0 });
-      const wieder = await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+      await page.request.post(`${URL}/zwei-faktor/geraete`,
+        { form: { _csrf: await nachweisVon(page, `${URL}/`) }, maxRedirects: 0 });
+      const wieder = await anmelden(page, URL, PW);
       expect(wieder.headers()["location"], "nach 'Geräte vergessen' wieder ein Code").toBe("/zwei-faktor");
     });
+});
+
+test.describe("Etappe 3: Nachweis, Sitzungen, Protokoll", () => {
+  test("eine ändernde Anfrage ohne Nachweis wird abgewiesen", async ({ page }) => {
+    await loginAsAdmin(page);
+    // genau der Angriff: eine fremde Seite loest ein POST mit UNSEREM Cookie
+    // aus. Sie kann den Nachweis nicht lesen (Same-Origin-Policy).
+    const ohne = await page.request.post(`${BASE_URL}/profile`, {
+      form: { display: "Übernommen", email: "" },
+      maxRedirects: 0,
+    });
+    expect(ohne.status()).toBe(403);
+
+    const token = await csrfToken(page);
+    const mit = await page.request.post(`${BASE_URL}/profile`, {
+      form: { display: "Admin", email: "", _csrf: token },
+      maxRedirects: 0,
+    });
+    expect(mit.status()).toBe(302);
+  });
+
+  test("der Nachweis geht auch als Kopfzeile — und die Datei-API braucht keinen",
+    async ({ page }) => {
+      await loginAsAdmin(page);
+      const token = await csrfToken(page);
+      const mitKopf = await page.request.post(`${BASE_URL}/notes/desktop`, {
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": token },
+        data: "{}",
+      });
+      // 400 = der Nachweis stimmte, nur der Rumpf war unvollstaendig
+      expect(mitKopf.status()).toBe(400);
+
+      // Die API meldet sich per Token an, nicht per Cookie — dort gibt es
+      // nichts zu faelschen, also ist sie ausgenommen (siehe csrf.js).
+      const tok = (await page.locator("#tok").textContent()).trim();
+      const api = await page.request.put(`${BASE_URL}/api/files/csrf-probe.txt?token=${tok}`, {
+        data: "inhalt",
+      });
+      expect([200, 201]).toContain(api.status());
+    });
+
+  test("das Protokoll hält Anmeldungen fest — auch gescheiterte", async ({ page }) => {
+    const name = uniqueName("geist");
+    await page.request.post(`${BASE_URL}/login`, {
+      form: { username: name, password: "falsch", _csrf: await csrfToken(page) },
+      maxRedirects: 0,
+    });
+    await loginAsAdmin(page);
+    const seite = await (await page.request.get(`${BASE_URL}/`)).text();
+    expect(seite, "gescheiterter Versuch steht im Protokoll").toContain("login.fail");
+    expect(seite).toContain(name);
+    expect(seite, "erfolgreiche Anmeldung ebenso").toContain("login.ok");
+    // und niemals Geheimnisse
+    expect(seite).not.toContain("falsch");
+  });
+
+  test("Sperren beendet die laufende Sitzung sofort", async ({ page, browser }) => {
+    await loginAsAdmin(page);
+    const u = await createUser(page);
+
+    const ctx = await browser.newContext({ baseURL: BASE_URL });
+    const opfer = await ctx.newPage();
+    await login(opfer, u.username, u.password);
+    await waitAppReady(opfer);
+    expect((await opfer.request.get(`${BASE_URL}/`, { maxRedirects: 0 })).status()).toBe(200);
+
+    await postForm(page, `${BASE_URL}/users/lock`, { target: u.username, value: "1" });
+
+    const danach = await opfer.request.get(`${BASE_URL}/`, { maxRedirects: 0 });
+    expect(danach.status(), "die Sitzung ist weg, nicht nur blockiert").toBe(302);
+    await ctx.close();
+  });
+});
+
+test.describe("Sitzungen überleben einen Neustart", () => {
+  // Eigener Container: die uebrige Suite darf nicht mittendrin neu starten.
+  const { execFileSync } = require("child_process");
+  const { EXTERNAL, IMAGE } = require("./test-env");
+  const NAME = "relay-e2e-neustart";
+  const PORT = 5995;
+  const URL = `http://localhost:${PORT}`;
+
+  test.skip(EXTERNAL, "braucht einen eigenen Container");
+
+  const warten = async () => {
+    const frist = Date.now() + 60000;
+    while (Date.now() < frist) {
+      try { if ((await fetch(`${URL}/login`)).ok) return; } catch (e) { /* noch nicht */ }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  };
+
+  test.beforeAll(async () => {
+    try { execFileSync("docker", ["rm", "-f", NAME], { stdio: "ignore" }); } catch (e) { /* war nicht da */ }
+    execFileSync("docker", [
+      "run", "-d", "--name", NAME, "-p", `${PORT}:5000`,
+      "-e", "SERVER_HOST=localhost", "-e", "ADMIN_PASSWORD=admin",
+      "-e", "JWT_SECRET=e2e-dummy-secret-e2e-dummy-secret",
+      "-e", "FILE_SECRET=e2e-dummy-secret-e2e-dummy-secret",
+      "-e", "SESSION_SECRET=e2e-dummy-secret-e2e-dummy-secret",
+      "-e", `HOST_INTERNAL=${URL}`, "-e", "DS_INTERNAL=http://documentserver",
+      IMAGE,
+    ], { stdio: "pipe" });
+    await warten();
+  });
+
+  test.afterAll(() => {
+    try { execFileSync("docker", ["rm", "-f", NAME], { stdio: "ignore" }); } catch (e) { /* egal */ }
+  });
+
+  test("angemeldet bleiben, auch wenn der Container neu startet", async ({ page }) => {
+    const login1 = await (await page.request.get(`${URL}/login`)).text();
+    const token = (login1.match(/name="_csrf" value="([^"]+)"/) || [])[1];
+    const an = await page.request.post(`${URL}/login`, {
+      form: { username: "admin", password: "admin", _csrf: token }, maxRedirects: 0,
+    });
+    expect(an.headers()["location"]).toBe("/");
+    expect((await page.request.get(`${URL}/`, { maxRedirects: 0 })).status()).toBe(200);
+
+    execFileSync("docker", ["restart", NAME], { stdio: "pipe" });
+    await warten();
+
+    // Frueher lagen Sitzungen im Arbeitsspeicher — hier waere man abgemeldet.
+    const danach = await page.request.get(`${URL}/`, { maxRedirects: 0 });
+    expect(danach.status(), "Sitzung liegt in SQLite und überlebt").toBe(200);
+  });
 });

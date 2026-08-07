@@ -4,6 +4,7 @@ const { test, expect } = require("@playwright/test");
 const {
   loginAsAdmin, login, logout, createUser, uniqueName, uploadFile,
   fileRow, shareFile, unshareFile, deleteFile, waitAppReady, expectFlash,
+  csrfToken,
 } = require("./helpers/relay");
 const { BASE_URL } = require("./test-env");
 
@@ -193,7 +194,9 @@ test.describe("Benachrichtigungen", () => {
 
     // Der Besitzer versucht, die Nachricht des Empfaengers zu loeschen
     const res = await page.request.post("/notifications/read", {
-      data: { id: Number(id) }, maxRedirects: 0,
+      data: { id: Number(id) },
+      headers: { "X-CSRF-Token": await csrfToken(page) },
+      maxRedirects: 0,
     });
     expect(res.status()).toBe(204); // Route antwortet freundlich …
 

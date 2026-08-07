@@ -5,6 +5,7 @@ const express = require("express");
 const users = require("../users");
 const guard = require("../loginguard");
 const zwei = require("../twofactor");
+const protokoll = require("../eventlog");
 const { darfVonHier } = require("../zone");
 const { BASE, ADMIN_2FA } = require("../config");
 
@@ -43,8 +44,10 @@ function loginRequired(req, res, next) {
   if (!row || row.locked) return req.session.destroy(() => res.redirect(`${BASE}/login`));
   // Admin unterwegs: die Sitzung endet an der Haustuer. Ohne diese Pruefung
   // wuerde eine zuhause begonnene Sitzung im Zug einfach weiterlaufen.
-  if (!darfVonHier(req, row))
+  if (!darfVonHier(req, row)) {
+    protokoll.notiere("sitzung.zone", req, row.username, "Sitzung ausserhalb beendet");
     return req.session.destroy(() => res.redirect(`${BASE}/login?zone=1`));
+  }
   // Erstpasswort noch nicht gesetzt: nichts anderes ist erreichbar
   if (row.must_change && !ERLAUBT_BEI_ZWANG.has(req.path))
     return res.redirect(BASE + PW_SETZEN);
@@ -101,6 +104,7 @@ router.post("/login", async (req, res) => {
   const gebremst = guard.pruefe(name, req.ip);
   if (gebremst) {
     res.status(429);
+    protokoll.notiere("login.gebremst", req, name, `noch ${gebremst.sekunden}s`);
     return zeigeFehler(`Zu viele Fehlversuche. Bitte in ${Math.ceil(gebremst.sekunden / 60)} Minuten erneut versuchen.`);
   }
 
@@ -109,12 +113,14 @@ router.post("/login", async (req, res) => {
   // welche Zugaenge existieren oder gesperrt sind
   if (row && row.locked) {
     guard.fehlversuch(name, req.ip);
+    protokoll.notiere("login.gesperrt", req, name);
     return zeigeFehler("Dieser Zugang ist gesperrt.");
   }
   // Passwort stimmt, aber es ist ein Admin von ausserhalb: kein Fehlversuch
   // (geraten hat hier niemand), aber auch keine Sitzung.
   if (row && !darfVonHier(req, row)) {
     res.status(403);
+    protokoll.notiere("login.zone", req, row.username, "Admin von ausserhalb");
     return zeigeFehler(ZONE_MELDUNG);
   }
   if (row) {
@@ -125,6 +131,8 @@ router.post("/login", async (req, res) => {
       if (err) return zeigeFehler("Anmeldung fehlgeschlagen, bitte erneut versuchen.");
       req.session.user = row.username;
       req.session.name = row.display_name;
+      protokoll.notiere("login.ok", req, row.username,
+        row.is_admin ? "Admin" : "");
       if (row.must_change) return res.redirect(BASE + PW_SETZEN);
       const ziel = internesZiel(req.body.next);
 
@@ -145,6 +153,7 @@ router.post("/login", async (req, res) => {
     });
   }
   guard.fehlversuch(name, req.ip);
+  protokoll.notiere("login.fail", req, name);
   setTimeout(() => zeigeFehler("Name oder Passwort falsch."), 400); // bremst zusaetzlich
 });
 
@@ -165,6 +174,7 @@ router.post(PW_SETZEN, loginRequired, async (req, res) => {
 });
 
 router.get("/logout", (req, res) => {
+  if (req.session.user) protokoll.notiere("logout", req, req.session.user);
   req.session.destroy(() => res.redirect(`${BASE}/login`));
 });
 
@@ -188,6 +198,7 @@ router.post("/password", loginRequired, async (req, res) => {
   if (new1 !== new2) return fail("new", "Die neuen Passwörter stimmen nicht überein.");
   if ((new1 || "").length < 8) return fail("new", "Das neue Passwort braucht mindestens 8 Zeichen.");
   await users.setPassword(req.session.user, new1);
+  protokoll.notiere("passwort.geaendert", req, req.session.user);
   req.flash("ok", "Passwort geändert.");
   res.redirect(`${BASE}/`);
 });

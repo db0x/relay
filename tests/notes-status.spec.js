@@ -8,6 +8,7 @@ const { test, expect } = require("@playwright/test");
 const {
   loginAsAdmin, login, logout, createUser, uniqueName, createNote, openNote,
   deskIcon, shareFile, fileRow, expectFlash, postForm,
+  csrfToken,
 } = require("./helpers/relay");
 const { BASE_URL } = require("./test-env");
 
@@ -190,6 +191,7 @@ test.describe("Notiz-Status", () => {
     const noteFile = await deskIcon(page, title).getAttribute("data-rel");
     const res = await page.request.post("/notes/status", {
       data: { owner: user.username, filename: noteFile, status: "erledigt-vielleicht" },
+      headers: { "X-CSRF-Token": await csrfToken(page) },
       maxRedirects: 0,
     });
     expect(res.status()).toBe(400);

@@ -12,6 +12,7 @@
     <p class="muted dialog-hint">Nur angehakte Sprachen erscheinen in der Auswahl.
       Deutsch (Deutschland) ist die Vorgabe und lässt sich nicht ausblenden.</p>
     <form class="stack-form" action="<%= base %>/settings/langs" method="post">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
       <%# Zwei Ebenen: aussen der Scroll-Behaelter (traegt Rahmen und
           Bildlaufleiste, js/core/scrollbars.js), innen die Liste. In einen
           Behaelter mit eigener Leiste darf kein eigenes Layout — OverlayScroll-

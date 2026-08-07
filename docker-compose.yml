@@ -48,6 +48,24 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}              # nur bei Erstinstallation; leer = Zufallspasswort im Log
       - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-}                # Browser-Upload-Limit; leer = 128
       - MAX_FILE_MB=${MAX_FILE_MB:-}                    # harte Datei-Obergrenze (API); leer = 512
+    # Haertung: keine zusaetzlichen Rechte, keine Capabilities. Der Prozess
+    # laeuft weiterhin als root IM Container -- ein Wechsel auf einen eigenen
+    # Benutzer braucht ein `chown` der Datenverzeichnisse auf dem Host und
+    # vertraegt sich nicht ohne Weiteres mit einem NFS-Backupziel
+    # (root_squash). Wer es will: `user: "1000:1000"` hier ergaenzen und
+    # DOCUMENTS_DIR/STATE_DIR/BACKUP entsprechend uebereignen.
+    # Gemessen auf diesem Host (Docker rootless): `no-new-privileges:true` und
+    # `cap_drop: [ALL]` lassen den Container gar nicht erst starten — das
+    # Einstiegsskript des node-Images scheitert am exec ("operation not
+    # permitted"). Deshalb nur die Faehigkeiten abgeben, die entbehrlich sind;
+    # das laeuft nachweislich. Wer es auf einem anderen Host schaerfer will,
+    # probiert die beiden Zeilen dort einzeln aus.
+    cap_drop:
+      - NET_RAW          # keine rohen Sockets (Sniffing/Spoofing)
+      - SYS_ADMIN
+      - SYS_MODULE
+      - SYS_PTRACE       # keine fremden Prozesse untersuchen
+      - MKNOD
     volumes:
       # Ablageorte auf dem Host per .env steuerbar (Default: im Projektordner).
       # So braucht ein Server-Deployment keine Aenderung an dieser Datei.

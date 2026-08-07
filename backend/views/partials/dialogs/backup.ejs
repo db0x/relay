@@ -14,6 +14,7 @@
       (auch dich) kurz nicht erreichbar.</p>
     <form class="stack-form" id="backup-form" action="<%= base %>/backup/run" method="post" data-ajax="1"
           data-confirm="Backup ausführen? Relay ist währenddessen für alle kurz nicht erreichbar, und der bisherige Inhalt des Backup-Verzeichnisses wird durch den aktuellen Stand ersetzt.">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
       <button class="btn btn-sm" id="backup-run-btn">Backup ausführen</button>
     </form>
   </section>

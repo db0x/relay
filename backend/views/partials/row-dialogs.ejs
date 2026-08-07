@@ -23,6 +23,7 @@
         </span>
         <form class="unshare-form" action="<%= base %>/unshare/<%= encPath(f.relpath) %>" method="post"
               data-confirm="Freigabe für <%= s.display_name %> entziehen?">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
           <input type="hidden" name="dir" value="<%= curDir %>">
           <input type="hidden" name="target" value="<%= s.target %>">
           <button class="btn btn-secondary btn-sm">entziehen</button>
@@ -38,6 +39,7 @@
     <%# Aktions-Button (dialog-action, nicht dialog-submit): die Vorauswahl
         ist bereits gueltig, der Button darf nie ausgegraut sein %>
     <form class="stack-form share-add" action="<%= base %>/share/<%= encPath(f.relpath) %>" method="post">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
       <input type="hidden" name="dir" value="<%= curDir %>">
       <label class="dialog-label" for="share-target-<%= i %>">Freigeben für</label>
       <select class="field" name="target" id="share-target-<%= i %>">
@@ -71,6 +73,7 @@
   <p class="muted dialog-hint">Es gibt noch keine Ordner — erst über „Neuer Ordner“ einen anlegen.</p>
   <% } else { %>
   <form class="stack-form" action="<%= base %>/move/<%= encPath(f.relpath) %>" method="post">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
     <input type="hidden" name="dir" value="<%= curDir %>">
     <label class="dialog-label" for="move-to-<%= i %>">Zielordner</label>
     <select class="field" name="to" id="move-to-<%= i %>">

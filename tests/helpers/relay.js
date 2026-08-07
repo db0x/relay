@@ -179,11 +179,27 @@ async function expectFlash(page, text) {
   await expect(page.locator(".flash-tray")).toContainText(text);
 }
 
+// Nachweis gegen faelschende Fremdseiten (backend/csrf.js). Jede aendernde
+// Anfrage braucht ihn -- auch die, die wir hier absichtlich an der Oberflaeche
+// vorbei schicken. Er steht als <meta> im Kopf jeder Seite.
+async function csrfToken(page) {
+  const html = await (await page.request.get("/")).text();
+  const treffer = html.match(/name="csrf-token" content="([^"]+)"/)
+    || html.match(/name="_csrf" value="([^"]+)"/);
+  if (treffer) return treffer[1];
+  // nicht angemeldet -> die Anmeldeseite traegt ihn ebenfalls
+  const login = await (await page.request.get("/login")).text();
+  return (login.match(/name="_csrf" value="([^"]+)"/) || [])[1] || "";
+}
+
 // Direkter Request an der Oberflaeche vorbei, mit der Session des Kontexts.
 // Genau so pruefen wir die SERVER-Regel -- nicht nur den ausgeblendeten Knopf.
 async function expectStatus(page, method, url, status) {
   const res = method === "post"
-    ? await page.request.post(url, { maxRedirects: 0 })
+    ? await page.request.post(url, {
+        maxRedirects: 0,
+        headers: { "X-CSRF-Token": await csrfToken(page) },
+      })
     : await page.request.get(url, { maxRedirects: 0 });
   expect(res.status(), `${method.toUpperCase()} ${url}`).toBe(status);
   return res;
@@ -196,7 +212,10 @@ async function expectStatus(page, method, url, status) {
 // wuerde der Request dem folgen, wuerde er die Statusmeldung schon selbst
 // abholen -- ein anschliessendes expectFlash(page, ...) faende dann nichts mehr.
 async function postForm(page, url, form) {
-  return page.request.post(url, { form, maxRedirects: 0 });
+  return page.request.post(url, {
+    form: { ...form, _csrf: await csrfToken(page) },
+    maxRedirects: 0,
+  });
 }
 
 module.exports = {
@@ -222,4 +241,5 @@ module.exports = {
   expectFlash,
   expectStatus,
   postForm,
+  csrfToken,
 };

@@ -4,6 +4,7 @@
 <%# Zweite Stufe nach dem Passwort. Eigene, schlichte Seite — die Sitzung ist
     an dieser Stelle angemeldet, aber zu nichts berechtigt (routes/auth.js). %>
 <form method="post" action="<%= base %>/zwei-faktor">
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
   <h1><img src="<%= base %>/static/img/relay.svg" alt="" width="26" height="26">Bestätigung</h1>
   <p class="hinweis">Hallo <%= user %> — bitte den sechsstelligen Code aus deiner
     Authenticator-App eingeben. Alternativ geht auch einer deiner

@@ -7,6 +7,7 @@ const users = require("../users");
 const zwei = require("../twofactor");
 const totp = require("../totp");
 const guard = require("../loginguard");
+const protokoll = require("../eventlog");
 const { BASE, APP_NAME } = require("../config");
 const { loginRequired } = require("./auth");
 
@@ -53,9 +54,12 @@ router.post("/zwei-faktor", loginRequired, (req, res) => {
 
   if (!passt) {
     guard.fehlversuch(me, req.ip);
+    protokoll.notiere("zweifaktor.fail", req, me);
     return setTimeout(() => fehler("Der Code stimmt nicht."), 400);
   }
   guard.erfolg(me);
+  protokoll.notiere("zweifaktor.ok", req, me,
+    req.body.vertrauen === "1" ? "Gerät gemerkt" : "");
 
   const ziel = req.session.zielNachZwei || `${BASE}/`;
   delete req.session.pending2fa;
@@ -113,6 +117,7 @@ router.post("/zwei-faktor/einrichten", loginRequired, einrichtungErlaubt, (req, 
       neu: false,
     });
   }
+  protokoll.notiere("zweifaktor.eingerichtet", req, me);
   // Einrichten zaehlt als bestandene zweite Stufe
   delete req.session.pending2fa;
   res.render("zwei-faktor-codes", { codes, weiter: req.session.zielNachZwei || `${BASE}/` });

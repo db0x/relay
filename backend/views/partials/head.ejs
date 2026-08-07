@@ -4,6 +4,10 @@
     bevor das Hintergrundbild greift -> schwarzer Blitz. Die Grundfarbe ist der
     Mittelton des Desktop-Bildes, damit der Moment vor dem Bild nahtlos wirkt. %>
 <meta name="color-scheme" content="light">
+<%# Nachweis gegen faelschende Fremdseiten (csrf.js). Die fetch-Aufrufe im
+    Frontend lesen ihn hier heraus und schicken ihn als X-CSRF-Token mit;
+    Formulare tragen ihn als verstecktes Feld. %>
+<meta name="csrf-token" content="<%= csrf %>">
 <%# Dieselbe Farbe steht als --desk-bg in index.css — beide gehoeren zusammen. %>
 <style>html{background:#375998;color-scheme:light}</style>
 <%# Das Hintergrundbild steckt in index.css und wird darum erst entdeckt, wenn
