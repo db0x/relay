@@ -30,3 +30,15 @@ button:hover{background:var(--brand-dark)}
 .hinweis{color:var(--muted);font-size:.88rem;margin:0 0 .2em;line-height:1.4}
 .version{color:var(--muted);font-size:.78rem;text-align:center;margin-top:.2em}
 :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+/* --- Zwei-Faktor-Seiten ------------------------------------------------- */
+/* etwas breiter: QR-Code bzw. zehn Codes brauchen Platz */
+form.breit{width:340px}
+.qr{display:flex;justify-content:center;background:#fff;padding:8px;border-radius:var(--radius-sm)}
+.qr svg{display:block;width:232px;height:232px}
+.geheim{font-size:1rem;letter-spacing:.06em;word-spacing:.2em}
+.check{display:flex;align-items:center;gap:.5em;font-size:.9rem;cursor:pointer}
+.check input{width:auto}
+.codes{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.35em}
+.codes code{font-size:.92rem;letter-spacing:.03em}
+.version a{color:var(--muted)}

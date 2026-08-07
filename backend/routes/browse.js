@@ -11,6 +11,7 @@ const doclang = require("../doclang");
 const settings = require("../settings");
 const shares = require("../shares");
 const notemeta = require("../notemeta");
+const twofactor = require("../twofactor");
 const notifications = require("../notifications");
 const noteicon = require("../noteicon");
 const { accessFor } = require("../access");
@@ -367,6 +368,13 @@ router.get("/", loginRequired, (req, res) => {
     email: row.email || "",
     emailError: (() => { const e = !!req.session.emailError; delete req.session.emailError; return e; })(),
     isAdmin: !!row.is_admin,
+    // Zustand der zweiten Stufe fuer den Konto-Dialog (nur Admins betroffen)
+    zweiFaktor: row.is_admin ? {
+      aktiv: !!row.totp_active,
+      codes: row.totp_active ? twofactor.offeneCodes(me) : 0,
+      geraete: row.totp_active ? twofactor.geraeteZahl(me) : 0,
+      tage: twofactor.TAGE_VERTRAUEN,
+    } : null,
     // letzter Backup-Lauf (nur Admins) fuer den Backup-Dialog: Zeitpunkt,
     // Dauer, Erfolg + rsync-Log (routes/admin.js /backup/run)
     lastBackup: (() => {

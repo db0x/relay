@@ -43,6 +43,8 @@ services:
       - NODE_ENV=production                             # keine Stapelspuren an den Client, View-Cache an
       - TRUST_PROXY=${TRUST_PROXY:-0}                   # >0 nur MIT Reverse Proxy davor (X-Forwarded-* gelten dann)
       - ADMIN_LAN_ONLY=${ADMIN_LAN_ONLY:-}              # 1 = Admin-Zugaenge nur aus dem Heimnetz (erst nginx-Zonen setzen!)
+      - ADMIN_2FA=${ADMIN_2FA:-}                        # 1 = Admins brauchen eine zweite Stufe (TOTP)
+      - TOTP_KEY=${TOTP_KEY:-}                          # verschluesselt die TOTP-Geheimnisse; leer = aus SESSION_SECRET abgeleitet
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}              # nur bei Erstinstallation; leer = Zufallspasswort im Log
       - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-}                # Browser-Upload-Limit; leer = 128
       - MAX_FILE_MB=${MAX_FILE_MB:-}                    # harte Datei-Obergrenze (API); leer = 512

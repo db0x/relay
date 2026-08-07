@@ -4,8 +4,9 @@ const express = require("express");
 
 const users = require("../users");
 const guard = require("../loginguard");
+const zwei = require("../twofactor");
 const { darfVonHier } = require("../zone");
-const { BASE } = require("../config");
+const { BASE, ADMIN_2FA } = require("../config");
 
 // Meldung fuer Admins, die von ausserhalb des Heimnetzes anklopfen. Bewusst
 // klar formuliert und erst NACH korrektem Passwort — dasselbe Muster wie bei
@@ -19,6 +20,18 @@ const router = express.Router();
 // die er ausser ihr noch erreichen darf.
 const PW_SETZEN = "/passwort-setzen";
 const ERLAUBT_BEI_ZWANG = new Set([PW_SETZEN, "/logout", "/login"]);
+
+// Zweite Stufe (nur Admins, siehe twofactor.js). Solange sie aussteht, ist
+// die Sitzung angemeldet, aber zu nichts berechtigt — erreichbar sind nur
+// diese Seiten.
+const ZWEI = "/zwei-faktor";
+const ZWEI_EINRICHTEN = "/zwei-faktor/einrichten";
+const ERLAUBT_BEI_ZWEI = new Set([ZWEI, ZWEI_EINRICHTEN, "/logout", "/login"]);
+
+// Admin ohne eingerichtete zweite Stufe, obwohl sie verlangt wird?
+function brauchtEinrichtung(row) {
+  return ADMIN_2FA && row.is_admin && !row.totp_active;
+}
 
 // Prueft den Nutzer bei jedem Request frisch gegen die DB: wer inzwischen
 // gesperrt oder geloescht wurde, fliegt sofort raus — auch mit gueltigem Cookie.
@@ -35,6 +48,13 @@ function loginRequired(req, res, next) {
   // Erstpasswort noch nicht gesetzt: nichts anderes ist erreichbar
   if (row.must_change && !ERLAUBT_BEI_ZWANG.has(req.path))
     return res.redirect(BASE + PW_SETZEN);
+  // Zweite Stufe steht noch aus: die Sitzung traegt zwar den Namen, darf aber
+  // nichts. Ohne dieses Tor waere die Codeabfrage eine Zierleiste, die man
+  // durch Aufruf einer beliebigen anderen Adresse umgeht.
+  if (req.session.pending2fa && !ERLAUBT_BEI_ZWEI.has(req.path))
+    return res.redirect(BASE + ZWEI);
+  if (brauchtEinrichtung(row) && !ERLAUBT_BEI_ZWEI.has(req.path))
+    return res.redirect(BASE + ZWEI_EINRICHTEN);
   next();
 }
 
@@ -106,7 +126,22 @@ router.post("/login", async (req, res) => {
       req.session.user = row.username;
       req.session.name = row.display_name;
       if (row.must_change) return res.redirect(BASE + PW_SETZEN);
-      res.redirect(internesZiel(req.body.next));
+      const ziel = internesZiel(req.body.next);
+
+      // Zweite Stufe eingerichtet -> immer verlangen, auch wenn ADMIN_2FA aus
+      // ist. Sonst waere das Einrichten wirkungslos.
+      if (row.totp_active) {
+        zwei.raeumeAuf();
+        // "Diesem Geraet 30 Tage vertrauen" vom letzten Mal?
+        if (zwei.geraetBekannt(row.username, zwei.keksWert(req, zwei.KEKS))) {
+          return res.redirect(ziel);
+        }
+        req.session.pending2fa = true;
+        req.session.zielNachZwei = ziel;
+        return res.redirect(BASE + ZWEI);
+      }
+      if (brauchtEinrichtung(row)) return res.redirect(BASE + ZWEI_EINRICHTEN);
+      res.redirect(ziel);
     });
   }
   guard.fehlversuch(name, req.ip);

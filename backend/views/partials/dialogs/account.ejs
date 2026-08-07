@@ -72,6 +72,39 @@
     </form>
   </details>
 
+  <% if (zweiFaktor) { %>
+  <%# Zweite Stufe: nur fuer Admins sichtbar, weil sie nur dort gilt.
+      Abschalten gibt es bewusst NICHT als Knopf — nur "neu einrichten"
+      (das setzt das alte Geheimnis zurueck) bzw. den Notausgang manage.js. %>
+  <details class="account-section account-fold">
+    <summary><h3>Zwei-Faktor
+      <span class="badge <%= zweiFaktor.aktiv ? "badge-ok" : "badge-err" %>"><%= zweiFaktor.aktiv ? "aktiv" : "nicht eingerichtet" %></span>
+    </h3></summary>
+    <% if (zweiFaktor.aktiv) { %>
+    <p class="muted dialog-hint">Noch <%= zweiFaktor.codes %> Wiederherstellungscode(s)
+      übrig, <%= zweiFaktor.geraete %> Gerät(e) vertrauen dir für <%= zweiFaktor.tage %> Tage.</p>
+    <div class="zwei-aktionen">
+      <form action="<%= base %>/zwei-faktor/codes" method="post"
+            data-confirm="Neue Wiederherstellungscodes erzeugen? Die alten gelten dann nicht mehr.">
+        <button class="btn btn-sm btn-secondary">Neue Wiederherstellungscodes</button>
+      </form>
+      <form action="<%= base %>/zwei-faktor/geraete" method="post"
+            data-confirm="Allen vertrauten Geräten die Vertrauensstellung entziehen? Beim nächsten Anmelden wird überall wieder ein Code verlangt.">
+        <button class="btn btn-sm btn-secondary">Geräte vergessen</button>
+      </form>
+      <form action="<%= base %>/zwei-faktor/neu" method="post"
+            data-confirm="Zwei-Faktor neu einrichten? Die bisherige App-Verknüpfung und alle Wiederherstellungscodes werden ungültig.">
+        <button class="btn btn-sm btn-danger">Neu einrichten</button>
+      </form>
+    </div>
+    <% } else { %>
+    <p class="muted dialog-hint">Verwaltungszugänge sollten eine zweite Stufe haben —
+      ein Passwort allein ist für Admin-Rechte zu wenig.</p>
+    <p><a class="btn btn-sm" href="<%= base %>/zwei-faktor/einrichten">Jetzt einrichten</a></p>
+    <% } %>
+  </details>
+  <% } %>
+
   <details class="account-section account-fold">
     <summary><h3>API-Token <span class="muted">· für Sync / Skripte</span></h3></summary>
     <div class="tokbox">

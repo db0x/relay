@@ -11,6 +11,7 @@ const USAGE = `Nutzerverwaltung:
   node manage.js add <name> "<Anzeigename>"
   node manage.js list
   node manage.js passwd <name>
+  node manage.js 2fa <name> off      # zweite Stufe abschalten (Notausgang)
   node manage.js token <name>
   node manage.js admin <name> on|off
   node manage.js lock <name> on|off
@@ -67,6 +68,11 @@ async function main() {
     } else if (cmd === "del" && args.length === 1) {
       users.del(args[0]);
       console.log(`Nutzer '${args[0]}' geloescht.`);
+    } else if (cmd === "2fa" && args.length === 2 && args[1] === "off") {
+      // Notausgang: Handy weg UND Wiederherstellungscodes weg. Wer hier
+      // herankommt, hat ohnehin Zugriff auf den Server.
+      require("./twofactor").schalteAb(args[0]);
+      console.log(`Zweite Stufe fuer '${args[0]}' abgeschaltet — beim naechsten Anmelden neu einrichten.`);
     } else if (cmd === "list") {
       for (const row of users.listUsers())
         console.log(`${row.username}\t${row.display_name}`

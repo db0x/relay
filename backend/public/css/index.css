@@ -1801,3 +1801,7 @@ a.crumb:hover{text-decoration:underline}
   --os-handle-bg-hover:rgba(255,255,255,.45);
   --os-handle-bg-active:rgba(255,255,255,.6);
 }
+
+/* Knopfreihe im Zwei-Faktor-Abschnitt des Konto-Dialogs */
+.zwei-aktionen{display:flex;flex-wrap:wrap;gap:.4rem}
+.zwei-aktionen form{margin:0}

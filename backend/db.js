@@ -25,7 +25,30 @@ function db() {
       desk_notes   INTEGER NOT NULL DEFAULT 1,
       -- Zugang muss erst ein eigenes Passwort bekommen (Bootstrap-Admin):
       -- solange gesetzt, fuehrt jede Seite zur Passwort-Aenderung
-      must_change  INTEGER NOT NULL DEFAULT 0
+      must_change  INTEGER NOT NULL DEFAULT 0,
+      -- zweite Stufe bei der Anmeldung (nur Admins, siehe twofactor.js).
+      -- Das Geheimnis liegt VERSCHLUESSELT hier (AES-GCM, Schluessel aus der
+      -- .env) — das Backup spiegelt diese Datei aufs NAS, die .env nicht.
+      totp_secret  TEXT,
+      totp_active  INTEGER NOT NULL DEFAULT 0,
+      -- zuletzt benutzter 30-Sekunden-Schritt: derselbe Code gilt kein zweites Mal
+      totp_step    INTEGER NOT NULL DEFAULT 0
+    );
+
+    -- Wiederherstellungscodes, nur als Hash. Ein Code verschwindet beim
+    -- Einloesen (DELETE) — dadurch gilt jeder genau einmal.
+    CREATE TABLE IF NOT EXISTS totp_recovery (
+      username  TEXT NOT NULL,
+      code_hash TEXT NOT NULL,
+      PRIMARY KEY (username, code_hash)
+    );
+
+    -- "Diesem Geraet 30 Tage vertrauen": Merkmal im Cookie, hier nur der Hash.
+    CREATE TABLE IF NOT EXISTS trusted_devices (
+      token_hash TEXT PRIMARY KEY,
+      username   TEXT NOT NULL,
+      created    INTEGER NOT NULL,
+      expires    INTEGER NOT NULL
     );
 
     -- Freigabe einer Datei (owner/filename) an einen anderen Nutzer (target).
@@ -114,6 +137,13 @@ function db() {
   // Default 0 — Bestandsnutzer sind davon nicht betroffen.
   if (!cols.includes("must_change"))
     _db.exec("ALTER TABLE users ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0");
+  // zweite Stufe kam mit dem Internet-Betrieb dazu
+  if (!cols.includes("totp_secret"))
+    _db.exec("ALTER TABLE users ADD COLUMN totp_secret TEXT");
+  if (!cols.includes("totp_active"))
+    _db.exec("ALTER TABLE users ADD COLUMN totp_active INTEGER NOT NULL DEFAULT 0");
+  if (!cols.includes("totp_step"))
+    _db.exec("ALTER TABLE users ADD COLUMN totp_step INTEGER NOT NULL DEFAULT 0");
   // note_meta.color kam mit den farbigen Notiz-Icons dazu, status mit dem
   // Bearbeitungsstand (Offen/In Arbeit/Erledigt). Beide vertragen NULL:
   // Altbestand liest sich als Standardfarbe bzw. als "open".

@@ -295,16 +295,24 @@ test.describe("Admin-Zugaenge nur aus dem Heimnetz", () => {
     expect(draussen.status()).toBe(401);
   });
 
-  test("die Verwaltungsrouten antworten von aussen mit 404", async ({ page }) => {
-    await loginAsAdmin(page);
-    const res = await page.request.post(`${BASE_URL}/users/create`, {
-      form: { username: uniqueName("x"), display: "X", password: "geheim123" },
-      headers: VON_AUSSEN,
-      maxRedirects: 0,
+  test("die Verwaltungsrouten laufen von aussen nicht — die Sitzung endet dabei",
+    async ({ page }) => {
+      await loginAsAdmin(page);
+      const res = await page.request.post(`${BASE_URL}/users/create`, {
+        form: { username: uniqueName("x"), display: "X", password: "geheim123" },
+        headers: VON_AUSSEN,
+        maxRedirects: 0,
+      });
+      // Seit adminRequired hinter loginRequired haengt, greift das schaerfere
+      // von beiden Toren zuerst: die Sitzung wird beendet, nicht nur die eine
+      // Anfrage abgewiesen. (Frueher kam hier das 404 aus adminRequired.)
+      expect(res.status()).toBe(302);
+      expect(res.headers()["location"]).toContain("/login?zone=1");
+
+      // das ist die eigentliche Zusicherung: danach traegt die Sitzung nichts mehr
+      const danach = await page.request.get(`${BASE_URL}/`, { maxRedirects: 0 });
+      expect(danach.headers()["location"]).toContain("/login");
     });
-    // 404 statt 403: dieselbe Sprache wie ueberall, verraet nichts
-    expect(res.status()).toBe(404);
-  });
 });
 
 test.describe("Hinter einem Reverse Proxy mit Unterpfad", () => {
@@ -378,4 +386,140 @@ test.describe("Hinter einem Reverse Proxy mit Unterpfad", () => {
     expect(res.headers()["location"]).toContain(`${BASIS}/login?next=`);
     expect(decodeURIComponent(res.headers()["location"])).toContain(`next=${BASIS}/`);
   });
+});
+
+test.describe("Zweite Stufe für Admins (TOTP)", () => {
+  // Eigener Container mit ADMIN_2FA=1: die uebrige Suite meldet sich staendig
+  // als Admin an und soll davon nichts merken.
+  const { execFileSync } = require("child_process");
+  const { EXTERNAL, IMAGE } = require("./test-env");
+  const totp = require("../backend/totp");
+  const NAME = "relay-e2e-zweifaktor";
+  const PORT = 5996;
+  const URL = `http://localhost:${PORT}`;
+  const PW = { username: "admin", password: "start-passwort-lang" };
+
+  let geheimnis = null;     // wird in der Einrichtung gefuellt
+  let codes = [];           // Wiederherstellungscodes
+  let letzterSchritt = 0;   // damit kein Code zweimal benutzt wird
+
+  test.skip(EXTERNAL, "braucht einen eigenen Container");
+  test.describe.configure({ mode: "serial" });
+  // kann auf das naechste 30-Sekunden-Fenster warten muessen
+  test.slow();
+
+  // Ein unverbrauchter Code. Zwei Regeln muessen dabei zusammenpassen: der
+  // Server nimmt denselben Zeitschritt kein zweites Mal (Wiederverwendungs-
+  // sperre) und akzeptiert hoechstens ein Fenster Vorlauf (Toleranz). Wer
+  // beides ignoriert und einfach weiterzaehlt, produziert irgendwann Codes
+  // aus der zu fernen Zukunft — dann muss man auf die Uhr warten.
+  const frischerCode = async () => {
+    while (totp.schrittFuer() + 1 <= letzterSchritt) {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    letzterSchritt = Math.max(letzterSchritt + 1, totp.schrittFuer());
+    return totp.codeFuerSchritt(geheimnis, letzterSchritt);
+  };
+
+  test.beforeAll(async () => {
+    try { execFileSync("docker", ["rm", "-f", NAME], { stdio: "ignore" }); } catch (e) { /* war nicht da */ }
+    execFileSync("docker", [
+      "run", "-d", "--name", NAME, "-p", `${PORT}:5000`,
+      "-e", "SERVER_HOST=localhost", "-e", "TRUST_PROXY=1", "-e", "ADMIN_2FA=1",
+      "-e", `ADMIN_PASSWORD=${PW.password}`,
+      "-e", "JWT_SECRET=e2e-dummy-secret-e2e-dummy-secret",
+      "-e", "FILE_SECRET=e2e-dummy-secret-e2e-dummy-secret",
+      "-e", "SESSION_SECRET=e2e-dummy-secret-e2e-dummy-secret",
+      "-e", `HOST_INTERNAL=${URL}`, "-e", "DS_INTERNAL=http://documentserver",
+      IMAGE,
+    ], { stdio: "pipe" });
+    const frist = Date.now() + 60000;
+    while (Date.now() < frist) {
+      try { if ((await fetch(`${URL}/login`)).ok) break; } catch (e) { /* noch nicht */ }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  });
+
+  test.afterAll(() => {
+    try { execFileSync("docker", ["rm", "-f", NAME], { stdio: "ignore" }); } catch (e) { /* egal */ }
+  });
+
+  test("ein Admin ohne zweite Stufe kommt nur bis zur Einrichtung", async ({ page }) => {
+    const an = await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+    expect(an.headers()["location"]).toBe("/zwei-faktor/einrichten");
+    // und auch jeder andere Weg fuehrt dorthin
+    const start = await page.request.get(`${URL}/`, { maxRedirects: 0 });
+    expect(start.headers()["location"]).toBe("/zwei-faktor/einrichten");
+  });
+
+  test("die Einrichtung verlangt einen gueltigen Probe-Code", async ({ page }) => {
+    await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+    const seite = await (await page.request.get(`${URL}/zwei-faktor/einrichten`)).text();
+    geheimnis = (seite.match(/<code class="geheim">([^<]+)<\/code>/) || [])[1].replace(/\s/g, "");
+    expect(geheimnis, "Geheimnis muss auf der Seite stehen").toBeTruthy();
+    expect(seite, "QR-Code steht als SVG im Markup, nicht als externes Bild").toContain("<svg");
+
+    const falsch = await page.request.post(`${URL}/zwei-faktor/einrichten`, { form: { code: "000000" } });
+    expect(await falsch.text()).toContain("stimmt nicht");
+    // ohne bestandene Probe bleibt die Stufe inaktiv
+    expect((await page.request.get(`${URL}/`, { maxRedirects: 0 })).headers()["location"])
+      .toBe("/zwei-faktor/einrichten");
+
+    const gut = await page.request.post(`${URL}/zwei-faktor/einrichten`, { form: { code: await frischerCode() } });
+    const html = await gut.text();
+    codes = [...html.matchAll(/<code>([0-9A-F-]{14})<\/code>/g)].map((m) => m[1]);
+    expect(codes, "zehn Wiederherstellungscodes, einmalig angezeigt").toHaveLength(10);
+    expect((await page.request.get(`${URL}/`, { maxRedirects: 0 })).status()).toBe(200);
+  });
+
+  test("wer nur das Passwort kennt, kommt nirgendwo hin", async ({ page }) => {
+    const an = await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+    expect(an.headers()["location"]).toBe("/zwei-faktor");
+    for (const [pfad, meth] of [["/", "get"], ["/users/create", "post"], ["/zwei-faktor/neu", "post"],
+                                ["/zwei-faktor/einrichten", "get"]]) {
+      const r = meth === "get"
+        ? await page.request.get(URL + pfad, { maxRedirects: 0 })
+        : await page.request.post(URL + pfad, { form: {}, maxRedirects: 0 });
+      expect(r.headers()["location"], `${meth} ${pfad}`).toBe("/zwei-faktor");
+    }
+    // auch das API-Token traegt die halbe Sitzung nicht
+    expect((await page.request.get(`${URL}/api/files`)).status()).toBe(401);
+  });
+
+  test("derselbe Code gilt kein zweites Mal", async ({ page }) => {
+    await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+    const code = await frischerCode();
+    const erste = await page.request.post(`${URL}/zwei-faktor`, { form: { code }, maxRedirects: 0 });
+    expect(erste.headers()["location"]).toBe("/");
+
+    await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+    const zweite = await page.request.post(`${URL}/zwei-faktor`, { form: { code }, maxRedirects: 0 });
+    expect(await zweite.text(), "abgefangener Code darf nicht erneut gelten").toContain("stimmt nicht");
+  });
+
+  test("ein Wiederherstellungscode ersetzt die Zahl — genau einmal", async ({ page }) => {
+    await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+    const erste = await page.request.post(`${URL}/zwei-faktor`, { form: { code: codes[0] }, maxRedirects: 0 });
+    expect(erste.headers()["location"]).toBe("/");
+
+    await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+    const zweite = await page.request.post(`${URL}/zwei-faktor`, { form: { code: codes[0] }, maxRedirects: 0 });
+    expect(await zweite.text()).toContain("stimmt nicht");
+  });
+
+  test("„diesem Gerät vertrauen“ spart den Code — bis man die Geräte vergisst",
+    async ({ page }) => {
+      await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+      const mit = await page.request.post(`${URL}/zwei-faktor`,
+        { form: { code: await frischerCode(), vertrauen: "1" }, maxRedirects: 0 });
+      expect(mit.headers()["set-cookie"]).toContain("relay_td");
+
+      // neue Anmeldung im selben Kontext: das Merkmal liegt im Cookie
+      const ohneCode = await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+      expect(ohneCode.headers()["location"], "vertrautes Gerät -> direkt hinein").toBe("/");
+
+      await page.request.post(`${URL}/zwei-faktor/geraete`, { form: {}, maxRedirects: 0 });
+      const wieder = await page.request.post(`${URL}/login`, { form: PW, maxRedirects: 0 });
+      expect(wieder.headers()["location"], "nach 'Geräte vergessen' wieder ein Code").toBe("/zwei-faktor");
+    });
 });

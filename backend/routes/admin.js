@@ -14,23 +14,30 @@ const { secureFilename, dirFor } = require("../storage");
 const { darfVonHier } = require("../zone");
 const { BASE, DOCS, STATE_DIR, BACKUP_DIR } = require("../config");
 const { formatDate, formatDuration } = require("../format");
+const { loginRequired } = require("./auth");
 
 const router = express.Router();
 
 // Admin-Status immer frisch aus der DB, nicht aus der Session — ein
 // entzogenes Recht wirkt so sofort, nicht erst nach Neu-Login.
-function adminRequired(req, res, next) {
-  if (!req.session.user) return res.redirect(`${BASE}/login?next=` + encodeURIComponent(BASE + req.path));
+//
+// WICHTIG: loginRequired laeuft VORWEG, nicht nur eine eigene Session-
+// Pruefung. Frueher stand hier nur `if (!req.session.user)` — damit lief eine
+// Sitzung, die erst das Passwort bestanden hatte und noch vor der zweiten
+// Stufe stand, glatt in die Verwaltungsrouten hinein. Die Tore (gesperrt,
+// Zone, Erstpasswort, zweite Stufe) gehoeren an EINE Stelle, sonst vergisst
+// man eines.
+const adminRequired = [loginRequired, function (req, res, next) {
   const row = users.get(req.session.user);
   if (!row || !row.is_admin) {
     req.flash("err", "Dafür braucht es Admin-Rechte.");
     return res.redirect(`${BASE}/`);
   }
-  // Doppelter Boden: loginRequired hat die Zone schon geprueft, aber die
-  // Verwaltungsrouten sind der Grund fuer die ganze Regel — die pruefen selbst.
+  // Doppelter Boden zur Zonenpruefung in loginRequired: die Verwaltungsrouten
+  // sind der Grund fuer die ganze Regel, die pruefen selbst.
   if (!darfVonHier(req, row)) return res.sendStatus(404);
   next();
-}
+}];
 
 // Einstellungen: welche Sprachen der "Neue Datei"-Dialog anbietet.
 // Das Formular schickt die SICHTBAREN Codes; gespeichert werden die
