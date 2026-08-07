@@ -54,12 +54,11 @@ services:
     # vertraegt sich nicht ohne Weiteres mit einem NFS-Backupziel
     # (root_squash). Wer es will: `user: "1000:1000"` hier ergaenzen und
     # DOCUMENTS_DIR/STATE_DIR/BACKUP entsprechend uebereignen.
-    # Gemessen auf diesem Host (Docker rootless): `no-new-privileges:true` und
-    # `cap_drop: [ALL]` lassen den Container gar nicht erst starten — das
-    # Einstiegsskript des node-Images scheitert am exec ("operation not
-    # permitted"). Deshalb nur die Faehigkeiten abgeben, die entbehrlich sind;
-    # das laeuft nachweislich. Wer es auf einem anderen Host schaerfer will,
-    # probiert die beiden Zeilen dort einzeln aus.
+    # Faehigkeiten abgeben, die Relay nie braucht. Bewusst NICHT `cap_drop:
+    # [ALL]` und kein `no-new-privileges` an dieser Stelle: auf rootless Docker
+    # startet der Container damit nicht mehr (das Einstiegsskript scheitert am
+    # exec). Wo der Host mitspielt, bringt deploy/docker-compose.haertung.yml
+    # no-new-privileges nach — per COMPOSE_FILE in der .env zuschaltbar.
     cap_drop:
       - NET_RAW          # keine rohen Sockets (Sniffing/Spoofing)
       - SYS_ADMIN
