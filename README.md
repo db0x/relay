@@ -49,10 +49,21 @@ through and passes things on — documents between family members.
    it behind nginx as well (`PUBLIC_DS_URL=http://moria/ds`, only port 80
    exposed via `BIND_ADDR=127.0.0.1`), see the same example file.
 2. `docker compose up -d --build`
-3. Browser (any device on the LAN): `http://<SERVER_HOST>:5001` — with an empty
-   user database, the user **`admin` with password `admin`** exists (with admin
-   rights). Log in with it, **change the password immediately**, and create the
-   first users via menu → "Nutzerverwaltung" (user management).
+3. On the very first start with an empty user database, Relay creates the
+   admin account **`admin` with a random one-time password** and prints it
+   once into the container log:
+   ```bash
+   docker compose logs backend | grep -A2 "Einmal-Passwort"
+   ```
+   (Set `ADMIN_PASSWORD` in `.env` beforehand to choose it yourself.)
+4. Browser (any device on the LAN): `http://<SERVER_HOST>:5001` — log in as
+   `admin` with that password. Relay then **requires** a new password before
+   anything else is reachable. Afterwards create the first users via
+   menu → "Nutzerverwaltung" (user management).
+
+For an installation reachable from the internet, use
+`deploy/nginx-relay-tls.conf.example` — it needs `BIND_ADDR=127.0.0.1` and
+`TRUST_PROXY=1` in addition to the settings above.
 
 Alternatively, users can still be created via CLI (prompts for the password
 interactively):
@@ -186,9 +197,15 @@ For sync/automation (Voltage, rclone, scripts). Authentication via the user's
 API token, either as `Authorization: Bearer <token>` or `?token=<token>`.
 Each token only sees its own user folder.
 
-Every user finds their token after login on the **home page** under
-menu → "Mein Konto" (with a "regenerate" button).
-`manage.js token <name>` remains the admin path.
+The database stores only the token's **SHA-256 checksum**, never the token
+itself — `users.db` is mirrored to the backup target, and a token grants full
+account access. Consequence: a token is shown **once**, right after it is
+created (menu → "Mein Konto" → "neu erzeugen"); whoever loses it creates a new
+one. `manage.js token <name>` likewise creates a new token and prints it once.
+
+Existing installations keep working: on first start the stored plaintext
+tokens are replaced by their checksum in place, so clients that already hold a
+token (Voltage, rclone) continue unchanged.
 
 | Method   | Path                       | Purpose                                       |
 |----------|----------------------------|-----------------------------------------------|

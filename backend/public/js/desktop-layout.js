@@ -6,6 +6,7 @@
 // Vorschau aus, sobald ein Icon gezogen wird.
 import { deskMinY } from "./core/window.js";
 
+import { schreibKopf } from "./core/base.js";
 export function initDesktopLayout(config) {
   var baseUrl = config.baseUrl;
   var hideNoteTip = config.hideNoteTip;
@@ -31,7 +32,7 @@ export function initDesktopLayout(config) {
 
   function saveDeskPos(icon) {
     fetch(baseUrl + "/notes/desktop", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers: schreibKopf({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         owner: icon.dataset.owner, filename: icon.dataset.rel,
         x: parseFloat(icon.style.left) || 0, y: parseFloat(icon.style.top) || 0,

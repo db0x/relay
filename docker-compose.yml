@@ -40,8 +40,31 @@ services:
       - INSTANCE_NAME=${INSTANCE_NAME:-Relay}           # Anzeigename der Instanz in der UI
       - BASE_PATH=${BASE_PATH:-}                        # Unterpfad hinter Reverse Proxy, z.B. /relay
       - EDITOR_THEME=${EDITOR_THEME:-}                  # Editor-Theme; leer = theme-white ("Modern Hell")
+      - NODE_ENV=production                             # keine Stapelspuren an den Client, View-Cache an
+      - TRUST_PROXY=${TRUST_PROXY:-0}                   # >0 nur MIT Reverse Proxy davor (X-Forwarded-* gelten dann)
+      - ADMIN_LAN_ONLY=${ADMIN_LAN_ONLY:-}              # 1 = Admin-Zugaenge nur aus dem Heimnetz (erst nginx-Zonen setzen!)
+      - ADMIN_2FA=${ADMIN_2FA:-}                        # 1 = Admins brauchen eine zweite Stufe (TOTP)
+      - TOTP_KEY=${TOTP_KEY:-}                          # verschluesselt die TOTP-Geheimnisse; leer = aus SESSION_SECRET abgeleitet
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}              # nur bei Erstinstallation; leer = Zufallspasswort im Log
       - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-}                # Browser-Upload-Limit; leer = 128
       - MAX_FILE_MB=${MAX_FILE_MB:-}                    # harte Datei-Obergrenze (API); leer = 512
+    # Haertung: keine zusaetzlichen Rechte, keine Capabilities. Der Prozess
+    # laeuft weiterhin als root IM Container -- ein Wechsel auf einen eigenen
+    # Benutzer braucht ein `chown` der Datenverzeichnisse auf dem Host und
+    # vertraegt sich nicht ohne Weiteres mit einem NFS-Backupziel
+    # (root_squash). Wer es will: `user: "1000:1000"` hier ergaenzen und
+    # DOCUMENTS_DIR/STATE_DIR/BACKUP entsprechend uebereignen.
+    # Faehigkeiten abgeben, die Relay nie braucht. Bewusst NICHT `cap_drop:
+    # [ALL]` und kein `no-new-privileges` an dieser Stelle: auf rootless Docker
+    # startet der Container damit nicht mehr (das Einstiegsskript scheitert am
+    # exec). Wo der Host mitspielt, bringt deploy/docker-compose.haertung.yml
+    # no-new-privileges nach — per COMPOSE_FILE in der .env zuschaltbar.
+    cap_drop:
+      - NET_RAW          # keine rohen Sockets (Sniffing/Spoofing)
+      - SYS_ADMIN
+      - SYS_MODULE
+      - SYS_PTRACE       # keine fremden Prozesse untersuchen
+      - MKNOD
     volumes:
       # Ablageorte auf dem Host per .env steuerbar (Default: im Projektordner).
       # So braucht ein Server-Deployment keine Aenderung an dieser Datei.

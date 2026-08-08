@@ -14,6 +14,7 @@
 // (core/scrollbars.js) — eine neue Ansicht muss sich darum nicht kuemmern.
 import { attachScrollbar } from "./scrollbars.js";
 
+import { schreibKopf } from "./base.js";
 // Untergrenze fuer alle frei platzierten Elemente: unter der Titelleiste,
 // damit nichts hinter ihr verschwindet.
 export function deskMinY() {
@@ -97,7 +98,7 @@ export function createWindow(config) {
 
   function saveLayout(minimized) {
     fetch(baseUrl + "/desktop/layout", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers: schreibKopf({ "Content-Type": "application/json" }),
       credentials: "same-origin",
       body: JSON.stringify({
         key: key,

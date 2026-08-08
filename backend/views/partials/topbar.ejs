@@ -162,6 +162,7 @@
           <%# Alles wegraeumen — Rueckfrage, weil dabei geloescht wird %>
           <form action="<%= base %>/notifications/read-all" method="post"
                 data-confirm="Alle Nachrichten als gelesen markieren? Sie werden dabei entfernt.">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
             <button class="menu-item notif-read-all" id="notif-read-all"
                     <%= notifications.length ? "" : "disabled" %>>Alle als gelesen markieren</button>
           </form>
@@ -182,6 +183,7 @@
           <button type="button" class="menu-item" data-dialog="dlg-users">Nutzerverwaltung</button>
           <button type="button" class="menu-item" data-dialog="dlg-settings">Einstellungen</button>
           <button type="button" class="menu-item" data-dialog="dlg-backup">Backup</button>
+          <button type="button" class="menu-item" data-dialog="dlg-events">Protokoll</button>
           <% } %>
           <a class="menu-item" href="<%= base %>/logout">Abmelden</a>
           <div class="menu-version">Relay v<%= version %></div>

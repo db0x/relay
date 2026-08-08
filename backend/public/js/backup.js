@@ -1,3 +1,4 @@
+import { schreibKopf } from "./core/base.js";
 // --- Backup-Dialog: Formular per fetch senden, Dialog bleibt offen -----
 // (Wartungssperre serverseitig, siehe routes/admin.js/maintenance.js) --
 // waehrend des Laufs zeigt der Knopf "Backup läuft …", danach wird er zum
@@ -48,7 +49,7 @@ export function initBackupDialog() {
     btn.disabled = true;
     btn.textContent = "Backup läuft …";
     fetch(form.action, { method: "POST", credentials: "same-origin",
-      headers: { "X-Requested-With": "fetch" } })
+      headers: schreibKopf({ "X-Requested-With": "fetch" }) })
       .then(function (r) { return r.json(); })
       .then(function (data) { showResult(data); setDone(); })
       .catch(function () {

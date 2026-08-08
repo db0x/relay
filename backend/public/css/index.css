@@ -507,6 +507,10 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   padding:.5rem .95rem;border:1px solid transparent;border-radius:var(--radius-sm);
   background:var(--brand);color:#fff;font:inherit;font-weight:550;
   cursor:pointer;white-space:nowrap;transition:background .12s,border-color .12s,box-shadow .12s;
+  /* Auch ein <a> kann ein Knopf sein (z.B. "Jetzt einrichten" im Konto).
+     Ohne diese Zeile schlaegt der Browser-Standard durch und unterstreicht
+     den Text — bei einem <button> faellt das nie auf, bei einem Link sofort. */
+  text-decoration:none;
 }
 .btn:hover{background:var(--brand-dark)}
 .btn-secondary{background:#fff;color:var(--ink);border-color:var(--line)}
@@ -1406,8 +1410,15 @@ a.crumb:hover{text-decoration:underline}
 /* gemeinsamer Backdrop (ein Element fuer alle Dialoge, index.js schaltet
    .open): ::backdrop existiert nur fuer modale Dialoge. pointer-events
    blockt Klicks auf die Seite dahinter, solange ein Dialog offen ist. */
+/* Der Abdunkler traegt mehr als nur "Fokus auf den Dialog": Er ist der
+   Untergrund, gegen den die GLASKANTE gelesen wird. Mit 0.4 blieb die weisse
+   Dateikarte darunter bei Helligkeit ~91 stehen — die feine Kante
+   (rgba(255,255,255,.16), gemessen 107) verschmolz damit zu einem breiten
+   hellen Band, waehrend dieselbe Kante am Anwendungsmenue ueber dem dunklen
+   Desktop (~49) als schmale Linie wirkt. 0.62 bringt den Untergrund in
+   dieselbe Groessenordnung. */
 .dlg-backdrop{
-  position:fixed;inset:0;z-index:50;background:rgba(16,24,40,.4);
+  position:fixed;inset:0;z-index:50;background:rgba(16,24,40,.62);
   opacity:0;pointer-events:none;transition:opacity .18s ease;
 }
 .dlg-backdrop.open{opacity:1;pointer-events:auto}
@@ -1595,39 +1606,9 @@ a.crumb:hover{text-decoration:underline}
    Flaeche ausserdem auch dann erhalten, wenn OverlayScrollbars den Inhalt in
    seinen eigenen Viewport umhaengt. */
 
-/* --- 1. Die Rezeptur ---------------------------------------------------- */
-.glass,.topbar,.topbar .menu-panel,.dialog-glass{
-  --glass-bg:rgba(17,17,18,.65);        /* Fuellung */
-  --glass-solid:rgba(17,17,18,.93);     /* Ersatz ohne backdrop-filter */
-  --glass-filter:blur(5px) saturate(75%);
-  --glass-edge:rgba(255,255,255,.16);   /* Aussenkante der Flaeche */
-  --glass-line:rgba(255,255,255,.1);    /* Trennlinien INNERHALB */
-  --glass-ink:rgba(255,255,255,.95);
-  --glass-ink-muted:rgba(255,255,255,.62);
-  --glass-hover:rgba(255,255,255,.12);
-  --glass-active:rgba(255,255,255,.18);
-  --glass-well:rgba(0,0,0,.22);         /* eingetiefte Felder */
-  --glass-well-focus:rgba(0,0,0,.3);
-  --glass-sheen:inset 0 1px 0 rgba(255,255,255,.12);
-  --glass-drop:0 16px 48px rgba(0,0,0,.45);
-
-  background:transparent;color:var(--glass-ink);
-  border-color:var(--glass-edge);
-  box-shadow:var(--glass-sheen),var(--glass-drop);
-}
-.glass::before,.topbar::before,.topbar .menu-panel::before,.dialog-glass::before{
-  content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;
-  background:var(--glass-bg);
-  -webkit-backdrop-filter:var(--glass-filter);
-  backdrop-filter:var(--glass-filter);
-}
-/* Ohne backdrop-filter (aeltere Browser) gaebe es keine Streuung — dann
-   lieber deckender, sonst wirkt die Flaeche nur schmutzig statt glaesern. */
-@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .glass::before,.topbar::before,.topbar .menu-panel::before,.dialog-glass::before{
-    background:var(--glass-solid);
-  }
-}
+/* --- 1. Die Rezeptur ----------------------------------------------------
+   steht in css/glass.css (wird VOR dieser Datei geladen, siehe head.ejs) —
+   dieselbe Datei benutzen die Anmeldeseiten, die index.css nicht laden. */
 
 /* --- 2. Was jede Flaeche fuer sich anders macht -------------------------- */
 /* Die Leiste liegt an der Kante und hat nur unten einen Rand. Sie wirft den
@@ -1801,3 +1782,14 @@ a.crumb:hover{text-decoration:underline}
   --os-handle-bg-hover:rgba(255,255,255,.45);
   --os-handle-bg-active:rgba(255,255,255,.6);
 }
+
+/* Zwei-Faktor-Abschnitt im Konto-Dialog. Aufbau wie die Token-Box darunter:
+   Spalte mit Hinweis, Knoepfe RECHTS unten — dieselbe Konvention wie
+   .dialog-submit, .dialog-action und .reset-form. Bei wenig Platz brechen sie
+   um und bleiben dabei rechtsbuendig; der zerstoerende steht zuletzt. */
+.zwei-box{padding:.55rem .9rem .9rem;display:flex;flex-direction:column;gap:.6em}
+.zwei-aktionen{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.4rem}
+.zwei-aktionen form{margin:0}
+
+/* Einmalige Anzeige des frisch erzeugten API-Tokens (Konto-Dialog) */
+.tok-neu{outline:2px solid var(--brand);outline-offset:2px}

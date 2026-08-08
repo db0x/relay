@@ -1,0 +1,24 @@
+# Zusätzliche Härtung für Hosts, auf denen sie funktioniert.
+#
+# `no-new-privileges` verbietet dem Prozess, im Nachhinein mehr Rechte zu
+# erlangen (setuid-Programme, Datei-Capabilities). Auf einem normalen Docker
+# ist das folgenlos und sinnvoll — auf ROOTLESS Docker startet der Container
+# damit gar nicht erst ("exec /usr/local/bin/docker-entrypoint.sh: operation
+# not permitted"). Deshalb steht es hier statt in der docker-compose.yml.
+#
+# Einschalten, dauerhaft und ohne die Gewohnheit zu ändern: in die .env
+#
+#   COMPOSE_FILE=docker-compose.yml:deploy/docker-compose.haertung.yml
+#
+# Danach zieht `docker compose up -d --build` diese Datei automatisch mit.
+# Vorher einmal prüfen, ob der Host mitspielt:
+#
+#   docker run --rm --security-opt no-new-privileges:true relay-backend \
+#     node -e 'console.log("laeuft")'
+services:
+  backend:
+    security_opt:
+      - no-new-privileges:true
+  documentserver:
+    security_opt:
+      - no-new-privileges:true

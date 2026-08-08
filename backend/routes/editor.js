@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 const users = require("../users");
 const avatars = require("../avatars");
 const { accessFor } = require("../access");
+const { darfVonHier } = require("../zone");
 const { secureFilename, encPath, securePath, dirFor, pathFor, walkFiles } = require("../storage");
 const { PUBLIC_DS, HOST_INTERNAL, DS_INTERNAL, JWT_SECRET, FILE_SECRET, DOCTYPE, BASE, EDITOR_THEME, dsFetchUrl } = require("../config");
 const { loginRequired } = require("./auth");
@@ -35,6 +36,11 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   const acc = accessFor(req.session.user, uid, fid);
   if (!acc) return res.sendStatus(404);
   const ext = fid.split(".").pop().toLowerCase();
+  // Nur Formate, die OnlyOffice ueberhaupt oeffnet. Frueher gab es fuer JEDE
+  // vorhandene Datei einen Editor — und damit auch einen signierten /files-Link
+  // auf beliebige Inhalte. Fuer alles andere gibt es Download bzw. die eigenen
+  // Ansichten (Bilder, Notizen).
+  if (!DOCTYPE[ext]) return res.sendStatus(404);
   // PDFs sind reine Ansicht (Viewer): kein Bearbeiten, kein Speichern-Callback —
   // unabhaengig davon, ob Besitzer oder Freigabe mit Bearbeiten-Recht
   const canEdit = (acc === "owner" || acc === "edit") && ext !== "pdf";
@@ -95,7 +101,11 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   activeEditorKey.set(`${uid}/${fid}`, config.document.key);
   // alle Nutzer mit Avatar-URL: edit.js beantwortet damit onRequestUsers
   // (Avatare der ANDEREN beim Co-Editing, in Kommentaren, Versionshistorie)
-  const usersInfo = users.listUsers().map((u) => ({
+  // Ohne Admins: sie bearbeiten keine Dokumente, sollen aber vor allem nicht
+  // in der Teilnehmerliste auftauchen, die auf JEDER Editor-Seite im Quelltext
+  // steht — sonst waere die Liste aller Verwaltungszugaenge fuer jeden
+  // angemeldeten Nutzer einsehbar.
+  const usersInfo = users.listUsers().filter((u) => !u.is_admin).map((u) => ({
     id: u.username, name: u.display_name, image: avatarUrl(u.username),
   }));
   // "<" escapen: die JSONs landen roh in <script>-Tags der Editor-Seite —
@@ -126,7 +136,7 @@ router.get("/edit/:fid", (req, res, next) => {
     const auth = req.get("Authorization") || "";
     const tok = auth.startsWith("Bearer ") ? auth.slice(7) : (req.query.token || "");
     const row = users.getByToken(tok);
-    if (row && !row.locked) {
+    if (row && !row.locked && !row.must_change && !row.is_admin && darfVonHier(req, row)) {
       req.session.user = row.username;
       req.session.name = row.display_name;
     }
@@ -152,7 +162,14 @@ router.get("/files/:uid/*", (req, res) => {
     tok.length === good.length &&
     crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(good));
   if (!ok) return res.sendStatus(403);
-  res.sendFile(pathFor(uid, fid));
+  // Immer als ANHANG ausliefern, nie eingebettet: hier landen ungeprueft
+  // hochgeladene Dateien, und diese Route braucht kein Login — es zaehlt nur
+  // die Signatur. Ohne diese beiden Kopfzeilen liesse sich eine hochgeladene
+  // HTML-Datei ueber einen weitergegebenen Link als Seite UNTER UNSERER
+  // HERKUNFT ausfuehren (Sitzungsklau). Der DocumentServer stoert sich nicht
+  // daran, er liest den Rumpf.
+  res.set("X-Content-Type-Options", "nosniff");
+  res.download(pathFor(uid, fid), path.basename(fid));
 });
 
 // Callback verlangt JWT (Body oder Authorization-Header) -> muss roh gelesen werden

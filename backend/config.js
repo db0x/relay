@@ -35,8 +35,31 @@ function dsFetchUrl(dsUrl) {
   return process.env.DS_INTERNAL + p + (u.search || "");
 }
 
+// Steht ein Reverse Proxy davor? Dann darf Express X-Forwarded-Proto/-For
+// glauben — und nur dann. Ohne Proxy waeren diese Kopfzeilen frei erfunden:
+// jeder Absender koennte sich eine beliebige IP andichten (und damit die
+// Anmeldebremse umgehen) oder eine sichere Verbindung vortaeuschen.
+// Wert: Anzahl der vertrauenswuerdigen Zwischenstationen (hinter einem nginx
+// auf demselben Rechner also 1), leer/0 = keiner.
+const trustProxy = Math.max(0, parseInt(process.env.TRUST_PROXY, 10) || 0);
+
+// Admin-Zugaenge nur aus dem Heimnetz? Standard AUS — wer das einschaltet,
+// ohne die Zonen im nginx zu setzen, sperrt seine Admins aus der Oberflaeche
+// aus (Notausgang bleibt manage.js auf dem Server). Also: erst nginx, dann
+// diesen Schalter. Wie die Zone bestimmt wird, steht in zone.js.
+const adminLanOnly = /^(1|true|yes|on)$/i.test(process.env.ADMIN_LAN_ONLY || "");
+
+// Zweite Stufe fuer Admins ERZWINGEN? Standard aus. Aus heisst nicht "geht
+// nicht": Einrichten kann jeder Admin jederzeit, und wer eingerichtet hat,
+// muss den Code auch immer eingeben. Der Schalter entscheidet nur, ob ein
+// Admin OHNE zweite Stufe noch hereinkommt.
+const admin2fa = /^(1|true|yes|on)$/i.test(process.env.ADMIN_2FA || "");
+
 module.exports = {
   BASE: base,
+  TRUST_PROXY: trustProxy,
+  ADMIN_LAN_ONLY: adminLanOnly,
+  ADMIN_2FA: admin2fa,
   DOCS: "/data/documents",                        // Wurzel der Nutzer-Dateien
   STATE_DIR: process.env.STATE_DIR || "/data/state", // Nutzerdatenbank + Avatare
   BACKUP_DIR: "/data/backup",                     // Ziel fuer "Backup ausfuehren" (rsync)

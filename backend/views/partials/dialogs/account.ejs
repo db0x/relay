@@ -15,8 +15,9 @@
   <section class="account-section avatar-section">
     <%# Avatar zentriert; der Stift unten rechts oeffnet die Dateiauswahl,
         die Auswahl laedt sofort hoch (js/account/account-dialog.js) %>
-    <form id="avatar-upload" class="avatar-wrap" action="<%= base %>/avatar"
+    <form id="avatar-upload" class="avatar-wrap" action="<%= base %>/avatar?_csrf=<%= csrf %>"
           method="post" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
       <% if (hasAvatar) { %>
       <img class="avatar-preview" src="<%= base %>/avatar/<%= encodeURIComponent(me) %>" alt="Aktuelles Profilbild" width="96" height="96">
       <% } else { %>
@@ -32,6 +33,7 @@
   <section class="account-section">
     <%# EIN Formular fuer die Profilfelder — EIN Speichern-Button %>
     <form class="stack-form" action="<%= base %>/profile" method="post">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
       <label class="dialog-label" for="acc-display">Anzeigename</label>
       <%# pattern verlangt mind. ein Nicht-Leerzeichen — "   " zaehlt nicht als Name %>
       <input class="field" name="display" id="acc-display" value="<%= user %>" required maxlength="60"
@@ -59,6 +61,7 @@
   <details class="account-section account-fold"<%- pwError ? " open" : "" %>>
     <summary><h3>Passwort ändern</h3></summary>
     <form class="stack-form" id="pw-form" action="<%= base %>/password" method="post">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
       <input class="field<%= pwError === "old" ? " field-invalid" : "" %>" name="old"
              type="password" placeholder="Aktuelles Passwort"
              autocomplete="current-password" required>
@@ -72,16 +75,74 @@
     </form>
   </details>
 
+  <% if (zweiFaktor) { %>
+  <%# Zweite Stufe: nur fuer Admins sichtbar, weil sie nur dort gilt.
+      Abschalten gibt es bewusst NICHT als Knopf — nur "neu einrichten"
+      (das setzt das alte Geheimnis zurueck) bzw. den Notausgang manage.js. %>
+  <details class="account-section account-fold">
+    <summary><h3>Zwei-Faktor
+      <span class="badge <%= zweiFaktor.aktiv ? "badge-ok" : "badge-err" %>"><%= zweiFaktor.aktiv ? "aktiv" : "nicht eingerichtet" %></span>
+    </h3></summary>
+    <% if (zweiFaktor.aktiv) { %>
+    <div class="zwei-box">
+      <div class="tokhint">Noch <%= zweiFaktor.codes %> Wiederherstellungscode(s)
+        übrig, <%= zweiFaktor.geraete %> Gerät(e) vertrauen dir für
+        <%= zweiFaktor.tage %> Tage.</div>
+      <div class="zwei-aktionen">
+        <form action="<%= base %>/zwei-faktor/codes" method="post"
+              data-confirm="Neue Wiederherstellungscodes erzeugen? Die alten gelten dann nicht mehr.">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <button class="btn btn-sm btn-secondary">Neue Codes</button>
+        </form>
+        <form action="<%= base %>/zwei-faktor/geraete" method="post"
+              data-confirm="Allen vertrauten Geräten die Vertrauensstellung entziehen? Beim nächsten Anmelden wird überall wieder ein Code verlangt.">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <button class="btn btn-sm btn-secondary">Geräte vergessen</button>
+        </form>
+        <form action="<%= base %>/zwei-faktor/neu" method="post"
+              data-confirm="Zwei-Faktor neu einrichten? Die bisherige App-Verknüpfung und alle Wiederherstellungscodes werden ungültig.">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <button class="btn btn-sm btn-danger">Neu einrichten</button>
+        </form>
+      </div>
+    </div>
+    <% } else { %>
+    <div class="zwei-box">
+      <div class="tokhint">Verwaltungszugänge sollten eine zweite Stufe haben —
+        ein Passwort allein ist für Admin-Rechte zu wenig.</div>
+      <div class="zwei-aktionen">
+        <a class="btn btn-sm" href="<%= base %>/zwei-faktor/einrichten">Jetzt einrichten</a>
+      </div>
+    </div>
+    <% } %>
+  </details>
+  <% } %>
+
+  <% if (!isAdmin) { %>
+  <%# Kein API-Token fuer Verwaltungszugaenge: ein Token ist ein vollwertiger
+      Kontozugang ohne Passwort und ohne zweite Stufe. %>
   <details class="account-section account-fold">
     <summary><h3>API-Token <span class="muted">· für Sync / Skripte</span></h3></summary>
     <div class="tokbox">
-      <code id="tok"><%= api_token %></code>
+      <% if (freshToken) { %>
+      <%# Einmalige Anzeige: gespeichert ist nur die Pruefsumme %>
+      <code id="tok" class="tok-neu"><%= freshToken %></code>
+      <div class="tokhint"><strong>Jetzt kopieren.</strong> Das Token erscheint
+        kein zweites Mal — in der Datenbank steht nur seine Prüfsumme.</div>
+      <% } else { %>
+      <div class="tokhint">Das Token wird nicht angezeigt: Gespeichert ist nur
+        seine Prüfsumme, damit es aus einer Sicherung der Datenbank nicht
+        ablesbar ist. Wer es nicht mehr hat, erzeugt ein neues — das alte gilt
+        dann nicht mehr.</div>
+      <% } %>
       <div class="tokhint">Wie ein Passwort behandeln — nicht weitergeben.
         Nutzung: <code>Authorization: Bearer &lt;token&gt;</code> gegen <code>/api/files</code>.</div>
       <form class="reset-form" action="<%= base %>/token/reset" method="post"
             data-confirm="Neues Token erzeugen? Bestehende Sync-Verbindungen mit dem alten Token funktionieren dann nicht mehr.">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
         <button class="btn btn-danger btn-sm">neu erzeugen</button>
       </form>
     </div>
   </details>
+  <% } %>
 </dialog>

@@ -11,22 +11,35 @@ const settings = require("../settings");
 const doclang = require("../doclang");
 const maintenance = require("../maintenance");
 const { secureFilename, dirFor } = require("../storage");
+const { darfVonHier } = require("../zone");
 const { BASE, DOCS, STATE_DIR, BACKUP_DIR } = require("../config");
 const { formatDate, formatDuration } = require("../format");
+const { loginRequired } = require("./auth");
+const protokoll = require("../eventlog");
+const { beendeSitzungenVon } = require("../sessionstore");
 
 const router = express.Router();
 
 // Admin-Status immer frisch aus der DB, nicht aus der Session — ein
 // entzogenes Recht wirkt so sofort, nicht erst nach Neu-Login.
-function adminRequired(req, res, next) {
-  if (!req.session.user) return res.redirect(`${BASE}/login?next=` + encodeURIComponent(BASE + req.path));
+//
+// WICHTIG: loginRequired laeuft VORWEG, nicht nur eine eigene Session-
+// Pruefung. Frueher stand hier nur `if (!req.session.user)` — damit lief eine
+// Sitzung, die erst das Passwort bestanden hatte und noch vor der zweiten
+// Stufe stand, glatt in die Verwaltungsrouten hinein. Die Tore (gesperrt,
+// Zone, Erstpasswort, zweite Stufe) gehoeren an EINE Stelle, sonst vergisst
+// man eines.
+const adminRequired = [loginRequired, function (req, res, next) {
   const row = users.get(req.session.user);
   if (!row || !row.is_admin) {
     req.flash("err", "Dafür braucht es Admin-Rechte.");
     return res.redirect(`${BASE}/`);
   }
+  // Doppelter Boden zur Zonenpruefung in loginRequired: die Verwaltungsrouten
+  // sind der Grund fuer die ganze Regel, die pruefen selbst.
+  if (!darfVonHier(req, row)) return res.sendStatus(404);
   next();
-}
+}];
 
 // Einstellungen: welche Sprachen der "Neue Datei"-Dialog anbietet.
 // Das Formular schickt die SICHTBAREN Codes; gespeichert werden die
@@ -45,7 +58,7 @@ router.post("/settings/langs", adminRequired, (req, res) => {
   res.redirect(`${BASE}/`);
 });
 
-router.post("/users/create", adminRequired, (req, res) => {
+router.post("/users/create", adminRequired, async (req, res) => {
   const name = (req.body.username || "").trim();
   const display = (req.body.display || "").trim() || name;
   const pw = req.body.password || "";
@@ -58,7 +71,9 @@ router.post("/users/create", adminRequired, (req, res) => {
   } else if (pw.length < 8) {
     req.flash("err", "Das Startpasswort braucht mindestens 8 Zeichen.");
   } else {
-    users.addUser(name, display, pw, isAdmin);
+    await users.addUser(name, display, pw, isAdmin);
+    protokoll.notiere("admin.nutzer.anlegen", req, req.session.user,
+      `${name}${isAdmin ? " (Admin)" : ""}`);
     req.flash("ok", `Nutzer „${display}“ angelegt${isAdmin ? " (Admin)" : ""}.`);
   }
   res.redirect(`${BASE}/`);
@@ -77,6 +92,7 @@ router.post("/users/admin", adminRequired, (req, res) => {
     req.flash("err", `${row.display_name} ist gesperrt — erst entsperren, dann Admin machen.`);
   } else {
     users.setAdmin(target, give);
+    protokoll.notiere("admin.rechte", req, req.session.user, `${target} -> ${give ? "Admin" : "kein Admin"}`);
     req.flash("ok", give
       ? `${row.display_name} ist jetzt Admin.`
       : `${row.display_name} ist kein Admin mehr.`);
@@ -96,6 +112,11 @@ router.post("/users/lock", adminRequired, (req, res) => {
     req.flash("err", `${row.display_name} ist Admin — erst die Admin-Rechte entziehen, dann sperren.`);
   } else {
     users.setLocked(target, lock);
+    // Sitzungen sofort beenden statt nur den naechsten Login zu blockieren.
+    // loginRequired warf gesperrte Nutzer zwar schon bei der naechsten Anfrage
+    // raus -- aber erst DANN. Jetzt ist die Sitzung sofort weg.
+    if (lock) beendeSitzungenVon(target);
+    protokoll.notiere("admin.sperre", req, req.session.user, `${target} -> ${lock ? "gesperrt" : "entsperrt"}`);
     req.flash("ok", lock
       ? `${row.display_name} ist gesperrt — Login, Sitzungen und API-Token sind blockiert.`
       : `${row.display_name} ist wieder entsperrt.`);
@@ -118,6 +139,8 @@ router.post("/users/delete", adminRequired, (req, res) => {
     req.flash("err", `${row.display_name} ist Admin — erst die Admin-Rechte entziehen, dann löschen.`);
   } else {
     users.del(target);
+    beendeSitzungenVon(target);
+    protokoll.notiere("admin.nutzer.loeschen", req, req.session.user, target);
     notifications.removeForUser(target);
     fs.rmSync(dirFor(target), { recursive: true, force: true });
     req.flash("ok", `${row.display_name} wurde mitsamt allen Dateien gelöscht.`);
@@ -163,6 +186,7 @@ router.post("/backup/run", adminRequired, async (req, res) => {
     const msg = "Backup läuft bereits.";
     return respond({ ok: false, atStr: "", durationStr: "", log: msg, flashMsg: msg });
   }
+  protokoll.notiere("backup.start", req, req.session.user);
   maintenance.start();
   const startedAt = Date.now();
   let log = "";

@@ -10,6 +10,7 @@
 // notemeta.js (STATUS).
 import { closeMenus, showNotice } from "../core/dialogs.js";
 
+import { schreibKopf } from "../core/base.js";
 export var NOTE_STATUS = [
   { value: "open", label: "Offen" },
   { value: "wip", label: "In Arbeit" },
@@ -52,7 +53,7 @@ export function setNoteStatus(config) {
   var owner = config.owner, rel = config.rel, status = config.status;
   return fetch(config.baseUrl + "/notes/status", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: schreibKopf({ "Content-Type": "application/json" }),
     credentials: "same-origin",
     body: JSON.stringify({ owner: owner, filename: rel, status: status }),
   }).then(function (r) {

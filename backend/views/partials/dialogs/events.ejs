@@ -1,0 +1,23 @@
+<% if (isAdmin) { %>
+<dialog id="dlg-events" class="dialog dialog-xwide dialog-glass">
+  <header class="dialog-head">
+    <img src="<%= base %>/static/img/settings.svg" alt="" width="22" height="22">
+    <h2>Protokoll</h2>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+  <section class="account-section">
+    <p class="muted dialog-hint">Anmeldungen, Verwaltungsaktionen und abgewiesene
+      Versuche der letzten <%= eventTage %> Tage. Dieselben Zeilen stehen auch im
+      Container-Log (<code>docker compose logs backend</code>) — dort kann
+      fail2ban sie mitlesen.</p>
+    <%# Der Text steckt im <code> darin, nicht im <pre> selbst: das <pre> ist
+        der Scroll-Behaelter und traegt die Bildlaufleiste (js/core/scrollbars.js). %>
+    <pre class="backup-log" id="event-log"><code><% events.forEach(function (e) { %><%=
+      e.zeit %>  <%= e.art.padEnd(24) %> <%= (e.username || "-").padEnd(14) %> <%=
+      (e.ip || "-").padEnd(16) %> <%= (e.zone || "-").padEnd(4) %> <%= e.detail || "" %>
+<% }) %><% if (!events.length) { %>Noch keine Einträge.<% } %></code></pre>
+  </section>
+</dialog>
+<% } %>

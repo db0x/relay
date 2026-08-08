@@ -14,6 +14,7 @@
     </form>
   </header>
   <form class="note-form" id="note-form" method="post" action="<%= base %>/notes/create">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
     <input type="hidden" name="dir" value="<%= curDir %>">
     <div class="note-main">
       <%# im Ansichtsmodus oben rechts: als PDF oeffnen + Bearbeiten %>

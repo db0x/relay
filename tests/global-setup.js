@@ -1,9 +1,10 @@
 // Startet einen Wegwerf-Backend-Container fuer die Testsuite.
 //
 // Bewusst OHNE Volumes: die SQLite liegt nur im Container-Dateisystem, jeder
-// Lauf startet also mit leerer Datenbank -- und app.js legt dann automatisch
-// den Bootstrap-Admin "admin"/"admin" an, ueber den die Tests ihre eigenen
-// Nutzer erzeugen. Nach dem Lauf ist alles wieder weg (global-teardown.js).
+// Lauf startet also mit leerer Datenbank -- und users.js legt dann den
+// Bootstrap-Admin an, ueber den die Tests ihre eigenen Nutzer erzeugen. Sein
+// Passwort kommt hier per ADMIN_PASSWORD (sonst waere es zufaellig, siehe
+// unten). Nach dem Lauf ist alles wieder weg (global-teardown.js).
 //
 // Getestet wird exakt das Image, das auch deployt wird (backend/Dockerfile);
 // der DocumentServer wird NICHT gebraucht, weil die Suite nur die von uns
@@ -64,6 +65,18 @@ module.exports = async () => {
     "-e", "SESSION_SECRET=e2e-dummy-secret-e2e-dummy-secret",
     "-e", `HOST_INTERNAL=${BASE_URL}`,
     "-e", "DS_INTERNAL=http://documentserver",
+    // Der Bootstrap-Admin bekommt sonst ein ZUFALLSPASSWORT (steht im Log) und
+    // muss es beim ersten Anmelden aendern -- richtig so fuer echte
+    // Installationen, aber die Suite braucht einen festen Zugang.
+    "-e", "ADMIN_PASSWORD=admin",
+    // Wie in einer echten Installation hinter nginx: nur damit gelten
+    // X-Forwarded-Proto (Secure-Marke am Cookie) und X-Forwarded-For
+    // (Absender-Adresse fuer die Anmeldebremse) -- security.spec.js prueft beides.
+    "-e", "TRUST_PROXY=1",
+    // Admin-Zugaenge nur aus dem Heimnetz -- die Suite schickt dazu global
+    // X-Relay-Zone: lan (playwright.config.js), einzelne Tests ueberschreiben
+    // das gezielt mit "wan".
+    "-e", "ADMIN_LAN_ONLY=1",
     IMAGE,
   ]);
 

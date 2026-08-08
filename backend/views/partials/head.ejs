@@ -4,6 +4,10 @@
     bevor das Hintergrundbild greift -> schwarzer Blitz. Die Grundfarbe ist der
     Mittelton des Desktop-Bildes, damit der Moment vor dem Bild nahtlos wirkt. %>
 <meta name="color-scheme" content="light">
+<%# Nachweis gegen faelschende Fremdseiten (csrf.js). Die fetch-Aufrufe im
+    Frontend lesen ihn hier heraus und schicken ihn als X-CSRF-Token mit;
+    Formulare tragen ihn als verstecktes Feld. %>
+<meta name="csrf-token" content="<%= csrf %>">
 <%# Dieselbe Farbe steht als --desk-bg in index.css — beide gehoeren zusammen. %>
 <style>html{background:#375998;color-scheme:light}</style>
 <%# Das Hintergrundbild steckt in index.css und wird darum erst entdeckt, wenn
@@ -18,6 +22,10 @@
     MUSS vor index.css stehen: die Anmutung wird dort ueber dieselben Klassen
     gesetzt (.os-scrollbar) und soll gewinnen. %>
 <link rel="stylesheet" href="<%= base %>/static/vendor/overlayscrollbars.min.css?v=<%= v %>">
+<%# Die Glas-Rezeptur steht in einer eigenen Datei, weil die Anmeldeseiten
+    sie ebenfalls brauchen (die laden index.css nicht). MUSS davor stehen:
+    index.css enthaelt die Abweichungen je Flaeche und soll gewinnen. %>
+<link rel="stylesheet" href="<%= base %>/static/css/glass.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/css/index.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/vendor/codemirror.min.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/vendor/highlight-github.min.css?v=<%= v %>">

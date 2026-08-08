@@ -7,6 +7,7 @@
     </form>
   </header>
   <form class="stack-form" action="<%= base %>/create" method="post">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
     <input type="hidden" name="ext" id="dlg-create-ext" value="docx">
     <label class="dialog-label" for="dlg-create-name" id="dlg-create-name-label">Name der Datei</label>
     <input class="field" name="name" id="dlg-create-name"
@@ -46,6 +47,7 @@
     </form>
   </header>
   <form class="stack-form" action="<%= base %>/mkdir" method="post">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
     <input type="hidden" name="dir" value="<%= curDir %>">
     <input class="field" name="name" placeholder="Name des Ordners" required autocomplete="off">
     <button class="btn btn-sm dialog-submit">Anlegen</button>

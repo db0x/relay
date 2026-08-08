@@ -1,5 +1,6 @@
 // Gemeinsame SQLite-Verbindung + Schema. users.js und shares.js teilen sich diese
 // eine Verbindung (eine Datei: /data/state/users.db).
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
@@ -22,7 +23,33 @@ function db() {
       is_admin     INTEGER NOT NULL DEFAULT 0,
       locked       INTEGER NOT NULL DEFAULT 0,
       -- Notiz-Icons auf dem Desktop zeigen? Je Nutzer umschaltbar (Mein Konto)
-      desk_notes   INTEGER NOT NULL DEFAULT 1
+      desk_notes   INTEGER NOT NULL DEFAULT 1,
+      -- Zugang muss erst ein eigenes Passwort bekommen (Bootstrap-Admin):
+      -- solange gesetzt, fuehrt jede Seite zur Passwort-Aenderung
+      must_change  INTEGER NOT NULL DEFAULT 0,
+      -- zweite Stufe bei der Anmeldung (nur Admins, siehe twofactor.js).
+      -- Das Geheimnis liegt VERSCHLUESSELT hier (AES-GCM, Schluessel aus der
+      -- .env) — das Backup spiegelt diese Datei aufs NAS, die .env nicht.
+      totp_secret  TEXT,
+      totp_active  INTEGER NOT NULL DEFAULT 0,
+      -- zuletzt benutzter 30-Sekunden-Schritt: derselbe Code gilt kein zweites Mal
+      totp_step    INTEGER NOT NULL DEFAULT 0
+    );
+
+    -- Wiederherstellungscodes, nur als Hash. Ein Code verschwindet beim
+    -- Einloesen (DELETE) — dadurch gilt jeder genau einmal.
+    CREATE TABLE IF NOT EXISTS totp_recovery (
+      username  TEXT NOT NULL,
+      code_hash TEXT NOT NULL,
+      PRIMARY KEY (username, code_hash)
+    );
+
+    -- "Diesem Geraet 30 Tage vertrauen": Merkmal im Cookie, hier nur der Hash.
+    CREATE TABLE IF NOT EXISTS trusted_devices (
+      token_hash TEXT PRIMARY KEY,
+      username   TEXT NOT NULL,
+      created    INTEGER NOT NULL,
+      expires    INTEGER NOT NULL
     );
 
     -- Freigabe einer Datei (owner/filename) an einen anderen Nutzer (target).
@@ -107,6 +134,33 @@ function db() {
   // finden ihren Desktop unveraendert vor.
   if (!cols.includes("desk_notes"))
     _db.exec("ALTER TABLE users ADD COLUMN desk_notes INTEGER NOT NULL DEFAULT 1");
+  // must_change: Zugang muss erst ein eigenes Passwort bekommen (Bootstrap-Admin).
+  // Default 0 — Bestandsnutzer sind davon nicht betroffen.
+  if (!cols.includes("must_change"))
+    _db.exec("ALTER TABLE users ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0");
+  // zweite Stufe kam mit dem Internet-Betrieb dazu
+  if (!cols.includes("totp_secret"))
+    _db.exec("ALTER TABLE users ADD COLUMN totp_secret TEXT");
+  if (!cols.includes("totp_active"))
+    _db.exec("ALTER TABLE users ADD COLUMN totp_active INTEGER NOT NULL DEFAULT 0");
+  if (!cols.includes("totp_step"))
+    _db.exec("ALTER TABLE users ADD COLUMN totp_step INTEGER NOT NULL DEFAULT 0");
+  // API-Token lagen frueher im KLARTEXT in dieser Datei — und die wird vom
+  // Backup aufs NAS gespiegelt. Bestandstoken werden hier einmalig durch ihre
+  // Pruefsumme ersetzt; dadurch gelten sie WEITER (der Client schickt
+  // unveraendert denselben Wert), sind aber aus der Datei nicht mehr ablesbar.
+  // Erkennungsmerkmal: ein Hash ist 64 Hex-Zeichen, ein Token 32 base64url.
+  const roheToken = _db.prepare("SELECT username, api_token FROM users").all()
+    .filter((r) => r.api_token && !/^[0-9a-f]{64}$/.test(r.api_token));
+  if (roheToken.length) {
+    const setzen = _db.prepare("UPDATE users SET api_token=? WHERE username=?");
+    for (const r of roheToken) {
+      setzen.run(crypto.createHash("sha256").update(r.api_token).digest("hex"), r.username);
+    }
+    console.log(`API-Token von ${roheToken.length} Nutzer(n) auf Pruefsummen umgestellt `
+      + "— bestehende Token gelten unveraendert weiter.");
+  }
+
   // note_meta.color kam mit den farbigen Notiz-Icons dazu, status mit dem
   // Bearbeitungsstand (Offen/In Arbeit/Erledigt). Beide vertragen NULL:
   // Altbestand liest sich als Standardfarbe bzw. als "open".
