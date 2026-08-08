@@ -4,6 +4,7 @@
 // Ausnahme sind die Autorisierungs-Negativtests: die schicken absichtlich
 // direkte Requests an der Oberflaeche vorbei (siehe expectStatus unten).
 const { expect } = require("@playwright/test");
+const { BASE_URL } = require("../test-env");
 
 // Der Bootstrap-Admin, den app.js bei leerer Datenbank anlegt.
 const ADMIN = { username: "admin", password: "admin" };
@@ -192,6 +193,20 @@ async function csrfToken(page) {
   return (login.match(/name="_csrf" value="([^"]+)"/) || [])[1] || "";
 }
 
+// Ein benutzbares API-Token besorgen. Anzeigen laesst es sich nicht mehr —
+// in der Datenbank steht nur die Pruefsumme (users.js: hashToken). Also
+// erzeugen wir eins und lesen es aus der EINMALIGEN Anzeige im Konto-Dialog.
+async function apiToken(page) {
+  await waitAppReady(page);
+  await page.request.post(`${BASE_URL}/token/reset`, {
+    form: { _csrf: await csrfToken(page) },
+    maxRedirects: 0,
+  });
+  await page.goto("/");
+  const wert = await page.locator("#tok").textContent();
+  return wert.trim();
+}
+
 // Direkter Request an der Oberflaeche vorbei, mit der Session des Kontexts.
 // Genau so pruefen wir die SERVER-Regel -- nicht nur den ausgeblendeten Knopf.
 async function expectStatus(page, method, url, status) {
@@ -242,4 +257,5 @@ module.exports = {
   expectStatus,
   postForm,
   csrfToken,
+  apiToken,
 };

@@ -12,7 +12,7 @@ const crypto = require("crypto");
 const { test, expect } = require("@playwright/test");
 const {
   loginAsAdmin, login, createUser, uniqueName, uploadFile, waitAppReady,
-  csrfToken, postForm,
+  csrfToken, postForm, apiToken, logout, expectFlash,
 } = require("./helpers/relay");
 const { BASE_URL } = require("./test-env");
 
@@ -277,17 +277,18 @@ test.describe("Admin-Zugaenge nur aus dem Heimnetz", () => {
     await expect(page.locator(".err")).toContainText("nur aus dem Heimnetz");
   });
 
-  test("das API-Token eines Admins greift von aussen nicht", async ({ page }) => {
+  test("das Token eines normalen Nutzers gilt auch von aussen", async ({ page }) => {
+    // Die Zonenregel betrifft nur Admins — ein Sync-Client unterwegs (Voltage)
+    // muss weiter arbeiten koennen.
     await loginAsAdmin(page);
-    const token = (await page.locator("#tok").textContent()).trim();
-    expect(token.length).toBeGreaterThan(20);
+    const u = await createUser(page);
+    await logout(page);
+    await login(page, u.username, u.password);
+    const token = await apiToken(page);
 
-    const drinnen = await page.request.get(`${BASE_URL}/api/files?token=${token}`);
-    expect(drinnen.status()).toBe(200);
-
-    const draussen = await page.request.get(`${BASE_URL}/api/files?token=${token}`,
-      { headers: VON_AUSSEN });
-    expect(draussen.status()).toBe(401);
+    expect((await page.request.get(`${BASE_URL}/api/files?token=${token}`)).status()).toBe(200);
+    expect((await page.request.get(`${BASE_URL}/api/files?token=${token}`,
+      { headers: VON_AUSSEN })).status()).toBe(200);
   });
 
   test("die Verwaltungsrouten laufen von aussen nicht — die Sitzung endet dabei",
@@ -569,7 +570,11 @@ test.describe("Etappe 3: Nachweis, Sitzungen, Protokoll", () => {
 
       // Die API meldet sich per Token an, nicht per Cookie — dort gibt es
       // nichts zu faelschen, also ist sie ausgenommen (siehe csrf.js).
-      const tok = (await page.locator("#tok").textContent()).trim();
+      // Ein NORMALER Nutzer: Verwaltungszugaenge haben kein Token.
+      const u = await createUser(page);
+      await logout(page);
+      await login(page, u.username, u.password);
+      const tok = await apiToken(page);
       const api = await page.request.put(`${BASE_URL}/api/files/csrf-probe.txt?token=${tok}`, {
         data: "inhalt",
       });
@@ -660,5 +665,82 @@ test.describe("Sitzungen überleben einen Neustart", () => {
     // Frueher lagen Sitzungen im Arbeitsspeicher — hier waere man abgemeldet.
     const danach = await page.request.get(`${URL}/`, { maxRedirects: 0 });
     expect(danach.status(), "Sitzung liegt in SQLite und überlebt").toBe(200);
+  });
+});
+
+test.describe("API-Token liegt nur als Prüfsumme in der Datenbank", () => {
+  const { execFileSync } = require("child_process");
+  const { EXTERNAL, IMAGE, CONTAINER } = require("./test-env");
+
+  test("das Token ist in der Datenbank nicht auffindbar", async ({ page }) => {
+    test.skip(EXTERNAL, "liest die Datenbank im Container");
+    await loginAsAdmin(page);
+    const u = await createUser(page);
+    await logout(page);
+    await login(page, u.username, u.password);
+    const token = await apiToken(page);
+    expect(token.length).toBeGreaterThan(20);
+    // es funktioniert …
+    expect((await page.request.get(`${BASE_URL}/api/files?token=${token}`)).status()).toBe(200);
+
+    // … steht aber nirgends in der Datei. Genau das ist der Punkt: users.db
+    // wird vom Backup aufs NAS gespiegelt.
+    const roh = execFileSync("docker",
+      ["exec", CONTAINER, "sh", "-c", "cat /data/state/users.db | tr -c '[:print:]' '\\n'"],
+      { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    expect(roh, "das Token darf im Klartext nirgends stehen").not.toContain(token);
+    // die Pruefsumme dagegen schon
+    const summe = crypto.createHash("sha256").update(token).digest("hex");
+    expect(roh).toContain(summe);
+  });
+
+  test("ein Token gilt weiter, wenn es neu erzeugt wird — das alte nicht mehr",
+    async ({ page }) => {
+      await loginAsAdmin(page);
+      const u = await createUser(page);
+      await logout(page);
+      await login(page, u.username, u.password);
+      const alt = await apiToken(page);
+      const neu = await apiToken(page);
+      expect(neu).not.toBe(alt);
+      expect((await page.request.get(`${BASE_URL}/api/files?token=${neu}`)).status()).toBe(200);
+      expect((await page.request.get(`${BASE_URL}/api/files?token=${alt}`)).status()).toBe(401);
+    });
+});
+
+
+test.describe("Verwaltungszugänge haben kein API-Token", () => {
+  test("der Abschnitt fehlt im Konto — und die Route lehnt es auch selbst ab",
+    async ({ page }) => {
+      await loginAsAdmin(page);
+      await waitAppReady(page);
+      // gezielt der Abschnitt im Konto-Dialog — der Text "API-Token" kommt
+      // auch im Sperren-Hinweis der Nutzerverwaltung vor
+      await expect(page.locator("#dlg-account summary").filter({ hasText: "API-Token" }))
+        .toHaveCount(0);
+      await expect(page.locator("#dlg-account #tok")).toHaveCount(0);
+
+      // nicht nur ausgeblendet: der Server sagt ebenfalls nein
+      await postForm(page, `${BASE_URL}/token/reset`, {});
+      await page.goto("/");
+      await expectFlash(page, "Verwaltungszugänge haben kein API-Token");
+    });
+
+  test("wer zum Admin wird, verliert sein bestehendes Token", async ({ page }) => {
+    await loginAsAdmin(page);
+    const u = await createUser(page);
+    await logout(page);
+
+    await login(page, u.username, u.password);
+    const token = await apiToken(page);
+    expect((await page.request.get(`${BASE_URL}/api/files?token=${token}`)).status()).toBe(200);
+    await logout(page);
+
+    // Der Admin macht ihn zum Admin …
+    await loginAsAdmin(page);
+    await postForm(page, `${BASE_URL}/users/admin`, { target: u.username, value: "1" });
+
+    // … und das Token ist damit erledigt, ohne dass jemand es widerrufen musste
+    expect((await page.request.get(`${BASE_URL}/api/files?token=${token}`)).status()).toBe(401);
   });
 });

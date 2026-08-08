@@ -1,5 +1,6 @@
 // Gemeinsame SQLite-Verbindung + Schema. users.js und shares.js teilen sich diese
 // eine Verbindung (eine Datei: /data/state/users.db).
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
@@ -144,6 +145,22 @@ function db() {
     _db.exec("ALTER TABLE users ADD COLUMN totp_active INTEGER NOT NULL DEFAULT 0");
   if (!cols.includes("totp_step"))
     _db.exec("ALTER TABLE users ADD COLUMN totp_step INTEGER NOT NULL DEFAULT 0");
+  // API-Token lagen frueher im KLARTEXT in dieser Datei — und die wird vom
+  // Backup aufs NAS gespiegelt. Bestandstoken werden hier einmalig durch ihre
+  // Pruefsumme ersetzt; dadurch gelten sie WEITER (der Client schickt
+  // unveraendert denselben Wert), sind aber aus der Datei nicht mehr ablesbar.
+  // Erkennungsmerkmal: ein Hash ist 64 Hex-Zeichen, ein Token 32 base64url.
+  const roheToken = _db.prepare("SELECT username, api_token FROM users").all()
+    .filter((r) => r.api_token && !/^[0-9a-f]{64}$/.test(r.api_token));
+  if (roheToken.length) {
+    const setzen = _db.prepare("UPDATE users SET api_token=? WHERE username=?");
+    for (const r of roheToken) {
+      setzen.run(crypto.createHash("sha256").update(r.api_token).digest("hex"), r.username);
+    }
+    console.log(`API-Token von ${roheToken.length} Nutzer(n) auf Pruefsummen umgestellt `
+      + "— bestehende Token gelten unveraendert weiter.");
+  }
+
   // note_meta.color kam mit den farbigen Notiz-Icons dazu, status mit dem
   // Bearbeitungsstand (Offen/In Arbeit/Erledigt). Beide vertragen NULL:
   // Altbestand liest sich als Standardfarbe bzw. als "open".

@@ -197,9 +197,15 @@ For sync/automation (Voltage, rclone, scripts). Authentication via the user's
 API token, either as `Authorization: Bearer <token>` or `?token=<token>`.
 Each token only sees its own user folder.
 
-Every user finds their token after login on the **home page** under
-menu → "Mein Konto" (with a "regenerate" button).
-`manage.js token <name>` remains the admin path.
+The database stores only the token's **SHA-256 checksum**, never the token
+itself — `users.db` is mirrored to the backup target, and a token grants full
+account access. Consequence: a token is shown **once**, right after it is
+created (menu → "Mein Konto" → "neu erzeugen"); whoever loses it creates a new
+one. `manage.js token <name>` likewise creates a new token and prints it once.
+
+Existing installations keep working: on first start the stored plaintext
+tokens are replaced by their checksum in place, so clients that already hold a
+token (Voltage, rclone) continue unchanged.
 
 | Method   | Path                       | Purpose                                       |
 |----------|----------------------------|-----------------------------------------------|

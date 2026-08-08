@@ -231,8 +231,18 @@ router.post("/profile", loginRequired, (req, res) => {
 });
 
 router.post("/token/reset", loginRequired, (req, res) => {
-  users.resetToken(req.session.user);
-  req.flash("ok", "Neues API-Token erzeugt. Das alte gilt nicht mehr.");
+  // Der Abschnitt ist fuer Admins ausgeblendet — die Route lehnt es trotzdem
+  // selbst ab, sonst waere die Ausblendung nur eine versteckte Schaltflaeche.
+  if (users.get(req.session.user).is_admin) {
+    req.flash("err", "Verwaltungszugänge haben kein API-Token.");
+    return res.redirect(`${BASE}/`);
+  }
+  // Das Token wird EINMAL angezeigt und danach nur noch als Pruefsumme
+  // gehalten. Es wandert deshalb ueber die Sitzung an die naechste Seite —
+  // dasselbe Einweg-Muster wie pwError/emailError.
+  req.session.freshToken = users.resetToken(req.session.user);
+  protokoll.notiere("token.neu", req, req.session.user);
+  req.flash("ok", "Neues API-Token erzeugt — es wird nur jetzt angezeigt. Das alte gilt nicht mehr.");
   res.redirect(`${BASE}/`);
 });
 

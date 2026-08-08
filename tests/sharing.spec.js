@@ -8,6 +8,7 @@ const { test, expect } = require("@playwright/test");
 const {
   login, loginAsAdmin, logout, createUser, uniqueName, uploadFile, fileRow,
   shareFile, unshareFile, deleteFile, expectFlash, expectStatus, postForm,
+  openRowMenu, waitAppReady,
 } = require("./helpers/relay");
 const { BASE_URL } = require("./test-env");
 
@@ -188,5 +189,55 @@ test.describe("Freigaben", () => {
     await bobPage.goto("/");
     await expectFlash(bobPage, "nicht gefunden");
     await context.close();
+  });
+});
+
+test.describe("Verwaltungszugänge sind keine Empfänger", () => {
+  // Admins arbeiten ausschliesslich administrativ (Entscheidung 2026-08-07).
+  // Sie sollen deshalb gar nicht erst auffindbar sein — weder in der
+  // Freigabe-Auswahl noch bei den Personen einer Notiz.
+  test("ein Admin steht nicht in der Freigabe-Auswahl", async ({ page }) => {
+    await loginAsAdmin(page);
+    const admin = await createUser(page, { admin: true });
+    const normal = await createUser(page);
+    await logout(page);
+
+    await login(page, normal.username, normal.password);
+    const datei = uniqueName("gemeinsam") + ".txt";
+    await uploadFile(page, datei);
+    const zeile = await openRowMenu(page, datei);
+    await zeile.locator('[data-dialog^="dlg-share-"]').click();
+    const auswahl = page.locator('dialog[id^="dlg-share-"][open] select[name=target]');
+    await expect(auswahl.locator(`option[value="${admin.username}"]`)).toHaveCount(0);
+    // die Auswahl ist nicht etwa leer — normale Nutzer stehen weiter drin
+    await expect(auswahl.locator("option")).not.toHaveCount(0);
+  });
+
+  test("auch am Dialog vorbei nimmt der Server es nicht an", async ({ page }) => {
+    await loginAsAdmin(page);
+    const admin = await createUser(page, { admin: true });
+    const normal = await createUser(page);
+    await logout(page);
+
+    await login(page, normal.username, normal.password);
+    const datei = uniqueName("direkt") + ".txt";
+    await uploadFile(page, datei);
+    await postForm(page, `${BASE_URL}/share/${datei}`, { target: admin.username, perm: "edit" });
+    await page.goto("/");
+    await expectFlash(page, "Verwaltungszugänge können keine Freigaben empfangen");
+  });
+
+  test("ein Admin taucht nicht bei den Personen einer Notiz auf", async ({ page }) => {
+    await loginAsAdmin(page);
+    const admin = await createUser(page, { admin: true });
+    const normal = await createUser(page);
+    await logout(page);
+
+    await login(page, normal.username, normal.password);
+    await waitAppReady(page);
+    // Die Vorschlagsliste steht als Datenliste im Markup (browse.js: knownUsers)
+    const seite = await page.content();
+    expect(seite, "Anzeigename des Admins darf nirgends stehen").not.toContain(admin.display);
+    expect(seite).toContain(normal.display);
   });
 });

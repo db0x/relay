@@ -26,7 +26,9 @@ function apiAuth(req, res, next) {
   // ist, gilt er auch fuer die API als nicht eingerichtet.
   // darfVonHier: ein ADMIN-Token waere sonst die offene Hintertuer neben der
   // LAN-Regel. Fuer alle anderen aendert sich nichts (Voltage & Co).
-  if (!row || row.locked || row.must_change || !darfVonHier(req, row))
+  // is_admin: Verwaltungszugaenge haben kein Token (users.setAdmin verwirft es).
+  // Die Pruefung hier ist der doppelte Boden — faende sich doch eines, gilt es nicht.
+  if (!row || row.locked || row.must_change || row.is_admin || !darfVonHier(req, row))
     return res.status(401).json({ error: "unauthorized" });
   // fid gegen Pfad-Tricks absichern und mit dem Roh-Namen abgleichen
   const fid = req.params[0];

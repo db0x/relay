@@ -213,7 +213,12 @@ router.get("/", loginRequired, (req, res) => {
   const me = req.session.user;
   const row = users.get(me);
   const userDir = dirFor(me);
-  const otherUsers = users.listUsers().filter((u) => u.username !== me);
+  // Admin-Zugaenge arbeiten ausschliesslich administrativ — sie sind keine
+  // Empfaenger von Freigaben und tauchen deshalb in keiner Auswahl auf.
+  // Dieselbe Regel serverseitig in POST /share (Auswahl allein waere nur eine
+  // ausgeblendete Schaltflaeche).
+  const otherUsers = users.listUsers()
+    .filter((u) => u.username !== me && !u.is_admin);
   const hiddenLangs = settings.get("hidden_langs", []);
 
   const cur = securePath(req.query.p || "");
@@ -344,10 +349,10 @@ router.get("/", loginRequired, (req, res) => {
     user: req.session.name,
     me,
     hasAvatar: avatars.has(me),
-    // Personen-Auswahl im Notiz-Dialog: ALLE Nutzer (auch man selbst, im
-    // Gegensatz zu otherUsers beim Freigeben-Dialog); hasAvatar fuer die
-    // minimalistische Lese-Ansicht (Avatar statt Initialen-Kreis)
-    knownUsers: users.listUsers().map((u) => (
+    // Personen-Auswahl im Notiz-Dialog: alle Nutzer AUSSER Admins (die
+    // arbeiten nur administrativ) — anders als bei otherUsers ist man selbst
+    // hier dabei. hasAvatar fuer die minimalistische Lese-Ansicht.
+    knownUsers: users.listUsers().filter((u) => !u.is_admin).map((u) => (
       { username: u.username, display_name: u.display_name, hasAvatar: avatars.has(u.username) }
     )),
     // Dateiauswahl beim Hochladen auf die Formate begrenzen, die der Editor
@@ -397,7 +402,12 @@ router.get("/", loginRequired, (req, res) => {
         .reduce((sum, rel) => sum + fs.statSync(path.join(dir, rel)).size, 0);
       return { ...u, hasAvatar: avatars.has(u.username), size: formatSize(bytes) };
     }),
-    api_token: row.api_token,
+    // Das Token selbst liegt nur noch als Pruefsumme in der DB und kann
+    // deshalb nicht mehr angezeigt werden. Direkt nach dem Erzeugen steht es
+    // einmalig in der Sitzung — danach nie wieder (users.js: hashToken).
+    freshToken: (() => {
+      const t = req.session.freshToken || null; delete req.session.freshToken; return t;
+    })(),
   });
 });
 
@@ -445,6 +455,10 @@ router.post("/share/*", loginRequired, (req, res) => {
     req.flash("err", "Datei nicht gefunden.");
   } else if (!target || target === me || !users.get(target)) {
     req.flash("err", "Unbekannter Nutzer.");
+  } else if (users.get(target).is_admin) {
+    // Nicht "Unbekannter Nutzer": der Absender kennt den Namen ja: er hat ihn
+    // eingetragen. Eine klare Auskunft ist hier hilfreicher als Nebel.
+    req.flash("err", "Verwaltungszugänge können keine Freigaben empfangen.");
   } else {
     shares.share(me, fid, target, perm);
     // Empfaenger beim naechsten Laden darueber informieren

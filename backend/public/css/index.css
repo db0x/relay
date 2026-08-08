@@ -507,6 +507,10 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   padding:.5rem .95rem;border:1px solid transparent;border-radius:var(--radius-sm);
   background:var(--brand);color:#fff;font:inherit;font-weight:550;
   cursor:pointer;white-space:nowrap;transition:background .12s,border-color .12s,box-shadow .12s;
+  /* Auch ein <a> kann ein Knopf sein (z.B. "Jetzt einrichten" im Konto).
+     Ohne diese Zeile schlaegt der Browser-Standard durch und unterstreicht
+     den Text — bei einem <button> faellt das nie auf, bei einem Link sofort. */
+  text-decoration:none;
 }
 .btn:hover{background:var(--brand-dark)}
 .btn-secondary{background:#fff;color:var(--ink);border-color:var(--line)}
@@ -1779,6 +1783,13 @@ a.crumb:hover{text-decoration:underline}
   --os-handle-bg-active:rgba(255,255,255,.6);
 }
 
-/* Knopfreihe im Zwei-Faktor-Abschnitt des Konto-Dialogs */
-.zwei-aktionen{display:flex;flex-wrap:wrap;gap:.4rem}
+/* Zwei-Faktor-Abschnitt im Konto-Dialog. Aufbau wie die Token-Box darunter:
+   Spalte mit Hinweis, Knoepfe RECHTS unten — dieselbe Konvention wie
+   .dialog-submit, .dialog-action und .reset-form. Bei wenig Platz brechen sie
+   um und bleiben dabei rechtsbuendig; der zerstoerende steht zuletzt. */
+.zwei-box{padding:.55rem .9rem .9rem;display:flex;flex-direction:column;gap:.6em}
+.zwei-aktionen{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.4rem}
 .zwei-aktionen form{margin:0}
+
+/* Einmalige Anzeige des frisch erzeugten API-Tokens (Konto-Dialog) */
+.tok-neu{outline:2px solid var(--brand);outline-offset:2px}

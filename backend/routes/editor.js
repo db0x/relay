@@ -101,7 +101,11 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   activeEditorKey.set(`${uid}/${fid}`, config.document.key);
   // alle Nutzer mit Avatar-URL: edit.js beantwortet damit onRequestUsers
   // (Avatare der ANDEREN beim Co-Editing, in Kommentaren, Versionshistorie)
-  const usersInfo = users.listUsers().map((u) => ({
+  // Ohne Admins: sie bearbeiten keine Dokumente, sollen aber vor allem nicht
+  // in der Teilnehmerliste auftauchen, die auf JEDER Editor-Seite im Quelltext
+  // steht — sonst waere die Liste aller Verwaltungszugaenge fuer jeden
+  // angemeldeten Nutzer einsehbar.
+  const usersInfo = users.listUsers().filter((u) => !u.is_admin).map((u) => ({
     id: u.username, name: u.display_name, image: avatarUrl(u.username),
   }));
   // "<" escapen: die JSONs landen roh in <script>-Tags der Editor-Seite —
@@ -132,7 +136,7 @@ router.get("/edit/:fid", (req, res, next) => {
     const auth = req.get("Authorization") || "";
     const tok = auth.startsWith("Bearer ") ? auth.slice(7) : (req.query.token || "");
     const row = users.getByToken(tok);
-    if (row && !row.locked && !row.must_change && darfVonHier(req, row)) {
+    if (row && !row.locked && !row.must_change && !row.is_admin && darfVonHier(req, row)) {
       req.session.user = row.username;
       req.session.name = row.display_name;
     }
