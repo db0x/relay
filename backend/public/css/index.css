@@ -595,17 +595,22 @@ body:not(.desk-ready) .note-desktop{opacity:0}
    Kopf-Knoepfe. margin-left:auto am ERSTEN schiebt die ganze Gruppe nach rechts */
 #dlg-image-tab,#dlg-image-download{width:28px;height:28px;flex:0 0 auto}
 #dlg-image-tab{margin-left:auto}
-/* Bearbeiten-Modus: skalierbar ueber eine eigene, unsichtbare Griffecke
-   unten rechts (kein CSS resize:both — dessen UA-Marker laesst sich nicht
-   ueberall ausblenden). Verschieben am Kopf. Logik in index.js. */
+/* Skalierbar ueber eine eigene, unsichtbare Griffecke unten rechts (kein CSS
+   resize:both — dessen UA-Marker laesst sich nicht ueberall ausblenden),
+   verschiebbar am Kopf. Beides gilt in BEIDEN Modi: auch eine Lese-Ansicht
+   kann fuer ihren Inhalt zu klein oder zu gross sein. Logik in
+   js/notes/note-dialog.js, die Groesse wird je Modus getrennt gemerkt.
+   Untergrenzen im Lese-Modus kleiner — dort fehlt die Editor-Spalte. */
 .dialog.dialog-note:not(.note-view){
   min-width:min(520px,92vw);min-height:min(320px,60vh);
+}
+.dialog.dialog-note.note-view{
+  min-width:min(320px,92vw);min-height:min(200px,36vh);
 }
 .note-resize{
   position:absolute;right:0;bottom:0;width:18px;height:18px;
   cursor:nwse-resize;z-index:3;touch-action:none;
 }
-.note-view .note-resize{display:none}
 .dialog-note .dialog-head{cursor:move;touch-action:none}
 /* Nur-Lesen-Notiz: keine Editor-Spalte, nur die gerenderte Ansicht —
    der Dialog wird dafuer auf Lesebreite verschmaelert */

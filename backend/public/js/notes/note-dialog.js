@@ -179,19 +179,28 @@ export function initNoteDialog(baseUrl) {
   // Ziel des Loeschens; null = kein Loeschen (fremde Notiz oder neue Notiz)
   var noteDeleteUrl = null;
   var noteExportUrl = null; // /notes/pdf/... — nur bei gespeicherten Notizen
+
+  // Groesse wird je Modus getrennt gemerkt (siehe setNoteMode). Der Schluessel
+  // haengt an der Klasse, nicht an einem Merker: setNoteMode setzt sie als
+  // Erstes, danach fragen Anwenden UND Merken dieselbe Quelle.
+  function groesseKey() {
+    return noteDlg.classList.contains("note-view")
+      ? "relay-note-view-size" : "relay-note-size";
+  }
+
   function setNoteMode(editMode) {
     noteDlg.classList.toggle("note-view", !editMode);
     // evtl. beim Resizen eingefrorene Position aufheben -> wieder zentriert
     noteDlg.style.left = noteDlg.style.top = noteDlg.style.margin = "";
-    if (editMode) {
-      // gemerkte Groesse anwenden, aber nie groesser als das Fenster
-      var s = (localStorage.getItem("relay-note-size") || "").split("x");
-      if (s.length === 2 && +s[0] && +s[1]) {
-        noteDlg.style.width = Math.min(+s[0], window.innerWidth - 24) + "px";
-        noteDlg.style.height = Math.min(+s[1], window.innerHeight - 24) + "px";
-      }
+    // Gemerkte Groesse anwenden, aber nie groesser als das Fenster. Beide Modi
+    // merken sich ihre eigene: die Lese-Ansicht ist schmaler (keine
+    // Editor-Spalte), eine gemeinsame Groesse waere fuer einen der beiden
+    // immer falsch. Ohne gemerkte Groesse gilt die CSS-Vorgabe.
+    var s = (localStorage.getItem(groesseKey()) || "").split("x");
+    if (s.length === 2 && +s[0] && +s[1]) {
+      noteDlg.style.width = Math.min(+s[0], window.innerWidth - 24) + "px";
+      noteDlg.style.height = Math.min(+s[1], window.innerHeight - 24) + "px";
     } else {
-      // Lese-Panel behaelt seine kompakte CSS-Groesse
       noteDlg.style.width = noteDlg.style.height = "";
     }
     if (noteEditBtn) noteEditBtn.hidden = editMode || !noteCanEdit;
@@ -277,12 +286,18 @@ export function initNoteDialog(baseUrl) {
   // bzw. setNoteMode aus dem gemerkten Wert — CSS-Groessen nicht speichern)
   if (window.ResizeObserver) {
     new ResizeObserver(function () {
-      if (!noteDlg.open || noteDlg.classList.contains("note-view")) return;
-      if (noteCM) noteCM.refresh();
+      if (!noteDlg.open) return;
+      // CodeMirror muss nach jeder Breitenaenderung neu messen — im Lese-Modus
+      // ist die Spalte ausgeblendet, dort waere es vergeblich
+      if (noteCM && !noteDlg.classList.contains("note-view")) noteCM.refresh();
+      // offsetWidth/-Height, NICHT getBoundingClientRect: der Dialog faehrt mit
+      // transform:scale(.97) auf (siehe .dialog im CSS), und das Rechteck
+      // enthaelt diese Skalierung. Waehrend der Oeffnen-Animation gemessen,
+      // wanderten so bei JEDEM Oeffnen 3% Groesse in den Speicher — der Dialog
+      // schrumpfte mit der Zeit. Die Layout-Masse kennen kein transform.
       if (noteDlg.style.width) {
-        var r = noteDlg.getBoundingClientRect();
-        localStorage.setItem("relay-note-size",
-          Math.round(r.width) + "x" + Math.round(r.height));
+        localStorage.setItem(groesseKey(),
+          noteDlg.offsetWidth + "x" + noteDlg.offsetHeight);
       }
     }).observe(noteDlg);
   }
