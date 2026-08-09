@@ -17,8 +17,17 @@
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <input type="hidden" name="dir" value="<%= curDir %>">
     <div class="note-main">
-      <%# im Ansichtsmodus oben rechts: als PDF oeffnen + Bearbeiten %>
+      <%# im Ansichtsmodus oben rechts: loeschen, als PDF oeffnen, bearbeiten.
+          Loeschen steht bewusst AUSSEN links — die haeufige Aktion
+          ("Bearbeiten") liegt naeher an der Ecke, in die man zielt. %>
       <div class="note-view-actions">
+        <%# form-Attribut statt Verschachtelung: das Loesch-Formular kann nicht
+            IM Notiz-Formular liegen (Formulare lassen sich nicht schachteln),
+            steht deshalb darunter und wird von hier aus abgeschickt. %>
+        <button type="submit" form="note-del-form" class="iconbtn iconbtn-danger" id="note-delete"
+                data-tip="Notiz löschen" aria-label="Notiz löschen" hidden>
+          <img src="<%= base %>/static/img/delete.svg" alt="" width="16" height="16">
+        </button>
         <button type="button" class="iconbtn" id="note-pdf"
                 data-tip="Als PDF öffnen" aria-label="Als PDF öffnen" hidden>
           <img src="<%= base %>/static/img/pdf.svg" alt="" width="16" height="16">
@@ -158,6 +167,15 @@
       <span class="note-status" id="note-status" aria-live="polite"></span>
       <button class="btn btn-sm" id="note-save">Speichern</button>
     </div>
+  </form>
+  <%# Loeschen: eigenes Formular neben dem Notiz-Formular (Schachteln geht
+      nicht). action und Rueckfragetext setzt js/notes/note-dialog.js beim
+      Oeffnen — sie haengen an der jeweiligen Notiz. Die Route ist dieselbe wie
+      im Zeilenmenue der Dateiliste und laesst nur den BESITZER loeschen. %>
+  <form id="note-del-form" method="post" action=""
+        data-confirm="Diese Notiz wirklich löschen?">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="dir" value="<%= curDir %>">
   </form>
   <%# unsichtbare Griffecke zum Skalieren (js/notes/note-dialog.js) %>
   <div class="note-resize" id="note-resize" aria-hidden="true"></div>

@@ -38,6 +38,8 @@ var OPTIONS = {
 //   - Codebloecke in gerendertem Markdown: entstehen bei jedem Tastendruck neu
 //   - .chips-dropdown (Personen-Vorschlaege): wird erst bei Bedarf erzeugt und
 //     bei jedem Tastendruck neu befuellt — 190px hoch, der Aufwand lohnt nicht
+//   - .mention-list (@-Verlinkung im Notiz-Editor): derselbe Fall, hoechstens
+//     zwoelf Treffer, und Pfeiltasten holen den markierten ohnehin ins Bild
 var AREAS = [
   ".notif-panel",       // Nachrichten-Menue
   ".app-search-scroll", // Trefferliste der Suche (Inhalt sitzt in der <ul> darin)

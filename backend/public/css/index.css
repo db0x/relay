@@ -633,7 +633,10 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 }
 /* zweispaltig: Editor links, Live-Vorschau rechts — je 50% */
 .note-main{flex:1;min-height:0;display:flex;gap:.9rem}
-.note-editor-pane{flex:0 0 50%;min-width:0;display:flex;flex-direction:column}
+/* position:relative = Bezugsrahmen der @-Auswahl (js/notes/mention.js): die
+   haengt an der Schreibmarke und muss beim Verschieben, Skalieren und
+   Verschieben des Splitters mitwandern */
+.note-editor-pane{flex:0 0 50%;min-width:0;display:flex;flex-direction:column;position:relative}
 /* Markdown-Toolbar ueber dem Editor */
 .note-toolbar{
   display:flex;align-items:center;gap:2px;flex-wrap:wrap;
@@ -660,6 +663,28 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   box-shadow:0 8px 28px rgba(16,24,40,.16);
 }
 .emoji-panel[hidden]{display:none}
+
+/* Verlinken per @: dieselben Trefferzeilen wie die Suche im Anwendungs-Menue
+   (.app-hit & Co.), nur in einem eigenen Kasten an der Schreibmarke.
+   Die Lage setzt js/notes/mention.js. */
+.mention-panel{
+  position:absolute;z-index:7;width:min(340px,calc(100% - .8rem));
+  padding:.25rem;background:#fff;
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  box-shadow:0 8px 28px rgba(16,24,40,.16);
+}
+.mention-panel[hidden]{display:none}
+.mention-list{margin:0;max-height:min(40vh,240px);overflow-y:auto}
+.mention-list[hidden]{display:none}
+.mention-hint{margin:.3rem .4rem}
+/* Fusszeile der Auswahl — erscheint nur bei Bildern, wo es zwei sinnvolle
+   Ergebnisse gibt (einbetten oder verlinken) */
+.mention-foot{
+  margin:.15rem 0 0;padding:.35rem .5rem 0;
+  border-top:1px solid var(--line-soft);
+  color:var(--muted);font-size:.76rem;
+}
+.mention-foot[hidden]{display:none}
 .emoji-group-name{
   margin:.5rem 0 .2rem;font-size:.68rem;letter-spacing:.04em;
   text-transform:uppercase;color:var(--muted);font-weight:600;
@@ -896,6 +921,28 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .md-render a{color:var(--brand)}
 .md-render hr{border:0;border-top:1px solid var(--line);margin:1em 0}
 
+/* Verweis auf ein Dokument oder eine Notiz (per @ gesetzt, js/notes/doclinks.js).
+   Bewusst als kleine Kachel mit Typ-Icon statt als unterstrichener Link: das
+   Ziel liegt IN Relay, und die Unterstreichung ist in unserem Design nicht
+   vorgesehen. white-space:nowrap haelt Icon und Titel zusammen. */
+.md-render a.doc-link{
+  display:inline-flex;align-items:center;gap:.3em;
+  padding:.05em .4em;border-radius:6px;
+  background:var(--line-soft);text-decoration:none;white-space:nowrap;
+}
+.md-render a.doc-link:hover{background:#e6ebf2}
+/* ohne Klickziel (Hover-Vorschau) bleibt es reine Anzeige */
+.md-render a.doc-link[role],.md-render a.doc-link[href],
+.md-render a.doc-link.image-open{cursor:pointer}
+.doc-link-icon{flex:0 0 auto;display:block}
+/* Eingebettetes Bild (![…](relay/…)): etwas gebaendigt, damit ein Foto den
+   Notiztext nicht erschlaegt. Wo es anklickbar ist, zeigt der Zeiger das an. */
+.md-render img.doc-img{
+  display:block;margin:.5em 0;border-radius:8px;
+  max-height:60vh;object-fit:contain;object-position:left;
+}
+.md-render img.doc-img.image-open{cursor:zoom-in}
+
 /* Frei platzierbare Notiz-Icons ("Desktop") neben der Liste --------------
    Overlay-Ebene ueber die ganze Seite, laesst Klicks durch (pointer-events:
    none); nur die Icons selbst fangen Zeiger ab.
@@ -1011,6 +1058,19 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   padding-top:.5rem;margin-top:.5rem;border-top:1px solid var(--line);
   font-size:.74rem;
 }
+/* Kurzinfo-Kaertchen an einem Datei-Verweis im Notiztext (js/files/file-tip.js).
+   Teilt sich Rahmen, Schatten und Ein-/Ausblenden mit der Notiz-Vorschau
+   (.note-tip), ist aber kein Textblock: Breite richtet sich nach dem Inhalt. */
+.doc-tip{width:max-content;max-width:min(320px,90vw);gap:.35rem}
+.doc-tip-head{display:flex;align-items:center;gap:.45rem;font-weight:600}
+.doc-tip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-tip-meta{color:var(--muted);font-size:.8rem}
+.doc-tip-shares{
+  display:flex;flex-direction:column;gap:.4rem;
+  padding-top:.5rem;margin-top:.15rem;border-top:1px solid var(--line);
+}
+.doc-tip-shares-title{color:var(--muted);font-size:.78rem}
+
 /* Notiz-Namen sind Buttons, sollen aber wie die Datei-Links aussehen */
 button.fname{
   background:none;border:0;padding:0;margin:0;font:inherit;

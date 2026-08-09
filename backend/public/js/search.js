@@ -8,6 +8,7 @@
 // dort etwas aendert, gilt es hier automatisch mit.
 import { closeMenus } from "./core/dialogs.js";
 import { bindImageOpen } from "./files/image-view.js";
+import { sucheDokumente, fuelleTreffer } from "./search-core.js";
 
 var DEBOUNCE = 160;
 
@@ -99,24 +100,7 @@ export function initSearch(config) {
         el.href = h.href;
       }
 
-      var icon = document.createElement("img");
-      icon.className = "app-hit-icon";
-      icon.src = baseUrl + "/static/img/" + h.icon + ".svg";
-      icon.alt = ""; icon.width = 20; icon.height = 20;
-      el.appendChild(icon);
-
-      var text = document.createElement("span");
-      text.className = "app-hit-label";
-      text.textContent = h.label;
-      el.appendChild(text);
-
-      if (h.hint) {
-        var hint = document.createElement("span");
-        hint.className = "app-hit-hint";
-        hint.textContent = h.hint;
-        el.appendChild(hint);
-      }
-
+      fuelleTreffer(el, h, baseUrl);
       li.appendChild(el);
       list.appendChild(li);
     });
@@ -136,8 +120,7 @@ export function initSearch(config) {
 
   function search(q) {
     var mine = ++token;
-    fetch(baseUrl + "/search?q=" + encodeURIComponent(q), { credentials: "same-origin" })
-      .then(function (r) { return r.ok ? r.json() : []; })
+    sucheDokumente(baseUrl, q)
       .then(function (hits) { if (mine === token) render(hits); })
       .catch(function () { if (mine === token) clear(); });
   }

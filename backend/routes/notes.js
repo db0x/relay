@@ -17,6 +17,7 @@ const notifications = require("../notifications");
 const users = require("../users");
 const avatars = require("../avatars");
 const { accessFor } = require("../access");
+const { imageType } = require("./images"); // erkennt Bilddateien am Namen
 const { secureFilename, securePath, pathFor } = require("../storage");
 const { BASE, DS_INTERNAL, HOST_INTERNAL, PUBLIC_DS, JWT_SECRET, FILE_SECRET, EDITOR_THEME, dsFetchUrl } = require("../config");
 const { loginRequired } = require("./auth");
@@ -301,8 +302,65 @@ async function metaBadgeImage(meta) {
 // verpacken (OnlyOffice interpretiert semantisches HTML + einfache CSS-Regeln).
 // badge (optional) haengt die Metadaten-Badges als Bild unten unter einer
 // Trennlinie an.
-function pdfHtmlDoc(md, badge) {
-  const body = marked.parse(md);
+// Verweise auf andere Dokumente (per @ gesetzt, siehe public/js/notes/doclinks.js)
+// zeigen auf ein Ziel INNERHALB von Relay — im PDF gibt es das nicht. Der Titel
+// bleibt als hervorgehobener Text stehen; ein Link dorthin liefe ins Leere.
+const APP_VERWEIS = /<a href="relay\/[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
+function verweiseAlsText(html) {
+  return html.replace(APP_VERWEIS,
+    '<span style="background:#f1f3f5;padding:.1em .35em;border-radius:4px">$1</span>');
+}
+
+// Eingebettete Bilder (![…](relay/…)) muessen fuer das PDF WIRKLICH ins
+// Dokument: der DocumentServer holt die Quell-HTML ueber eine kurzlebige
+// Adresse und kann unsere /image-Route weder erreichen noch sich dort anmelden.
+// Also als data:-URI einbetten — vorher verkleinert, sonst blaeht ein
+// Handyfoto (Base64 kostet ein Drittel obendrauf) die HTML auf zweistellige
+// Megabyte.
+//
+// betrachter ist entscheidend: eingebettet wird nur, was DERJENIGE sehen darf,
+// der das PDF anfordert. Eine Notiz kann ein Bild eines Dritten einbetten —
+// dann bleibt an dieser Stelle der alt-Text stehen.
+const PDF_BILD = /<img src="relay\/([^"]*)"([^>]*)>/gi;
+const PDF_BILD_MAX = 1400;   // laengste Kante im PDF
+const PDF_BILDER_MAX = 12;   // Deckel je Notiz — Konvertierung soll nicht kippen
+
+async function bilderEinbetten(html, betrachter) {
+  const treffer = [...html.matchAll(PDF_BILD)];
+  if (!treffer.length) return html;
+  const ersatz = new Map();
+  let gezaehlt = 0;
+  for (const t of treffer) {
+    if (ersatz.has(t[0])) continue;
+    let uri = null;
+    try {
+      const teile = t[1].split("/").map(decodeURIComponent);
+      const owner = teile.shift();
+      const rel = teile.join("/");
+      if (gezaehlt < PDF_BILDER_MAX && owner && rel &&
+          accessFor(betrachter, owner, rel) && imageType(rel)) {
+        const buf = await sharp(pathFor(owner, rel))
+          .rotate()                                   // EXIF-Drehung anwenden
+          .resize({ width: PDF_BILD_MAX, height: PDF_BILD_MAX,
+                    fit: "inside", withoutEnlargement: true })
+          .flatten({ background: "#ffffff" })         // PNG-Transparenz -> weiss
+          .jpeg({ quality: 80 })
+          .toBuffer();
+        uri = "data:image/jpeg;base64," + buf.toString("base64");
+        gezaehlt++;
+      }
+    } catch (e) { /* unlesbar oder kein Bild -> alt-Text */ }
+    // Ohne Zugriff (oder bei Fehlern) die Quelle entfernen: der Browser bzw.
+    // der Konverter zeigt dann den alt-Text statt eines kaputten Symbols.
+    ersatz.set(t[0], uri
+      ? `<img src="${uri}"${t[2]} style="max-width:100%">`
+      : `<img${t[2]}>`);
+  }
+  return html.replace(PDF_BILD, (m) => ersatz.get(m) || `<img>`);
+}
+
+async function pdfHtmlDoc(md, badge, betrachter) {
+  const body = await bilderEinbetten(verweiseAlsText(marked.parse(md)), betrachter);
   const meta = badge
     ? `<div style="margin-top:1.4em;padding-top:.8em;border-top:1px solid #e5e7eb">`
       + `<img src="${badge.dataUri}" width="${badge.width}" height="${badge.height}"/></div>`
@@ -373,7 +431,7 @@ router.get("/edit/notepdf/:owner/*", loginRequired, async (req, res) => {
   const srcExp = Math.floor(Date.now() / 1000) + 60;
   let badge = null;
   try { badge = await metaBadgeImage(notemeta.get(owner, fid)); } catch (e) { console.error("Badge-Bild fehlgeschlagen:", e.message); }
-  const html = pdfHtmlDoc(md, badge);
+  const html = await pdfHtmlDoc(md, badge, req.session.user);
   pdfSources.set(srcId, { html, expires: Date.now() + 60000 });
   prune(pdfSources);
   const srcUrl = `${HOST_INTERNAL}${BASE}/notes/pdf-src/${srcId}`

@@ -12,6 +12,7 @@
           data-owner="<%= n.owner %>"
           data-rel="<%= n.relpath %>" data-label="<%= n.label %>"
           data-canedit="<%= n.canedit ? 1 : 0 %>"
+          data-isowner="<%= n.isOwner ? 1 : 0 %>"
           data-status="<%= n.status %>"
           <% if (n.color) { %>style="--note-color:<%= n.color %>"<% } %>
           <% if (n.pos) { %>data-x="<%= n.pos.x %>" data-y="<%= n.pos.y %>"<% } %>

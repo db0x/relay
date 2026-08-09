@@ -97,7 +97,8 @@
                 <% } else if (f.isNote) { %>
                 <button type="button" class="fname note-open" data-owner="<%= f.owner %>"
                         data-rel="<%= f.relpath %>" data-label="<%= f.label %>"
-                        data-canedit="<%= (f.isOwner || f.perm === "edit") ? 1 : 0 %>"><%= f.label %></button>
+                        data-canedit="<%= (f.isOwner || f.perm === "edit") ? 1 : 0 %>"
+                        data-isowner="<%= f.isOwner ? 1 : 0 %>"><%= f.label %></button>
                 <% } else if (f.isImage) { %>
                 <%# Bilder kann OnlyOffice nicht oeffnen -> eigener
                     Vorschau-Dialog (js/files/image-view.js) %>

@@ -589,6 +589,42 @@ router.get("/search", loginRequired, (req, res) => {
   }));
 });
 
+// Kurzinfo zu EINER Datei — fuer das Hover-Kaertchen an Verweisen im Notiztext
+// (public/js/files/file-tip.js). Notizen brauchen das nicht: die zeigen dort
+// ihre gewohnte Inhaltsvorschau ueber /notes/raw + /notes/meta.
+router.get("/fileinfo/:owner/*", loginRequired, (req, res) => {
+  const me = req.session.user;
+  const owner = req.params.owner, fid = req.params[0];
+  const acc = accessFor(me, owner, fid);
+  if (!acc) return res.sendStatus(404);
+  const abs = pathFor(owner, fid);
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return res.sendStatus(404);
+
+  const st = fs.statSync(abs);
+  const name = path.basename(fid);
+  const info = {
+    label: labelFor(fid, owner), icon: iconFor(name),
+    size: formatSize(st.size), modified: formatDate(st.mtimeMs),
+    isOwner: owner === me,
+  };
+  // Wer die Datei nicht besitzt, erfaehrt nur, VON WEM er sie hat — nicht, wer
+  // sie sonst noch bekommen hat. Die Empfaengerliste gehoert dem Besitzer;
+  // dieselbe Aufteilung wie bei den Badges der Dateiliste.
+  if (info.isOwner) {
+    info.shares = shares.listForFile(owner, fid).map((s) => ({
+      username: s.target, name: s.display_name, perm: s.perm,
+      hasAvatar: avatars.has(s.target),
+    }));
+  } else {
+    const u = users.get(owner);
+    info.sharedBy = {
+      username: owner, name: u ? u.display_name : owner, perm: acc,
+      hasAvatar: avatars.has(owner),
+    };
+  }
+  res.json(info);
+});
+
 // neuer Unterordner im aktuellen Ordner
 router.post("/mkdir", loginRequired, (req, res) => {
   const cur = securePath(req.body.dir || "");
