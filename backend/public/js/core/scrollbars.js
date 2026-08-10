@@ -12,12 +12,17 @@
 // legt sich global ab, genau wie marked/DOMPurify. Fehlt sie, tut hier alles
 // nichts und die nativen Leisten bleiben: die Anwendung laeuft weiter.
 
-// autoHide "never" ist Absicht und der Kern der Sache: die nativen Leisten
-// blendeten aus, und genau deshalb sah man nicht, dass ein Fenster weitergeht.
-// Eine Leiste, die man erst durch Hineinfahren hervorholt, loeste das nur zur
-// Haelfte. clickScroll: Klick in die Bahn springt seitenweise.
+// autoHide "leave": die Leiste erscheint, sobald der Zeiger im Bereich ist,
+// und geht kurz nach dem Verlassen wieder. Das ist ein VERSUCH — davor stand
+// hier "never", weil die nativen Leisten ausblendeten und man einer langen
+// Liste darum nicht ansah, dass sie weitergeht. Der Unterschied zu frueher:
+// unsere Leiste ist beim Hineinfahren sofort und deutlich da, die native war
+// auf vielen Systemen 0px breit. Faellt das Erkennen dennoch schwer, ist
+// "never" der Weg zurueck — es ist genau dieses eine Wort.
+// autoHideDelay: Nachlauf in ms, bevor sie nach dem Verlassen verschwindet.
+// clickScroll: Klick in die Bahn springt seitenweise.
 var OPTIONS = {
-  scrollbars: { autoHide: "never", clickScroll: true },
+  scrollbars: { autoHide: "leave", autoHideDelay: 700, clickScroll: true },
 };
 
 // GRUNDREGEL — bitte beim Erweitern beachten:
@@ -41,6 +46,7 @@ var OPTIONS = {
 //   - .mention-list (@-Verlinkung im Notiz-Editor): derselbe Fall, hoechstens
 //     zwoelf Treffer, und Pfeiltasten holen den markierten ohnehin ins Bild
 var AREAS = [
+  ".page-body",         // rollender Rumpf eines Fensters (Kopf/Fuss bleiben stehen)
   ".notif-panel",       // Nachrichten-Menue
   ".app-search-scroll", // Trefferliste der Suche (Inhalt sitzt in der <ul> darin)
   ".note-preview", // Vorschau im Notiz-Editor (Inhalt in #note-preview-body)
@@ -62,12 +68,42 @@ export function scrollbarOf(el) {
   return OS(el) || null;
 }
 
+// Letzte bekannte Zeigerposition. Gebraucht fuer den Fall direkt darunter —
+// es gibt keine Abfrage "steht der Zeiger gerade ueber diesem Element?".
+var zeigerX = -1, zeigerY = -1;
+document.addEventListener("pointermove", function (e) {
+  zeigerX = e.clientX; zeigerY = e.clientY;
+}, { passive: true, capture: true });
+
+// Eine FRISCH aufgebaute Leiste kennt einen stillstehenden Zeiger nicht.
+//
+// Der Ordner- und der Sortierwechsel ersetzen den Inhalt von #page; die Leiste
+// danach ist eine neue Instanz. Liegt der Zeiger dabei still im Fenster,
+// bekommt sie kein pointerenter — und bliebe mit autoHide:"leave" unsichtbar,
+// bis man die Maus bewegt. Genau da, wo man eben noch gescrollt hat.
+// Also: steht der Zeiger schon drin, die Leiste vorerst dauerhaft zeigen und
+// erst beim Verlassen auf das normale Ausblenden zurueckschalten.
+function zeigeWennZeigerSchonDrin(el, inst) {
+  if (zeigerX < 0 || !inst) return;
+  var unter = document.elementFromPoint(zeigerX, zeigerY);
+  if (!unter || (unter !== el && !el.contains(unter))) return;
+  inst.options({ scrollbars: { autoHide: "never" } });
+  el.addEventListener("pointerleave", function zurueck() {
+    el.removeEventListener("pointerleave", zurueck);
+    inst.options({ scrollbars: { autoHide: OPTIONS.scrollbars.autoHide } });
+  });
+}
+
 // Bildlaufleiste an ein Element haengen. Mehrfachaufrufe sind unschaedlich —
 // ist schon eine da, kommt sie unveraendert zurueck.
 export function attachScrollbar(el) {
   var OS = lib();
   if (!OS || !el) return null;
-  return scrollbarOf(el) || OS(el, OPTIONS);
+  var vorhanden = scrollbarOf(el);
+  if (vorhanden) return vorhanden;
+  var inst = OS(el, OPTIONS);
+  zeigeWennZeigerSchonDrin(el, inst);
+  return inst;
 }
 
 // WICHTIG vor jedem innerHTML-Tausch: OverlayScrollbars baut seine Huelle IN

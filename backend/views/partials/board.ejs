@@ -35,6 +35,8 @@
     </button>
   </header>
 
+  <%# wie in der Dateiliste: nur der Rumpf rollt %>
+  <div class="page-body">
   <div class="board-cols">
     <% boardCols.forEach(function(col){ %>
     <%# data-status: js/board.js liest daraus, welcher Stand beim Ablegen
@@ -74,6 +76,7 @@
     </section>
     <% }); %>
   </div>
+  </div><%# Ende .page-body %>
 
   <% if (boardForeign) { %>
   <%# Fusszeile mit Filter — dasselbe Muster wie unter der Dateiliste %>

@@ -55,6 +55,10 @@
   </nav>
   <% } %>
 
+  <%# Nur der Rumpf rollt — Titelleiste, Brotkrumen und Fusszeile bleiben
+      stehen (siehe .page/.page-body in index.css). Die Bildlaufleiste haengt
+      an DIESEM Element, nicht am Fenster (js/core/window.js). %>
+  <div class="page-body">
   <div class="table-wrap">
     <table class="files">
       <thead>
@@ -184,6 +188,7 @@
       </tbody>
     </table>
   </div>
+  </div><%# Ende .page-body %>
 
   <% if (files.some(function(f){ return !f.isOwner; })) { %>
   <%# Fusszeile mit Filter: nur sichtbar, wenn es ueberhaupt Freigaben gibt %>

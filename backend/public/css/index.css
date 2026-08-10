@@ -67,7 +67,12 @@ body{
      so blitzt die Karte nicht kurz oben-links auf) */
   left:max(16px, (100vw - min(840px, 100vw - 32px)) / 2);
   width:min(840px,calc(100% - 32px));
-  max-height:calc(100vh - 112px);overflow:auto;
+  /* Kopf- und Fusszeile eines Fensters sind Rahmen und bleiben stehen: das
+     Fenster selbst rollt NICHT (overflow:hidden), gerollt wird allein der
+     Rumpf .page-body darin. Vorher scrollte die ganze Karte, die Titelleiste
+     wanderte also aus dem Blick. */
+  max-height:calc(100vh - 112px);overflow:hidden;
+  display:flex;flex-direction:column;
   background:var(--card);
   border:1px solid var(--line);border-radius:var(--radius);
   box-shadow:var(--win-shadow);
@@ -85,6 +90,27 @@ body{
 body:not(.desk-ready) .page,
 body:not(.desk-ready) .note-desktop{opacity:0}
 .note-desktop{transition:opacity .3s ease}
+/* Der rollende Teil zwischen Kopf/Brotkrumen und Fusszeile. min-height:0 ist
+   Pflicht: ein Flex-Kind darf sonst nicht unter seine Inhaltshoehe schrumpfen
+   und wuerde die Karte aufblaehen, statt zu rollen. Die Bildlaufleiste haengt
+   an diesem Element (js/core/window.js) — so laeuft ihre Bahn auch nicht mehr
+   hinter der Titelleiste durch.
+
+   Seitlich reicht der Rumpf bis an die KARTENKANTE und holt sich das
+   Kartenmass als eigenes padding zurueck. Zwei Dinge auf einmal:
+   die Leiste liegt damit im Randstreifen (--page-pad 22px gegen 12px Leiste)
+   statt auf dem Inhalt — sonst deckt sie die Zeilenmenues rechts zu —, und
+   der Inhalt steht trotzdem exakt unter Titelleiste und Fusszeile.
+   (Vor dem stehenden Rahmen war das ganze Fenster der Scroller, dessen
+   padding sorgte fuer dasselbe.) */
+.page-body{
+  flex:1 1 auto;min-height:0;overflow:auto;
+  margin-inline:calc(-1 * var(--page-pad));
+  padding-inline:var(--page-pad);
+}
+/* Die Bahn endet jetzt zwischen Kopf und Fuss, nicht mehr an den runden
+   Kartenecken — der grosse Endabstand von .page waere hier verschenkter Weg. */
+.page-body .os-scrollbar{--os-padding-axis:4px}
 .page{transition:opacity .3s ease,box-shadow .22s ease}
 /* Vorderstes Fenster: kraeftigerer Schatten (js/core/window.js vergibt die
    Klasse beim Stapeln neu). Der weiche Uebergang macht den Wechsel beim
@@ -137,10 +163,19 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* 6px Griff, 3px vom Rand — dieselben Masse wie --os-size 12 mit 3px Polster */
 .CodeMirror-overlayscroll-vertical{right:3px;top:0;width:6px}
 .CodeMirror-overlayscroll-horizontal{bottom:3px;left:0;height:6px}
+/* Ausblenden wie bei den uebrigen Leisten (autoHide:"leave", siehe
+   js/core/scrollbars.js): ohne Zeiger im Editor unsichtbar. Das Addon kennt
+   dafuer keine Option — es geht aber ohne JS, weil "Zeiger im Bereich" genau
+   das ist, was :hover beschreibt. Der Nachlauf steckt im transition-delay des
+   RUHEZUSTANDS: sie geht verzoegert weg (wie autoHideDelay), kommt aber sofort. */
 .CodeMirror-overlayscroll-vertical div,
 .CodeMirror-overlayscroll-horizontal div{
   position:absolute;border-radius:999px;background:rgba(31,41,55,.22);
-  transition:background .12s ease;
+  opacity:0;transition:opacity .2s ease .7s,background .12s ease;
+}
+.note-editor-pane:hover .CodeMirror-overlayscroll-vertical div,
+.note-editor-pane:hover .CodeMirror-overlayscroll-horizontal div{
+  opacity:1;transition:opacity .1s ease,background .12s ease;
 }
 .CodeMirror-overlayscroll-vertical div{right:0;width:100%}
 .CodeMirror-overlayscroll-horizontal div{bottom:0;height:100%}
