@@ -50,8 +50,17 @@ async function vorHolen(page) {
 }
 
 test.describe("Bildlaufleisten", () => {
+  // Bewusst NICHT als Admin: diese Tests verkleinern das Sichtfenster, und die
+  // Fensterlagen werden je Nutzer gemerkt. Ein bei 1000x420 zurechtgerueckter
+  // Schreibtisch liess spaeter (bei voller Groesse) das Notiz-Board ueber der
+  // Dateiliste liegen — und ein verdecktes Fenster nimmt keine Klicks an.
+  // Das traf dann Tests in ANDEREN Dateien, die als Admin arbeiten
+  // (search.spec.js). Ein Wegwerf-Nutzer haelt den Schaden bei sich.
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
+    const u = await createUser(page);
+    await logout(page);
+    await login(page, u.username, u.password);
     await waitAppReady(page);
   });
 
@@ -272,7 +281,12 @@ test.describe("Fensterrahmen bleibt stehen", () => {
 
   test("die Titelleiste der Dateiliste bleibt beim Rollen an ihrem Platz",
     async ({ page }) => {
+      // Wegwerf-Nutzer aus demselben Grund wie oben: das kleine Sichtfenster
+      // veraendert die gemerkten Fensterlagen, und die gehoeren dem Nutzer.
       await loginAsAdmin(page);
+      const u = await createUser(page);
+      await logout(page);
+      await login(page, u.username, u.password);
       await page.setViewportSize({ width: 1000, height: 420 });
       for (let i = 0; i < 8; i++) {
         await uploadFile(page, `${uniqueName("rahmen")}.docx`);
@@ -329,7 +343,14 @@ test.describe("Fensterrahmen bleibt stehen", () => {
   });
 
   test("das Notiz-Board ist genauso gebaut", async ({ page }) => {
+    // Wegwerf-Nutzer, weil dieser Test das Board AUFKLAPPT und der Zustand
+    // gemerkt wird: ein offenes Board liegt bei Standardlage ueber der
+    // Dateiliste und faengt dort Klicks ab — das traf sonst spaetere Tests,
+    // die als Admin arbeiten (search.spec.js).
     await loginAsAdmin(page);
+    const u = await createUser(page);
+    await logout(page);
+    await login(page, u.username, u.password);
     await waitAppReady(page);
     if (await page.locator("#board.page-min").count()) await page.click("#board-toggle");
     await expect(page.locator("#board .page-body")).toHaveCount(1);

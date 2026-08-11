@@ -123,3 +123,66 @@ test.describe("Notiz-Dialog: Groesse und Lage", () => {
       expect((await masse(page)).w).toBe(lesen.w);
     });
 });
+
+test.describe("Vergroessern-Ecke", () => {
+  // Faehrt der Zeiger in die Ecke unten rechts, weicht sie nach innen
+  // (corner-shape:scoop) und in der Luecke erscheint ein runder Knopf mit dem
+  // Ziehsymbol. Beides faehrt weich auf und wieder zu.
+  const deckkraft = (page) => page.locator(".note-resize-btn")
+    .evaluate((e) => getComputedStyle(e).opacity);
+  const eckenform = (page) => page.locator("#dlg-note")
+    .evaluate((e) => getComputedStyle(e).cornerBottomRightShape || "");
+
+  test("sie oeffnet sich beim Hinfahren und schliesst sich wieder",
+    async ({ page }) => {
+      await loginAsAdmin(page);
+      const u = await createUser(page);
+      await logout(page);
+      await login(page, u.username, u.password);
+      await createNote(page, "Eckentest " + uniqueName("n"));
+
+      await page.goto("/?p=Notizen");
+      await waitAppReady(page);
+      await page.locator("table.files .note-open").first().click();
+      await expect(dlg(page)).toBeVisible();
+      await page.waitForTimeout(250);
+
+      // in Ruhe: kein Knopf
+      expect(await deckkraft(page)).toBe("0");
+
+      const g = await page.locator("#note-resize").boundingBox();
+      await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+      await expect.poll(() => deckkraft(page), { timeout: 3000 }).toBe("1");
+
+      // corner-shape kann nicht jeder Browser — die Bedienung haengt nicht
+      // daran, der Knopf erscheint auch ohne. Wo es geht, wird es geprueft.
+      const kann = await page.evaluate(() => CSS.supports("corner-shape", "scoop"));
+      if (kann) expect(await eckenform(page)).toContain("scoop");
+
+      // Die Ecke muss auch WIRKLICH uebergehen. Sie stand einmal in einer
+      // Regel, welche die spaetere .dialog-Basisregel bei gleicher Spezifitaet
+      // ueberschrieb — die Eckenform sprang dann ohne Bewegung (gemessen: 1ms),
+      // und zu sehen war davon nichts ausser einem unruhigen Eindruck.
+      // Darum die Doppelklasse .dialog.dialog-note im CSS, und darum hier:
+      const uebergang = await page.locator("#dlg-note")
+        .evaluate((e) => getComputedStyle(e).transitionProperty);
+      if (kann) expect(uebergang).toContain("corner-shape");
+      expect(uebergang).toContain("border-bottom-right-radius");
+
+      // Und die Reihenfolge: der Knopf wartet, bis die Ecke fertig ist.
+      // Geprueft an den Verzoegerungen statt an Momentaufnahmen — die waeren
+      // zeitabhaengig und damit wackelig.
+      expect(await page.locator(".note-resize-btn")
+        .evaluate((e) => getComputedStyle(e).transitionDelay)).toContain("0.1s");
+
+      // Ziehen funktioniert weiterhin an derselben Stelle
+      const vorher = await masse(page);
+      await zieheEcke(page, 120, 80);
+      expect((await masse(page)).w).toBeGreaterThan(vorher.w + 80);
+
+      // Zeiger weg -> Knopf verschwindet, Ecke wird wieder rund
+      await page.mouse.move(5, 5);
+      await expect.poll(() => deckkraft(page), { timeout: 3000 }).toBe("0");
+      if (kann) expect(await eckenform(page)).not.toContain("scoop");
+    });
+});

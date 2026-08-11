@@ -177,6 +177,13 @@
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <input type="hidden" name="dir" value="<%= curDir %>">
   </form>
-  <%# unsichtbare Griffecke zum Skalieren (js/notes/note-dialog.js) %>
-  <div class="note-resize" id="note-resize" aria-hidden="true"></div>
+  <%# Griffecke zum Skalieren (js/notes/note-dialog.js). Sie ist unsichtbar,
+      bis der Zeiger hinkommt: dann weicht die Ecke des Dialogs nach innen
+      (corner-shape:scoop) und in der Luecke erscheint dieser Knopf. Das
+      span traegt nur die Optik — pointer-events liegen beim Griff. %>
+  <div class="note-resize" id="note-resize" aria-hidden="true">
+    <span class="note-resize-btn">
+      <img src="<%= base %>/static/img/resize.svg" alt="" width="20" height="20">
+    </span>
+  </div>
 </dialog>

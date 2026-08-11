@@ -187,18 +187,25 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* margin:0 — der Abstand UNTER der Trennlinie kommt aus dem padding-top der
    Spaltenkoepfe (bzw. der Brotkrumen), damit er genauso gross ist wie der
    darueber und nicht beides addiert wird. */
+/* Titelleiste eines Fensters — dieselbe Anmutung wie der Kopf eines Dialogs
+   (.dialog-head): schmal und als getoenter Streifen abgesetzt, damit beide
+   Fensterarten gleich gelesen werden.
+   Die negativen Raender ziehen sie bis an die Fensterkanten (oben, links,
+   rechts); nur so laeuft die Toenung ueber die volle Breite und nimmt die
+   Rundung mit. Waagerecht bleibt --page-pad als padding stehen: Titel und
+   Aktionen behalten damit dieselbe Linie wie Spaltenkoepfe, Dateinamen und
+   Zeilenmenues darunter — das Raster der Karte gilt weiter.
+   Nur HIER wird gezogen (core/window.js); touch-action:none, damit das auch
+   mit dem Finger geht statt zu scrollen. */
 .page-head{
   display:flex;align-items:center;gap:.6rem;
-  /* Nur HIER wird gezogen (core/window.js), nicht mehr im ganzen Fenster —
-     touch-action:none, damit das auch mit dem Finger geht statt zu scrollen.
-     Der negative obere Rand zieht die Leiste bis an die Fensterkante hoch:
-     der Rahmenstreifen darueber (--page-pad) gehoert optisch zu ihr und soll
-     mitziehen. Das gleiche Mass als padding zurueck -> der Inhalt der Leiste
-     steht unveraendert auf dem Raster, und die Trennlinie bleibt eingerueckt
-     wie die Tabelle darunter. */
-  margin:calc(var(--page-pad) * -1) 0 0;
-  padding:var(--page-pad) 0 var(--page-gap);
-  border-bottom:1px solid var(--line-soft);
+  margin:calc(var(--page-pad) * -1) calc(var(--page-pad) * -1) var(--page-gap);
+  /* .45rem statt .65rem wie im Dialogkopf: dort sitzt ein 22px-Icon, hier
+     34px hohe Knoepfe — mit gleichem Polster waere die Leiste hoeher. So
+     kommen beide Fensterarten auf dieselbe Bauhoehe. */
+  padding:.45rem var(--page-pad);
+  border-bottom:1px solid var(--line);background:#f7f8fa;
+  border-radius:var(--radius) var(--radius) 0 0;
   cursor:move;touch-action:none;
 }
 .page-head img{display:block;flex:0 0 auto}
@@ -608,6 +615,11 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* padding-bottom:0 (statt der 1.1rem der .dialog-Basis): die Fuss-Abstaende
    steuert allein die note-form, damit alle vertikalen Abstaende gleich sind */
 .dialog.dialog-note{width:56vw;height:56vh;max-width:none;max-height:none;padding-bottom:0}
+/* Der einzige Dialog, der NICHT beschneidet: die Luecke der Vergroessern-Ecke
+   liegt ausserhalb seiner Flaeche, ein Knopf darin waere sonst weg. Gefahrlos,
+   weil hier kein Kind einen eigenen Hintergrund hat — es steht also nichts
+   ueber die runden Ecken hinaus (nachgesehen, nicht vermutet). */
+.dialog.dialog-note{overflow:visible}
 
 /* Bild-Vorschau: waechst mit dem Bild, bleibt aber im Fenster. Der dunkle
    Grund laesst freigestellte PNGs und helle Fotos gleichermassen wirken. */
@@ -642,9 +654,71 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .dialog.dialog-note.note-view{
   min-width:min(320px,92vw);min-height:min(200px,36vh);
 }
+/* Vergroessern-Ecke. Der Griff selbst bleibt unsichtbar und nimmt alle
+   Zeigerereignisse; sichtbar wird beim Hinfahren die Ecke des Dialogs, die
+   nach innen ausweicht (corner-shape:scoop), und der Knopf in der Luecke.
+   Kann ein Browser corner-shape nicht, bleibt die Ecke rund — der Knopf
+   erscheint trotzdem, die Bedienung ist also nirgends schlechter. */
 .note-resize{
-  position:absolute;right:0;bottom:0;width:18px;height:18px;
-  cursor:nwse-resize;z-index:3;touch-action:none;
+  /* Ueber die Ecke hinaus geschoben, damit der Knopf in der Luecke sitzt
+     (moeglich durch overflow:visible unten). Verschoben wird der GRIFF, nicht
+     nur die Optik — so bleibt die ganze Kreisflaeche greifbar.
+     border-radius:50%: nur der Kreis nimmt Ereignisse an. Als Quadrat lag die
+     Ecke des Griffs sonst ueber dem Rand des Speichern-Knopfs und haette dort
+     Klicks geschluckt.
+     Bewusst OHNE cursor:nwse-resize: der Knopf zeigt selbst, was er tut — ein
+     wechselnder Zeiger waere doppelt gemoppelt (Nutzerwunsch). */
+  position:absolute;right:-16px;bottom:-16px;width:34px;height:34px;
+  border-radius:50%;
+  z-index:3;touch-action:none;
+  display:grid;place-items:center;
+}
+.note-resize-btn{
+  width:26px;height:26px;border-radius:50%;
+  display:grid;place-items:center;
+  /* die Ereignisse gehoeren dem Griff darunter — der Knopf ist reine Anzeige */
+  pointer-events:none;
+  background:var(--card);color:var(--muted);
+  border:1px solid var(--line);box-shadow:0 2px 8px rgba(16,24,40,.18);
+  opacity:0;transform:scale(.55);
+  /* ohne Vorlauf: beim Weggehen verschwindet er zuerst, dann schliesst die Ecke */
+  transition:opacity .07s ease,transform .07s ease;
+}
+/* Die beiden Bewegungen laufen NACHEINANDER, nicht uebereinander: beim
+   Hinfahren weicht erst die Ecke, dann kommt der Knopf — beim Weggehen zuerst
+   der Knopf, dann schliesst die Ecke. Gleichzeitig ueberblendeten sie sich
+   sichtbar und es wirkte unruhig.
+   Umgesetzt ueber transition-delay je Zustand: die Werte stehen positionsgleich
+   zur transition-Liste, deshalb muss die hier vollstaendig wiederholt werden
+   (die .dialog-Regel darueber kennt die Ecken-Eigenschaften nicht mehr).
+   corner-shape ist ueberhaupt nur animierbar, weil hinter den Schluesselwoertern
+   ein interpolierbarer Superellipsen-Parameter steckt. */
+/* Doppelklasse .dialog.dialog-note ist Pflicht, nicht Geschmack: die
+   .dialog-Basisregel steht WEITER UNTEN in dieser Datei und setzt transition
+   ebenfalls. Bei gleicher Spezifitaet gewinnt die spaetere — die Ecke sprang
+   dann ohne Bewegung von 14 auf 20px (gemessen: 1ms). Dieselbe Falle wie bei
+   der Breite von .dialog.dialog-note weiter oben. */
+.dialog.dialog-note{
+  transition:opacity .18s ease,transform .18s ease,
+    display .18s ease allow-discrete,
+    corner-shape .1s ease,border-bottom-right-radius .1s ease;
+  transition-delay:0s,0s,0s,.08s,.08s; /* zu: Ecke wartet auf den Knopf */
+}
+/* :has statt einer Klasse per JS: der Zustand ist reines Hovern, und der Griff
+   liegt dank overflow:visible (unten) auch dann noch unter dem Zeiger, wenn
+   die Ecke sich weggewoelbt hat — sonst flackerte es zwischen beiden Formen. */
+.dialog.dialog-note:has(.note-resize:hover){
+  transition-delay:0s,0s,0s,0s,0s;     /* auf: Ecke laeuft sofort los */
+  border-bottom-right-radius:20px;
+  corner-bottom-right-shape:scoop;
+}
+.dialog-note:has(.note-resize:hover) .note-resize-btn{
+  opacity:1;transform:none;
+  /* .1s Vorlauf = Dauer der Ecken-Bewegung darueber */
+  transition:opacity .08s ease .1s,transform .12s cubic-bezier(.2,.9,.3,1.2) .1s;
+}
+@media (prefers-reduced-motion:reduce){
+  .note-resize-btn{transition:none}
 }
 .dialog-note .dialog-head{cursor:move;touch-action:none}
 /* Nur-Lesen-Notiz: keine Editor-Spalte, nur die gerenderte Ansicht —
@@ -796,6 +870,9 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .note-foot{
   display:flex;justify-content:space-between;align-items:center;gap:.9rem;
   padding-top:var(--note-gap);border-top:1px solid var(--line);flex:0 0 auto;
+  /* rechts etwas mehr Luft als das Formularmass: dort unten sitzt die
+     Vergroessern-Ecke, und "Speichern" soll ihr nicht ins Gehege kommen */
+  padding-right:1.1rem;
 }
 /* nimmt den Platz zwischen Farbtupfer (links) und Speichern (rechts) ein */
 .note-status{color:var(--danger);font-size:.85rem;min-height:1.2em;flex:1;min-width:0}
