@@ -12,6 +12,7 @@ import { externalizeLinks, renderMarkdown, highlightCode, createMarkdownActions,
 import { initEmoji, bindEmoticons } from "./emoji.js";
 import { bindDocLinks } from "./doclinks.js";
 import { initMention } from "./mention.js";
+import { initNetz } from "./netz.js";
 
 // baseUrl: Basis-URL der Notiz-Endpunkte (.../notes/create ohne den Suffix).
 // Rueckgabe: { openNote } — von notes.js an das Hover-/Klick-Modul weitergereicht.
@@ -180,6 +181,36 @@ export function initNoteDialog(baseUrl) {
   var noteDeleteUrl = null;
   var noteExportUrl = null; // /notes/pdf/... — nur bei gespeicherten Notizen
 
+  // Dritter Modus der Lese-Ansicht: das Netz der Verweise (js/notes/netz.js).
+  // Er bleibt beim Weiterwandern AN — klickt man dort einen Knoten an, wird
+  // die Notiz wirklich geoeffnet (Titel, Rechte, Loeschen-Ziel ziehen mit) und
+  // das Netz zeichnet sich um die neue Mitte.
+  var noteNetzEl = document.getElementById("note-netz");
+  var noteNetzBtn = document.getElementById("note-netz-btn");
+  var notePreviewWrap = document.getElementById("note-preview");
+  var netzAn = false;
+  var netz = initNetz({
+    baseUrl: baseUrl,
+    wurzel: noteNetzEl,
+    openNote: function (o, r, l) { if (hooks.open) hooks.open(o, r, l); },
+    noteTip: function (a, o, r) { if (hooks.tip) hooks.tip(a, o, r); },
+    hideNoteTip: function () { if (hooks.hide) hooks.hide(); },
+    aufMitte: function () { netzAn = false; setNoteMode(false); },
+  });
+
+  // Besitzer und Pfad der offenen Notiz — sie stecken in der Speichern-Adresse
+  // (.../notes/save/<besitzer>/<pfad>); eine noch nicht gespeicherte Notiz hat
+  // keine und bekommt darum auch kein Netz.
+  function aktuellesZiel() {
+    var i = noteForm.action.indexOf("/notes/save/");
+    if (i === -1) return null;
+    var teile = noteForm.action.slice(i + "/notes/save/".length).split("/");
+    try { teile = teile.map(decodeURIComponent); } catch (e) { return null; }
+    var owner = teile.shift();
+    var rel = teile.join("/");
+    return owner && rel ? { owner: owner, rel: rel } : null;
+  }
+
   // Groesse wird je Modus getrennt gemerkt (siehe setNoteMode). Der Schluessel
   // haengt an der Klasse, nicht an einem Merker: setNoteMode setzt sie als
   // Erstes, danach fragen Anwenden UND Merken dieselbe Quelle.
@@ -211,6 +242,17 @@ export function initNoteDialog(baseUrl) {
     // Bearbeiten-Recht freigegebene Notiz gehoert einem anderen (dieselbe
     // Regel wie im Zeilenmenue der Dateiliste, serverseitig in /delete).
     if (noteDelBtn) noteDelBtn.hidden = editMode || !noteDeleteUrl;
+    // Netz: nur im Lese-Modus und nur fuer gespeicherte Notizen
+    var ziel = aktuellesZiel();
+    if (editMode || !ziel) netzAn = false;
+    if (noteNetzBtn) {
+      noteNetzBtn.hidden = editMode || !ziel;
+      noteNetzBtn.setAttribute("aria-pressed", netzAn ? "true" : "false");
+    }
+    if (noteNetzEl) noteNetzEl.hidden = !netzAn;
+    if (notePreviewWrap) notePreviewWrap.hidden = netzAn;
+    if (netzAn && ziel) netz.zeichne(ziel.owner, ziel.rel);
+    else netz.leere();
     // Detailfelder nur im Bearbeiten-Modus anfassbar — wie der Editor
     // selbst (das Panel im Lese-Modus zeigt nur an, aendert nichts)
     var metaEditable = editMode && noteCanEdit;
@@ -303,6 +345,12 @@ export function initNoteDialog(baseUrl) {
   }
   if (noteEditBtn) {
     noteEditBtn.addEventListener("click", function () { setNoteMode(true); });
+  }
+  if (noteNetzBtn) {
+    noteNetzBtn.addEventListener("click", function () {
+      netzAn = !netzAn;
+      setNoteMode(false);
+    });
   }
   if (notePdfBtn) {
     // oeffnet das gerenderte PDF im OnlyOffice-Viewer — im SELBEN Tab

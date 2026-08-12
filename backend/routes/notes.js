@@ -18,7 +18,8 @@ const users = require("../users");
 const avatars = require("../avatars");
 const { accessFor } = require("../access");
 const { imageType } = require("./images"); // erkennt Bilddateien am Namen
-const { secureFilename, securePath, pathFor } = require("../storage");
+const { secureFilename, securePath, pathFor, dirFor, walkFiles } = require("../storage");
+const { labelFromName } = require("../format");
 const { BASE, DS_INTERNAL, HOST_INTERNAL, PUBLIC_DS, JWT_SECRET, FILE_SECRET, EDITOR_THEME, dsFetchUrl } = require("../config");
 const { loginRequired } = require("./auth");
 
@@ -138,6 +139,111 @@ router.post("/notes/status", loginRequired, express.json(), (req, res) => {
   if (acc !== "owner" && acc !== "edit") return res.sendStatus(403);
   notemeta.setStatus(owner, filename, status);
   res.json({ status });
+});
+
+// --- Notiz-Netz ---------------------------------------------------------
+//
+// Welche Notizen haengen mit dieser zusammen? Verweise stehen NUR als Text in
+// den Notizen (siehe public/js/notes/doclinks.js), es gibt keinen Index.
+// Daraus folgt eine Asymmetrie:
+//   ausgehend  — steht in der Notiz selbst, ein Regex genuegt
+//   eingehend  — nur zu finden, indem man ALLE erreichbaren Notizen durchsieht
+//
+// Bewusst ohne Index-Tabelle: die muesste bei Speichern, Umbenennen, Loeschen
+// und Verschieben mitgezogen werden — vier Stellen, an denen sie stillschweigend
+// veralten kann, und ein veralteter Graph zeigt Verbindungen, die es nicht mehr
+// gibt. Ein paar hundert kleine Markdown-Dateien zu lesen kostet Millisekunden.
+// Wird das je spuerbar, ist ein Index eine reine Beschleunigung und laesst sich
+// nachruesten, ohne die Ansicht anzufassen.
+//
+// Es kommen NUR Notizen ins Netz (.md) — Dokumente und Bilder sind Blaetter,
+// sie koennen nicht zurueckverweisen.
+const NETZ_VERWEIS = /!?\[((?:[^\]\\]|\\.)*)\]\(relay\/([^)\s]+)\)/g;
+
+function verweiseIn(text) {
+  const out = [];
+  for (const m of String(text).matchAll(NETZ_VERWEIS)) {
+    let teile;
+    try { teile = m[2].split("/").map(decodeURIComponent); } catch (e) { continue; }
+    const owner = teile.shift();
+    const rel = teile.join("/");
+    if (owner && rel && /\.md$/i.test(rel)) out.push({ owner, rel, label: m[1] });
+  }
+  return out;
+}
+
+// Alle Notizen, die dieser Nutzer sehen darf — eigene und freigegebene.
+// Dieselbe Menge, aus der auch die Suche schoepft.
+function erreichbareNotizen(me) {
+  const map = new Map();
+  const add = (owner, rel) => {
+    if (!/\.md$/i.test(rel)) return;
+    map.set(`${owner}/${rel}`, { owner, rel });
+  };
+  walkFiles(dirFor(me)).forEach((rel) => add(me, rel));
+  shares.listForUser(me).forEach((sh) => add(sh.owner, sh.filename));
+  return map;
+}
+
+router.get("/notes/netz/:owner/*", loginRequired, (req, res) => {
+  const me = req.session.user;
+  const owner = req.params.owner, fid = req.params[0];
+  if (!accessFor(me, owner, fid)) return res.sendStatus(404);
+  let text;
+  try { text = fs.readFileSync(pathFor(owner, fid), "utf8"); } catch (e) { return res.sendStatus(404); }
+
+  const schluessel = (o, r) => `${o}/${r}`;
+  const mitte = schluessel(owner, fid);
+  const erreichbar = erreichbareNotizen(me);
+
+  const knoten = (o, r) => {
+    const m = notemeta.get(o, r);
+    const u = o === me ? null : users.get(o);
+    return {
+      owner: o, rel: r,
+      label: m.title || labelFromName(r),
+      color: m.color || "", dark: notemeta.isDark(m.color),
+      status: notemeta.normalizeStatus(m.status),
+      fremd: o !== me, von: u ? u.display_name : o,
+    };
+  };
+
+  // ausgehend
+  const raus = [], tot = [];
+  const gesehen = new Set();
+  for (const v of verweiseIn(text)) {
+    const k = schluessel(v.owner, v.rel);
+    if (k === mitte || gesehen.has(k)) continue;
+    gesehen.add(k);
+    // "nicht erreichbar" fasst zwei Faelle zusammen — geloescht/umbenannt ODER
+    // nicht (mehr) freigegeben. Absichtlich ununterscheidbar: die Auskunft,
+    // dass es eine Notiz GIBT, gehoert nicht zu den Dingen, die ein Verweis
+    // preisgeben darf.
+    if (erreichbar.has(k) && fs.existsSync(pathFor(v.owner, v.rel))) raus.push(knoten(v.owner, v.rel));
+    else tot.push({ label: v.label || labelFromName(v.rel) });
+  }
+
+  // eingehend: wer verweist auf die Mitte?
+  const rein = [];
+  for (const [k, n] of erreichbar) {
+    if (k === mitte) continue;
+    let t;
+    try { t = fs.readFileSync(pathFor(n.owner, n.rel), "utf8"); } catch (e) { continue; }
+    if (t.indexOf("(relay/") === -1) continue;   // billiger Vorfilter
+    if (verweiseIn(t).some((v) => schluessel(v.owner, v.rel) === mitte)) rein.push(knoten(n.owner, n.rel));
+  }
+
+  // beidseitige Verbindungen stehen nur EINMAL im Netz, auf der Ausgangsseite
+  const reinKeys = new Set(rein.map((n) => schluessel(n.owner, n.rel)));
+  raus.forEach((n) => { n.beide = reinKeys.has(schluessel(n.owner, n.rel)); });
+  const rausKeys = new Set(raus.map((n) => schluessel(n.owner, n.rel)));
+
+  res.json({
+    mitte: knoten(owner, fid),
+    raus,
+    rein: rein.filter((n) => !rausKeys.has(schluessel(n.owner, n.rel))),
+    tot,
+  });
 });
 
 // Position eines Notiz-Icons auf dem "Desktop" merken (je Betrachter)

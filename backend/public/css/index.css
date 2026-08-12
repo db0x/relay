@@ -736,6 +736,22 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .note-main{position:relative}
 .note-view-actions{position:absolute;top:.15rem;right:.4rem;z-index:2;display:flex;gap:.25rem}
 .note-view-actions .iconbtn[hidden]{display:none}
+/* Loeschen steht abgesetzt ganz aussen: die Luecke ist der Schutz davor, es
+   beim Zielen auf die harmlosen Nachbarn mitzunehmen. */
+.note-view-actions .iconbtn-danger{margin-left:.9rem}
+/* Der Netz-Knopf zeigt, dass sein Modus laeuft. Anders als bei den Umschaltern
+   der Topbar, wo genau das NICHT gewollt war (siehe .view-btn): hier gibt es
+   drei Ansichten derselben Notiz, und man muss sehen, in welcher man steckt.
+   Das Icon ist ein <img> und folgt keinem currentColor — es wird darum per
+   filter auf Weiss gezogen (brightness(0) macht daraus Schwarz, invert(1)
+   Weiss). Dasselbe Mittel wie bei der Lupe im dunklen Anwendungs-Menue. */
+.note-view-actions .iconbtn[aria-pressed="true"]{
+  background:var(--brand);border-color:var(--brand);
+}
+.note-view-actions .iconbtn[aria-pressed="true"]:hover{
+  background:var(--brand-dark);border-color:var(--brand-dark);
+}
+.note-view-actions .iconbtn[aria-pressed="true"] img{filter:brightness(0) invert(1)}
 .dialog-note[open]{display:flex;flex-direction:column}
 /* Ein einheitlicher vertikaler Abstand (--note-gap) fuer ALLE Zonen-Abstaende:
    Vorschau|Metadaten|Fuss und die Trennlinien liegen dadurch gleichmaessig.
@@ -819,6 +835,11 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   flex:1 1 0;min-width:0;overflow:auto;
   background:#fff;padding:.4rem 1rem .4rem .2rem;
 }
+/* [hidden] allein reicht hier NICHT: OverlayScrollbars setzt seinem Behaelter
+   display:flex !important (die GRUNDREGEL in js/core/scrollbars.js nennt es).
+   Ohne dieses !important stand im Netz-Modus die Textvorschau weiter daneben,
+   statt ihm Platz zu machen. */
+.note-preview[hidden]{display:none !important}
 /* Splitter zwischen Editor und Vorschau: ziehen aendert die Aufteilung
    (index.js, persistiert im localStorage); im Nur-Lesen-Modus unsichtbar */
 .note-splitter{
@@ -1059,6 +1080,64 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   max-height:60vh;object-fit:contain;object-position:left;
 }
 .md-render img.doc-img.image-open{cursor:zoom-in}
+
+/* --- Notiz-Netz ---------------------------------------------------------
+   Dritter Modus der Lese-Ansicht (js/notes/netz.js): die Notiz in der Mitte,
+   links wer auf sie verweist, rechts worauf sie verweist. Die Richtung liest
+   man an der LAGE ab — deshalb braucht es keine Pfeilspitzen.
+   Die Kanten liegen als SVG darunter, die Knoten als Knoepfe darueber; die
+   Lage setzt JS in Pixeln, weil sie von der Fenstergroesse abhaengt. */
+/* overflow:auto statt hidden: bei vielen Verweisen waechst die Flaeche unter
+   den Knoten (js/notes/netz.js setzt die Hoehe) und man rollt, statt dass sich
+   Knoten uebereinanderlegen. */
+.note-netz{position:relative;flex:1;min-width:0;min-height:240px;overflow:auto}
+.note-netz[hidden]{display:none}
+.netz-kanten{position:absolute;top:0;left:0;width:100%;pointer-events:none}
+.netz-knoten-lage{position:absolute;top:0;left:0;width:100%}
+.netz-kante{
+  fill:none;stroke:var(--line);stroke-width:1.5;
+}
+/* Beidseitig = kraeftiger. Tote Ziele gestrichelt und blass. */
+.netz-kante-beide{stroke:var(--brand);stroke-width:2;opacity:.55}
+.netz-kante-tot{stroke-dasharray:3 4;opacity:.45}
+
+.netz-knoten{
+  position:absolute;width:132px;height:62px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;
+  padding:.3rem .4rem;border:1px solid var(--line);border-radius:10px;
+  background:var(--card);font:inherit;color:var(--ink);text-align:center;
+  cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease,transform .12s ease;
+}
+.netz-knoten:hover{border-color:var(--brand);box-shadow:0 4px 14px rgba(16,24,40,.12)}
+.netz-knoten:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.netz-ico{display:block;flex:0 0 auto}
+.netz-label{
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:.82rem;line-height:1.2;
+}
+.netz-von{font-size:.7rem;color:var(--muted);max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Erledigte gedaempft — dieselbe Regel wie bei den Desktop-Icons */
+.netz-erledigt{opacity:.5}
+/* die Mitte traegt sich kraeftiger und liegt ueber den Kanten */
+.netz-mitte{
+  border-color:var(--brand);box-shadow:0 6px 18px rgba(16,24,40,.14);
+  font-weight:600;z-index:2;
+}
+/* Ziel weg oder nicht freigegeben: nicht anklickbar, als Frage markiert */
+.netz-tot{cursor:default;border-style:dashed;color:var(--muted);background:transparent}
+.netz-tot:hover{border-color:var(--line);box-shadow:none}
+.netz-tot-mark{
+  display:grid;place-items:center;width:26px;height:26px;border-radius:50%;
+  border:1px dashed var(--line);color:var(--muted);font-size:.8rem;
+}
+/* Der Hinweis sitzt UNTER der Mitte — die wird auch ohne Nachbarn gezeichnet */
+.netz-leer{
+  position:absolute;inset:auto 12% 16% 12%;
+  margin:0;text-align:center;color:var(--muted);font-size:.9rem;line-height:1.5;
+}
+.netz-leer[hidden]{display:none}
+@media (prefers-reduced-motion:reduce){.netz-knoten{transition:none}}
 
 /* Frei platzierbare Notiz-Icons ("Desktop") neben der Liste --------------
    Overlay-Ebene ueber die ganze Seite, laesst Klicks durch (pointer-events:

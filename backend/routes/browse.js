@@ -18,7 +18,7 @@ const noteicon = require("../noteicon");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
 const { BLANKS, BASE, DOCTYPE, IMAGE_TYPES, MAX_UPLOAD_MB } = require("../config");
-const { formatDate, formatDuration } = require("../format");
+const { formatDate, formatDuration, NOTE_RE, labelFromName } = require("../format");
 const { loginRequired } = require("./auth");
 
 const router = express.Router();
@@ -44,19 +44,8 @@ function isImageName(name) {
   return !!IMAGE_TYPES[(name.split(".").pop() || "").toLowerCase()];
 }
 
-// Notizen heissen {uuid}-{Titel}.md — angezeigt (Liste, Dialoge, Rueckfragen)
-// wird nur der Titel; alle Links/Aktionen laufen weiter ueber den vollen Namen
-const NOTE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.*)\.md$/i;
-function labelFromName(name) {
-  // Immer nur der Dateiname: hier kommt teils der volle relative Pfad an
-  // (Datei in einem Unterordner). Ohne basename stand in der Liste
-  // "Steuer/Nebenkosten.xlsx" statt "Nebenkosten.xlsx".
-  const base = path.basename(name);
-  const m = base.match(NOTE_RE);
-  // Unterstriche stammen aus secureFilename (Leerzeichen im Titel) —
-  // fuer die Anzeige wieder zu Leerzeichen
-  return m ? (m[1].replace(/_/g, " ") || "Notiz") : base;
-}
+// NOTE_RE/labelFromName stehen in ../format.js — das Notiz-Netz braucht
+// dieselbe Ableitung (routes/notes.js).
 
 // Anzeigename einer Notiz. Der Dateiname traegt nur ASCII (secureFilename),
 // darum steht der echte Titel — mit Emojis, Umlauten, ss — in note_meta.title.

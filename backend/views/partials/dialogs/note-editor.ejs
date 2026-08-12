@@ -21,20 +21,35 @@
           Loeschen steht bewusst AUSSEN links — die haeufige Aktion
           ("Bearbeiten") liegt naeher an der Ecke, in die man zielt. %>
       <div class="note-view-actions">
+        <%# Reihenfolge: Bearbeiten - Netz - PDF - <Abstand> - Loeschen.
+            Die drei harmlosen Ansichten stehen zusammen, das Loeschen steht
+            ganz aussen und durch eine Luecke abgesetzt (index.css) — so
+            greift man beim Zielen auf "Bearbeiten" nicht daneben. %>
+        <button type="button" class="iconbtn" id="note-edit"
+                data-tip="Bearbeiten" aria-label="Bearbeiten" hidden>
+          <img src="<%= base %>/static/img/edit.svg" alt="" width="16" height="16">
+        </button>
+        <%# Dritter Modus der Lese-Ansicht: das Netz der Verweise
+            (js/notes/netz.js). 22px statt der 16 der Nachbarn: tree.svg zeichnet
+            auf einer 22er-Flaeche mit 3px Rand, die Zeichnung selbst ist damit
+            genauso gross wie bei delete/pdf/edit.
+            aria-pressed traegt den Zustand — und ist hier auch SICHTBAR
+            (index.css), man muss ja wissen, in welcher Ansicht man steckt. %>
+        <button type="button" class="iconbtn" id="note-netz-btn"
+                data-tip="Verbundene Notizen" aria-label="Verbundene Notizen"
+                aria-pressed="false" hidden>
+          <img src="<%= base %>/static/img/tree.svg" alt="" width="22" height="22">
+        </button>
+        <button type="button" class="iconbtn" id="note-pdf"
+                data-tip="Als PDF öffnen" aria-label="Als PDF öffnen" hidden>
+          <img src="<%= base %>/static/img/pdf.svg" alt="" width="16" height="16">
+        </button>
         <%# form-Attribut statt Verschachtelung: das Loesch-Formular kann nicht
             IM Notiz-Formular liegen (Formulare lassen sich nicht schachteln),
             steht deshalb darunter und wird von hier aus abgeschickt. %>
         <button type="submit" form="note-del-form" class="iconbtn iconbtn-danger" id="note-delete"
                 data-tip="Notiz löschen" aria-label="Notiz löschen" hidden>
           <img src="<%= base %>/static/img/delete.svg" alt="" width="16" height="16">
-        </button>
-        <button type="button" class="iconbtn" id="note-pdf"
-                data-tip="Als PDF öffnen" aria-label="Als PDF öffnen" hidden>
-          <img src="<%= base %>/static/img/pdf.svg" alt="" width="16" height="16">
-        </button>
-        <button type="button" class="iconbtn" id="note-edit"
-                data-tip="Bearbeiten" aria-label="Bearbeiten" hidden>
-          <img src="<%= base %>/static/img/edit.svg" alt="" width="16" height="16">
         </button>
       </div>
       <div class="note-editor-pane">
@@ -110,6 +125,15 @@
           und die Absaetze stuenden nebeneinander statt untereinander. %>
       <div class="note-preview" id="note-preview" aria-label="Vorschau der Notiz">
         <div class="md-render" id="note-preview-body"></div>
+      </div>
+      <%# Netz der Verweise — dritter Modus, tritt im Lese-Modus an die Stelle
+          der Vorschau. Kanten als SVG, Knoten als echte Knoepfe darueber
+          (js/notes/netz.js): so tragen sie Text-Kuerzung, Hover-Vorschau und
+          Tastaturbedienung ohne SVG-Klimmzuege. %>
+      <div class="note-netz" id="note-netz" hidden>
+        <svg class="netz-kanten" id="netz-kanten" aria-hidden="true"></svg>
+        <div class="netz-knoten-lage" id="netz-knoten"></div>
+        <p class="netz-leer" id="netz-leer" hidden></p>
       </div>
     </div>
     <%# Kompaktes, horizontales Edit-Panel — Icons (users/place) markieren die
