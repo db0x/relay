@@ -163,9 +163,12 @@ router.post("/users/password", adminRequired, async (req, res) => {
   }
 
   // Dieselbe Bremse wie beim Anmelden: sechs Ziffern waeren sonst durchprobiert.
+  // Bewusst OHNE res.status(429): diese Antwort ist eine Weiterleitung, und
+  // res.redirect setzt den Status ohnehin auf 302 (nachgemessen). Ein 429
+  // davorzuschreiben taeuschte nur etwas vor, das nicht beim Browser ankommt —
+  // die Anmeldeseite kann es, die rendert statt umzuleiten.
   const gebremst = guard.pruefe(me, req.ip);
   if (gebremst) {
-    res.status(429);
     return fertig("err", `Zu viele Fehlversuche. Bitte in ${Math.ceil(gebremst.sekunden / 60)} Minuten erneut versuchen.`);
   }
   if (!zwei.pruefeEingabe(me, req.body.code)) {

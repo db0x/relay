@@ -134,6 +134,51 @@ test.describe("Notiz-Netz", () => {
     await expect.poll(grund, { timeout: 2000 }).toBe(aus);
   });
 
+  test("eine fremde Notiz nennt ihren Besitzer mit Bild — ohne dass es klemmt",
+    async ({ page, browser }) => {
+      // Zwei Zeilen im Knoten (Titel + Besitzer) haben ihn frueher gesprengt:
+      // die Lage wurde mit einer FESTEN Hoehe gerechnet, der Inhalt stand
+      // unten heraus. Jetzt setzt JS den Mittelpunkt und das CSS zentriert.
+      const zeit = uniqueName("");
+      const andere = await (async () => {
+        const ctx = await browser.newContext({ baseURL: new URL(page.url()).origin });
+        const p = await ctx.newPage();
+        await loginAsAdmin(p);
+        const u = await createUser(p, { display: "Maryna Musterfrau" });
+        await ctx.close();
+        return u;
+      })();
+
+      const ctx2 = await browser.newContext({ baseURL: new URL(page.url()).origin });
+      const p2 = await ctx2.newPage();
+      await login(p2, andere.username, andere.password);
+      await notizMitVerweisen(p2, "Garten" + zeit);
+      await p2.goto("/?p=Notizen");
+      await waitAppReady(p2);
+      await shareFile(p2, "Garten" + zeit, ich.username, "view");
+      await ctx2.close();
+
+      await notizMitVerweisen(page, "Meins" + zeit, ["Garten" + zeit]);
+      await oeffneNetz(page, "Meins" + zeit);
+
+      const fremd = page.locator(".netz-knoten.netz-fremd");
+      await expect(fremd).toHaveCount(1);
+      await expect(fremd.locator(".netz-von-name")).toHaveText("Maryna Musterfrau");
+      // Bild oder Anfangsbuchstabe — beides traegt dieselbe Klasse
+      await expect(fremd.locator(".person-av")).toHaveCount(1);
+
+      // Nichts steht heraus: der Knoten ist so hoch wie sein Inhalt …
+      const passt = await fremd.evaluate((e) => e.scrollHeight <= e.clientHeight + 1);
+      expect(passt, "Inhalt ragt aus dem Knoten heraus").toBe(true);
+      // … und die zweite Zeile liegt vollstaendig darin
+      const drin = await fremd.evaluate((e) => {
+        const k = e.getBoundingClientRect();
+        const v = e.querySelector(".netz-von").getBoundingClientRect();
+        return v.bottom <= k.bottom + 1 && v.top >= k.top - 1;
+      });
+      expect(drin, "Besitzer-Zeile liegt ausserhalb des Knotens").toBe(true);
+    });
+
   test("ohne Verweise sagt es das, statt leer zu bleiben", async ({ page }) => {
     await createNote(page, "Allein " + uniqueName("n"));
     await oeffneNetz(page, "Allein");

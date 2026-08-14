@@ -204,7 +204,10 @@ router.get("/notes/netz/:owner/*", loginRequired, (req, res) => {
       label: m.title || labelFromName(r),
       color: m.color || "", dark: notemeta.isDark(m.color),
       status: notemeta.normalizeStatus(m.status),
+      // Bei fremden Notizen steht der Besitzer am Knoten — mit Bild, wenn er
+      // eines hat (sonst zeichnet die Anzeige seinen Anfangsbuchstaben).
       fremd: o !== me, von: u ? u.display_name : o,
+      hatBild: o !== me && avatars.has(o),
     };
   };
 

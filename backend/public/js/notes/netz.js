@@ -13,9 +13,14 @@
 // Text-Kuerzung, Hover-Vorschau, Fokus und Tastaturbedienung gibt es in HTML
 // geschenkt, in SVG waeren sie Handarbeit.
 import { paintNoteIcon } from "./color.js";
+import { personAvatar } from "./summary.js";
 
 var KNOTEN_B = 132;  // Breite eines Knotens (muss zur CSS-Breite passen)
-var KNOTEN_H = 62;
+// Nominalhoehe NUR fuer die Abstandsrechnung — die echte Hoehe waechst mit
+// dem Inhalt (fremde Notizen tragen eine zweite Zeile mit dem Besitzer).
+// Darum der groessere Wert: er muss den schlimmsten Fall abdecken, sonst
+// ruecken zwei Knoten bei knapper Hoehe ineinander.
+var KNOTEN_H = 82;
 var RAND = 10;
 // Oben rechts schweben die Aktionen der Lese-Ansicht (loeschen/Netz/PDF/
 // bearbeiten) ueber dem Panel — so viel Platz bleibt darum oben frei.
@@ -72,10 +77,16 @@ export function initNetz(config) {
     t.textContent = n.label;
     b.appendChild(t);
     // Wem gehoert sie? Nur bei fremden — bei eigenen waere es Rauschen.
+    // Mit Bild, wie ueberall sonst auch (Personen-Chips, Freigabe-Kaertchen).
     if (n.fremd) {
       var v = document.createElement("span");
       v.className = "netz-von";
-      v.textContent = n.von;
+      v.appendChild(personAvatar(
+        { username: n.owner, name: n.von, hasAvatar: n.hatBild }, 16, config.baseUrl));
+      var name = document.createElement("span");
+      name.className = "netz-von-name";
+      name.textContent = n.von;
+      v.appendChild(name);
       b.appendChild(v);
     }
     b.title = n.label + (n.fremd ? " · von " + n.von : "");
@@ -138,8 +149,11 @@ export function initNetz(config) {
         // mehr — dann rueckt der Behaelter ins Scrollen (CSS min-height)
         var y = OBEN + (h - OBEN) * (i + 1) / (liste.length + 1);
         var el = n.tot ? totEl(n) : knotenEl(n, rolle);
-        el.style.left = Math.round(x - KNOTEN_B / 2) + "px";
-        el.style.top = Math.round(y - KNOTEN_H / 2) + "px";
+        // Mittelpunkt setzen, das Zentrieren macht das CSS (translate -50%).
+        // Mit einer festen Hoehe zu rechnen ging schief, sobald ein Knoten zwei
+        // Zeilen trug: der Inhalt stand dann unten heraus.
+        el.style.left = Math.round(x) + "px";
+        el.style.top = Math.round(y) + "px";
         lage.appendChild(el);
         gesetzt.push({ n: n, el: el, x: x, y: y, rolle: rolle });
       });
@@ -151,8 +165,8 @@ export function initNetz(config) {
     // Mitte zuletzt: sie liegt ueber den Kanten
     var m = knotenEl(daten.mitte, "mitte");
     m.classList.add("netz-mitte");
-    m.style.left = Math.round(mx - KNOTEN_B / 2) + "px";
-    m.style.top = Math.round(my - KNOTEN_H / 2) + "px";
+    m.style.left = Math.round(mx) + "px";
+    m.style.top = Math.round(my) + "px";
     m.title = daten.mitte.label + " · zurück zum Text";
     m.addEventListener("click", function () { if (config.aufMitte) config.aufMitte(); });
     lage.appendChild(m);

@@ -746,12 +746,18 @@ body:not(.desk-ready) .note-desktop{opacity:0}
    filter auf Weiss gezogen (brightness(0) macht daraus Schwarz, invert(1)
    Weiss). Dasselbe Mittel wie bei der Lupe im dunklen Anwendungs-Menue. */
 .note-view-actions .iconbtn[aria-pressed="true"]{
-  background:var(--brand);border-color:var(--brand);
+  /* Dezent mit Absicht: der Modus ist eine Nebeninformation, kein Alarm.
+     Ein kurzer Strich unter dem Icon wie bei einem Reiter, dazu eine kaum
+     merkliche Fuellung — Rand und Icon bleiben unveraendert.
+     ::before, NICHT ::after: das ::after jedes [data-tip] ist der Tooltip
+     (siehe [data-tip]::after weiter unten), das waere sonst weg. */
+  position:relative;background:#f4f8ff;
 }
-.note-view-actions .iconbtn[aria-pressed="true"]:hover{
-  background:var(--brand-dark);border-color:var(--brand-dark);
+.note-view-actions .iconbtn[aria-pressed="true"]::before{
+  content:"";position:absolute;left:50%;transform:translateX(-50%);
+  bottom:4px;width:14px;height:2px;border-radius:2px;background:var(--brand);
 }
-.note-view-actions .iconbtn[aria-pressed="true"] img{filter:brightness(0) invert(1)}
+.note-view-actions .iconbtn[aria-pressed="true"]:hover{background:#eaf1ff}
 .dialog-note[open]{display:flex;flex-direction:column}
 /* Ein einheitlicher vertikaler Abstand (--note-gap) fuer ALLE Zonen-Abstaende:
    Vorschau|Metadaten|Fuss und die Trennlinien liegen dadurch gleichmaessig.
@@ -1101,8 +1107,12 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .netz-kante-beide{stroke:var(--brand);stroke-width:2;opacity:.55}
 .netz-kante-tot{stroke-dasharray:3 4;opacity:.45}
 
+/* Die Lage setzt JS als MITTELPUNKT, zentriert wird hier — so darf der Knoten
+   so hoch werden, wie sein Inhalt braucht (fremde Notizen tragen eine zweite
+   Zeile mit dem Besitzer). */
 .netz-knoten{
-  position:absolute;width:132px;height:62px;
+  position:absolute;width:132px;min-height:62px;
+  transform:translate(-50%,-50%);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;
   padding:.3rem .4rem;border:1px solid var(--line);border-radius:10px;
   background:var(--card);font:inherit;color:var(--ink);text-align:center;
@@ -1115,8 +1125,11 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:.82rem;line-height:1.2;
 }
-.netz-von{font-size:.7rem;color:var(--muted);max-width:100%;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.netz-von{
+  display:flex;align-items:center;gap:.3em;max-width:100%;min-width:0;
+  font-size:.7rem;color:var(--muted);
+}
+.netz-von-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Erledigte gedaempft — dieselbe Regel wie bei den Desktop-Icons */
 .netz-erledigt{opacity:.5}
 /* die Mitte traegt sich kraeftiger und liegt ueber den Kanten */
