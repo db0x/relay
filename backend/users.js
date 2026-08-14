@@ -102,11 +102,15 @@ function resetToken(username) {
   return tok;
 }
 
-// Setzt das Passwort und loescht damit zugleich den Zwang, es zu aendern.
-async function setPassword(username, password) {
+// Setzt das Passwort. Ohne zweites Argument faellt damit auch der Zwang, es
+// zu aendern (der Nutzer hat es ja selbst gewaehlt).
+// mustChange=true ist der Admin-Fall: ein von jemand anderem gesetztes Passwort
+// ist ein Einmal-Passwort — der Nutzer muss beim naechsten Anmelden sein
+// eigenes waehlen, sonst kennt der Admin es dauerhaft mit.
+async function setPassword(username, password, mustChange = false) {
   const hash = await bcrypt.hash(password, COST);
-  const r = db().prepare("UPDATE users SET pw_hash=?, must_change=0 WHERE username=?")
-    .run(hash, username);
+  const r = db().prepare("UPDATE users SET pw_hash=?, must_change=? WHERE username=?")
+    .run(hash, mustChange ? 1 : 0, username);
   if (r.changes === 0) throw new Error(`Unbekannter Nutzer: ${username}`);
 }
 

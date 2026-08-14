@@ -17,6 +17,8 @@ const { formatDate, formatDuration } = require("../format");
 const { loginRequired } = require("./auth");
 const protokoll = require("../eventlog");
 const { beendeSitzungenVon } = require("../sessionstore");
+const zwei = require("../twofactor");
+const guard = require("../loginguard");
 
 const router = express.Router();
 
@@ -122,6 +124,62 @@ router.post("/users/lock", adminRequired, (req, res) => {
       : `${row.display_name} ist wieder entsperrt.`);
   }
   res.redirect(`${BASE}/`);
+});
+
+// Passwort eines Nutzers zuruecksetzen — NUR mit der zweiten Stufe des Admins.
+//
+// Warum die zweite Stufe hier auch dann, wenn ADMIN_2FA aus ist: das ist die
+// eine Admin-Aktion, mit der man in fremde Dokumente kommt, ohne dass jemand
+// es merkt. Ein Sperren faellt sofort auf, ein Loeschen erst recht — ein
+// gesetztes Passwort nicht. Wer also an einer offenen Admin-Sitzung sitzt,
+// soll damit trotzdem nicht in fremde Daten spazieren koennen.
+// Ist keine zweite Stufe eingerichtet, geht die Aktion GAR NICHT.
+//
+// Weitere Regeln:
+//   - nur fuer Nicht-Admins (bei einem Admin erst die Rechte entziehen) und
+//     nie fuer sich selbst — dafuer gibt es "Mein Konto"
+//   - das neue Passwort ist ein EINMAL-Passwort: must_change zwingt den Nutzer
+//     beim naechsten Anmelden zu einem eigenen (users.setPassword)
+//   - die Sitzungen des Nutzers enden sofort, sonst liefe eine offene Sitzung
+//     mit dem alten Zugang weiter
+router.post("/users/password", adminRequired, async (req, res) => {
+  const me = req.session.user;
+  const target = (req.body.target || "").trim();
+  const pw1 = String(req.body.pw1 || ""), pw2 = String(req.body.pw2 || "");
+  const row = users.get(target);
+  const fertig = (art, text) => { req.flash(art, text); res.redirect(`${BASE}/`); };
+
+  if (!row) return fertig("err", "Unbekannter Nutzer.");
+  if (target === me) return fertig("err", "Das eigene Passwort änderst du in „Mein Konto“.");
+  if (row.is_admin) return fertig("err", `${row.display_name} ist Admin — erst die Admin-Rechte entziehen.`);
+  if (pw1.length < 8) return fertig("err", "Das Passwort braucht mindestens 8 Zeichen.");
+  if (pw1 !== pw2) return fertig("err", "Die beiden Passwörter stimmen nicht überein.");
+
+  const ich = users.get(me);
+  if (!ich || !ich.totp_active) {
+    protokoll.notiere("admin.pwreset.ohne2fa", req, me, target);
+    return fertig("err", "Dafür braucht dein Zugang eine zweite Stufe — "
+      + "richte sie in „Mein Konto“ ein.");
+  }
+
+  // Dieselbe Bremse wie beim Anmelden: sechs Ziffern waeren sonst durchprobiert.
+  const gebremst = guard.pruefe(me, req.ip);
+  if (gebremst) {
+    res.status(429);
+    return fertig("err", `Zu viele Fehlversuche. Bitte in ${Math.ceil(gebremst.sekunden / 60)} Minuten erneut versuchen.`);
+  }
+  if (!zwei.pruefeEingabe(me, req.body.code)) {
+    guard.fehlversuch(me, req.ip);
+    protokoll.notiere("admin.pwreset.fail", req, me, target);
+    return fertig("err", "Der Code stimmt nicht — das Passwort wurde NICHT geändert.");
+  }
+  guard.erfolg(me);
+
+  await users.setPassword(target, pw1, true);
+  beendeSitzungenVon(target);
+  protokoll.notiere("admin.pwreset", req, me, target);
+  fertig("ok", `Passwort von ${row.display_name} gesetzt. `
+    + "Beim nächsten Anmelden muss ein eigenes gewählt werden; offene Sitzungen sind beendet.");
 });
 
 // Nutzer MITSAMT allen Daten loeschen: DB-Zeile, Freigaben (beide Richtungen),

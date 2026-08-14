@@ -159,8 +159,22 @@ function keksWert(req, name) {
   return null;
 }
 
+// Eine Eingabe pruefen, ohne dass der Nutzer sagen muss, WAS er tippt:
+// ein Wiederherstellungscode ist laenger als die sechs Ziffern und enthaelt
+// Bindestriche. Wiederherstellungscodes werden dabei VERBRAUCHT.
+// Eine Stelle fuer beide Aufrufer — die Anmeldung (routes/twofactor.js) und
+// das Zuruecksetzen eines Passworts durch einen Admin (routes/admin.js);
+// sonst driftet auseinander, was als zweite Stufe gilt.
+function pruefeEingabe(username, eingabe) {
+  const roh = String(eingabe || "").trim();
+  if (!roh) return false;
+  return roh.replace(/\s|-/g, "").length > totp.STELLEN
+    ? verbraucheWiederherstellungscode(username, roh)
+    : pruefeCode(username, roh);
+}
+
 module.exports = {
-  TAGE_VERTRAUEN, ANZAHL_CODES, KEKS, keksWert,
+  TAGE_VERTRAUEN, ANZAHL_CODES, KEKS, keksWert, pruefeEingabe,
   beginneEinrichtung, geheimnisVon, istAktiv, schliesseEinrichtungAb, schalteAb,
   pruefeCode, neueWiederherstellungscodes, verbraucheWiederherstellungscode, offeneCodes,
   merkeGeraet, geraetBekannt, vergissAlleGeraete, geraeteZahl, raeumeAuf,

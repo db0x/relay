@@ -1,4 +1,39 @@
 <% if (isAdmin) { %>
+<%# Passwort-Zuruecksetzen, ein Dialog je Nutzer (wie die Freigabe-Dialoge der
+    Dateiliste). Sie stehen NEBEN dem Verwaltungsdialog, nicht darin: ein
+    <dialog> im <dialog> waere zwar erlaubt, aber das Stapeln uebernimmt
+    index.js fuer Geschwister sauberer. %>
+<% allUsers.forEach(function(u, i){ %>
+<% if (!u.is_admin && u.username !== me) { %>
+<dialog id="dlg-pw-<%= i %>" class="dialog">
+  <header class="dialog-head">
+    <img src="<%= base %>/static/img/users.svg" alt="" width="22" height="22">
+    <h2>Passwort setzen</h2>
+    <form method="dialog"><button class="dialog-x" aria-label="Schließen">×</button></form>
+  </header>
+  <form class="stack-form" action="<%= base %>/users/password" method="post" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="target" value="<%= u.username %>">
+    <p class="tokhint">Neues Passwort für <strong><%= u.display_name %></strong>.
+      Es gilt nur einmal — beim nächsten Anmelden muss ein eigenes gewählt
+      werden. Offene Sitzungen enden sofort.</p>
+    <input class="field" name="pw1" type="password" required minlength="8"
+           placeholder="Neues Passwort (min. 8 Zeichen)"
+           autocomplete="new-password" aria-label="Neues Passwort">
+    <input class="field" name="pw2" type="password" required minlength="8"
+           placeholder="Neues Passwort (wiederholen)"
+           autocomplete="new-password" aria-label="Neues Passwort wiederholen">
+    <label class="dialog-label" for="pw-code-<%= i %>">Dein Code aus der Authenticator-App</label>
+    <%# Die zweite Stufe des ADMINS, nicht die des Nutzers: diese Aktion oeffnet
+        fremde Daten, ohne dass es auffaellt (siehe routes/admin.js). %>
+    <input class="field" name="code" id="pw-code-<%= i %>" required
+           inputmode="numeric" autocomplete="one-time-code" spellcheck="false"
+           placeholder="6-stelliger Code oder Wiederherstellungscode">
+    <button class="btn btn-sm btn-danger dialog-submit">Passwort setzen</button>
+  </form>
+</dialog>
+<% } %>
+<% }); %>
 <dialog id="dlg-users" class="dialog dialog-xwide dialog-glass">
   <header class="dialog-head">
     <img src="<%= base %>/static/img/relay.svg" alt="" width="22" height="22">
@@ -13,7 +48,7 @@
         <tr><th>Nutzer</th><th class="num">Speicher</th><th>Status</th><th></th></tr>
       </thead>
       <tbody>
-        <% allUsers.forEach(function(u){ %>
+        <% allUsers.forEach(function(u, i){ %>
         <tr>
           <td>
             <div class="user-cell">
@@ -58,6 +93,12 @@
                 <%= u.locked ? "entsperren" : "sperren" %>
               </button>
             </form>
+            <% } %>
+            <%# Passwort zuruecksetzen: nur fuer Nicht-Admins, und der Dialog
+                dazu verlangt die zweite Stufe des Admins (routes/admin.js) %>
+            <% if (!u.is_admin) { %>
+            <button type="button" class="btn btn-secondary btn-sm"
+                    data-dialog="dlg-pw-<%= i %>">Passwort setzen</button>
             <% } %>
             <%# loeschen nur fuer Nicht-Admins (erst Rechte entziehen) %>
             <% if (!u.is_admin) { %>
