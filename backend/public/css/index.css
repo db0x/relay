@@ -1130,8 +1130,6 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   font-size:.7rem;color:var(--muted);
 }
 .netz-von-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* Erledigte gedaempft — dieselbe Regel wie bei den Desktop-Icons */
-.netz-erledigt{opacity:.5}
 /* die Mitte traegt sich kraeftiger und liegt ueber den Kanten */
 .netz-mitte{
   border-color:var(--brand);box-shadow:0 6px 18px rgba(16,24,40,.14);

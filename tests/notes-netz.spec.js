@@ -136,6 +136,10 @@ test.describe("Notiz-Netz", () => {
 
   test("eine fremde Notiz nennt ihren Besitzer mit Bild — ohne dass es klemmt",
     async ({ page, browser }) => {
+      // Drei Anmeldungen (bcrypt!), zwei Kontexte, eine Freigabe: allein
+      // laeuft das in gut zehn Sekunden, im vollen Lauf reisst es die
+      // 30-Sekunden-Grenze. Der Test ist schwer, nicht kaputt.
+      test.slow();
       // Zwei Zeilen im Knoten (Titel + Besitzer) haben ihn frueher gesprengt:
       // die Lage wurde mit einer FESTEN Hoehe gerechnet, der Inhalt stand
       // unten heraus. Jetzt setzt JS den Mittelpunkt und das CSS zentriert.
@@ -210,6 +214,7 @@ test.describe("Notiz-Netz", () => {
 
   test("ein Rueckverweis aus einer NICHT freigegebenen Notiz taucht nicht auf",
     async ({ page, browser }) => {
+      test.slow();   // wie oben: viele Anmeldungen und zwei Kontexte
       // Der eigentliche Sicherheitsfall: sonst verriete das Netz Titel und
       // Existenz fremder Notizen, die mir niemand freigegeben hat.
       const zeit = uniqueName("");

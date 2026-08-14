@@ -54,7 +54,10 @@ export function initNetz(config) {
     var b = document.createElement("button");
     b.type = "button";
     b.className = "netz-knoten netz-" + rolle;
-    if (n.status === "closed") b.classList.add("netz-erledigt");
+    // Der Bearbeitungsstand faerbt hier BEWUSST nichts ein: im Netz geht es um
+    // die Verbindungen, und gedaempfte Knoten lasen sich wie "weniger wichtig".
+    // Auf dem Desktop und im Board bleibt die Daempfung — dort ist der Stand
+    // der Gegenstand der Ansicht. (n.status kommt weiter mit.)
     if (n.fremd) b.classList.add("netz-fremd");
     if (n.beide) b.classList.add("netz-beide");
 
