@@ -256,6 +256,10 @@ test.describe("Suche — lange Trefferliste", () => {
   test("die Bildlaufleiste verdeckt keine Treffer", async ({ page }) => {
     await suche(page, stamm.toLowerCase());
     const bar = page.locator(".app-search-scroll .os-scrollbar-vertical");
+    // Zeiger in die Trefferliste: seit autoHide:"leave" (js/core/scrollbars.js)
+    // zeigt sich die Leiste nur dort. Geprueft wird hier ihre LAGE — dass sie
+    // keinen Treffer verdeckt —, nicht wann sie erscheint.
+    await page.locator(".app-search-scroll").hover();
     await expect(bar).toBeVisible();
     await expect(bar).not.toHaveClass(/os-scrollbar-unusable/);
     // kein Treffer ragt unter den Griff

@@ -7,8 +7,11 @@ if (window.marked) marked.use({ gfm: true, breaks: true });
 // den System-Browser durch, normale Navigation bliebe in der App haengen.
 // Interne/relative Links und Anker wuerden mitten in der App auf
 // Nirgendwo-Pfade navigieren -> href entfernen, sie werden reiner Text.
+// Ausgenommen sind Verweise auf eigene Dokumente (.doc-link): die hat
+// notes/doclinks.js VORHER schon auf ein echtes Ziel umgeschrieben.
 export function externalizeLinks(root) {
   root.querySelectorAll("a[href]").forEach(function (a) {
+    if (a.classList.contains("doc-link")) return;
     if (/^(https?:|mailto:)/i.test(a.getAttribute("href"))) {
       a.target = "_blank";
       a.rel = "noopener noreferrer";

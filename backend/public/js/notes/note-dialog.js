@@ -10,6 +10,9 @@ import { NOTE_COLOR_DEFAULT, noteColorValue, paintNoteIcon, initNoteColorPicker 
 import { renderNoteSummary } from "./summary.js";
 import { externalizeLinks, renderMarkdown, highlightCode, createMarkdownActions, bindMarkdownToolbar } from "./markdown.js";
 import { initEmoji, bindEmoticons } from "./emoji.js";
+import { bindDocLinks } from "./doclinks.js";
+import { initMention } from "./mention.js";
+import { initNetz } from "./netz.js";
 
 // baseUrl: Basis-URL der Notiz-Endpunkte (.../notes/create ohne den Suffix).
 // Rueckgabe: { openNote } — von notes.js an das Hover-/Klick-Modul weitergereicht.
@@ -101,9 +104,23 @@ export function initNoteDialog(baseUrl) {
       return;
     }
     notePreview.innerHTML = html;
+    // Verweise auf Dokumente VOR externalizeLinks: der wuerde ihnen sonst als
+    // vermeintlich internen Links den href abnehmen
+    bindDocLinks(notePreview, {
+      baseUrl: baseUrl,
+      openNote: function (o, r, l) { if (hooks.open) hooks.open(o, r, l); },
+      noteTip: function (a, o, r) { if (hooks.tip) hooks.tip(a, o, r); },
+      hideNoteTip: function () { if (hooks.hide) hooks.hide(); },
+    });
     externalizeLinks(notePreview);
     highlightCode(notePreview);
   }
+
+  // Verweise im gerenderten Text verhalten sich wie die Notiz selbst:
+  // Vorschau beim Hinfahren, Oeffnen beim Klick. Beides kommt von der
+  // Hover-/Klick-Bindung — und die kennt diesen Dialog erst, wenn es ihn gibt,
+  // wird also von aussen nachgereicht (notes.js).
+  var hooks = {};
 
   function onNoteChange() {
     var v = noteVal();
@@ -117,6 +134,14 @@ export function initNoteDialog(baseUrl) {
   [noteDue, noteOrt].forEach(function (el) { el.addEventListener("input", onNoteChange); });
 
   var mdActions = createMarkdownActions(function () { return noteCM; });
+
+  // Verlinken per @: die Auswahl liegt in der Editor-Spalte, damit sie beim
+  // Verschieben und Skalieren des Dialogs mitwandert
+  var mention = initMention({
+    getCM: function () { return noteCM; },
+    pane: noteForm.querySelector(".note-editor-pane"),
+    baseUrl: baseUrl,
+  });
 
   function ensureNoteEditor() {
     if (noteCM || !window.CodeMirror) return;
@@ -140,6 +165,8 @@ export function initNoteDialog(baseUrl) {
     // Kuerzel wie :) beim Tippen ersetzen — erst jetzt moeglich, der Editor
     // entsteht ja beim ersten Oeffnen des Dialogs
     bindEmoticons(noteCM);
+    // ebenso das Verlinken per @
+    mention.bindeCM(noteCM);
   }
   noteText.addEventListener("input", onNoteChange); // Fallback ohne CodeMirror
 
@@ -148,26 +175,84 @@ export function initNoteDialog(baseUrl) {
   var noteCanEdit = false;
   var noteEditBtn = document.getElementById("note-edit");
   var notePdfBtn = document.getElementById("note-pdf");
+  var noteDelBtn = document.getElementById("note-delete");
+  var noteDelForm = document.getElementById("note-del-form");
+  // Ziel des Loeschens; null = kein Loeschen (fremde Notiz oder neue Notiz)
+  var noteDeleteUrl = null;
   var noteExportUrl = null; // /notes/pdf/... — nur bei gespeicherten Notizen
+
+  // Dritter Modus der Lese-Ansicht: das Netz der Verweise (js/notes/netz.js).
+  // Er bleibt beim Weiterwandern AN — klickt man dort einen Knoten an, wird
+  // die Notiz wirklich geoeffnet (Titel, Rechte, Loeschen-Ziel ziehen mit) und
+  // das Netz zeichnet sich um die neue Mitte.
+  var noteNetzEl = document.getElementById("note-netz");
+  var noteNetzBtn = document.getElementById("note-netz-btn");
+  var notePreviewWrap = document.getElementById("note-preview");
+  var netzAn = false;
+  var netz = initNetz({
+    baseUrl: baseUrl,
+    wurzel: noteNetzEl,
+    openNote: function (o, r, l) { if (hooks.open) hooks.open(o, r, l); },
+    noteTip: function (a, o, r) { if (hooks.tip) hooks.tip(a, o, r); },
+    hideNoteTip: function () { if (hooks.hide) hooks.hide(); },
+    aufMitte: function () { netzAn = false; setNoteMode(false); },
+  });
+
+  // Besitzer und Pfad der offenen Notiz — sie stecken in der Speichern-Adresse
+  // (.../notes/save/<besitzer>/<pfad>); eine noch nicht gespeicherte Notiz hat
+  // keine und bekommt darum auch kein Netz.
+  function aktuellesZiel() {
+    var i = noteForm.action.indexOf("/notes/save/");
+    if (i === -1) return null;
+    var teile = noteForm.action.slice(i + "/notes/save/".length).split("/");
+    try { teile = teile.map(decodeURIComponent); } catch (e) { return null; }
+    var owner = teile.shift();
+    var rel = teile.join("/");
+    return owner && rel ? { owner: owner, rel: rel } : null;
+  }
+
+  // Groesse wird je Modus getrennt gemerkt (siehe setNoteMode). Der Schluessel
+  // haengt an der Klasse, nicht an einem Merker: setNoteMode setzt sie als
+  // Erstes, danach fragen Anwenden UND Merken dieselbe Quelle.
+  function groesseKey() {
+    return noteDlg.classList.contains("note-view")
+      ? "relay-note-view-size" : "relay-note-size";
+  }
+
   function setNoteMode(editMode) {
     noteDlg.classList.toggle("note-view", !editMode);
     // evtl. beim Resizen eingefrorene Position aufheben -> wieder zentriert
     noteDlg.style.left = noteDlg.style.top = noteDlg.style.margin = "";
-    if (editMode) {
-      // gemerkte Groesse anwenden, aber nie groesser als das Fenster
-      var s = (localStorage.getItem("relay-note-size") || "").split("x");
-      if (s.length === 2 && +s[0] && +s[1]) {
-        noteDlg.style.width = Math.min(+s[0], window.innerWidth - 24) + "px";
-        noteDlg.style.height = Math.min(+s[1], window.innerHeight - 24) + "px";
-      }
+    // Gemerkte Groesse anwenden, aber nie groesser als das Fenster. Beide Modi
+    // merken sich ihre eigene: die Lese-Ansicht ist schmaler (keine
+    // Editor-Spalte), eine gemeinsame Groesse waere fuer einen der beiden
+    // immer falsch. Ohne gemerkte Groesse gilt die CSS-Vorgabe.
+    var s = (localStorage.getItem(groesseKey()) || "").split("x");
+    if (s.length === 2 && +s[0] && +s[1]) {
+      noteDlg.style.width = Math.min(+s[0], window.innerWidth - 24) + "px";
+      noteDlg.style.height = Math.min(+s[1], window.innerHeight - 24) + "px";
     } else {
-      // Lese-Panel behaelt seine kompakte CSS-Groesse
       noteDlg.style.width = noteDlg.style.height = "";
     }
     if (noteEditBtn) noteEditBtn.hidden = editMode || !noteCanEdit;
     // PDF-Export nur im Lese-Modus und nur bei bereits gespeicherten Notizen
     // (auch fuer nur-lesende Freigaben verfuegbar)
     if (notePdfBtn) notePdfBtn.hidden = editMode || !noteExportUrl;
+    // Loeschen nur im Lesemodus und nur beim BESITZER — eine mit
+    // Bearbeiten-Recht freigegebene Notiz gehoert einem anderen (dieselbe
+    // Regel wie im Zeilenmenue der Dateiliste, serverseitig in /delete).
+    if (noteDelBtn) noteDelBtn.hidden = editMode || !noteDeleteUrl;
+    // Netz: nur im Lese-Modus und nur fuer gespeicherte Notizen
+    var ziel = aktuellesZiel();
+    if (editMode || !ziel) netzAn = false;
+    if (noteNetzBtn) {
+      noteNetzBtn.hidden = editMode || !ziel;
+      noteNetzBtn.setAttribute("aria-pressed", netzAn ? "true" : "false");
+    }
+    if (noteNetzEl) noteNetzEl.hidden = !netzAn;
+    if (notePreviewWrap) notePreviewWrap.hidden = netzAn;
+    if (netzAn && ziel) netz.zeichne(ziel.owner, ziel.rel);
+    else netz.leere();
     // Detailfelder nur im Bearbeiten-Modus anfassbar — wie der Editor
     // selbst (das Panel im Lese-Modus zeigt nur an, aendert nichts)
     var metaEditable = editMode && noteCanEdit;
@@ -243,17 +328,29 @@ export function initNoteDialog(baseUrl) {
   // bzw. setNoteMode aus dem gemerkten Wert — CSS-Groessen nicht speichern)
   if (window.ResizeObserver) {
     new ResizeObserver(function () {
-      if (!noteDlg.open || noteDlg.classList.contains("note-view")) return;
-      if (noteCM) noteCM.refresh();
+      if (!noteDlg.open) return;
+      // CodeMirror muss nach jeder Breitenaenderung neu messen — im Lese-Modus
+      // ist die Spalte ausgeblendet, dort waere es vergeblich
+      if (noteCM && !noteDlg.classList.contains("note-view")) noteCM.refresh();
+      // offsetWidth/-Height, NICHT getBoundingClientRect: der Dialog faehrt mit
+      // transform:scale(.97) auf (siehe .dialog im CSS), und das Rechteck
+      // enthaelt diese Skalierung. Waehrend der Oeffnen-Animation gemessen,
+      // wanderten so bei JEDEM Oeffnen 3% Groesse in den Speicher — der Dialog
+      // schrumpfte mit der Zeit. Die Layout-Masse kennen kein transform.
       if (noteDlg.style.width) {
-        var r = noteDlg.getBoundingClientRect();
-        localStorage.setItem("relay-note-size",
-          Math.round(r.width) + "x" + Math.round(r.height));
+        localStorage.setItem(groesseKey(),
+          noteDlg.offsetWidth + "x" + noteDlg.offsetHeight);
       }
     }).observe(noteDlg);
   }
   if (noteEditBtn) {
     noteEditBtn.addEventListener("click", function () { setNoteMode(true); });
+  }
+  if (noteNetzBtn) {
+    noteNetzBtn.addEventListener("click", function () {
+      netzAn = !netzAn;
+      setNoteMode(false);
+    });
   }
   if (notePdfBtn) {
     // oeffnet das gerenderte PDF im OnlyOffice-Viewer — im SELBEN Tab
@@ -263,13 +360,20 @@ export function initNoteDialog(baseUrl) {
     });
   }
 
-  function openNote(title, content, action, canEdit, startEdit, meta) {
+  function openNote(title, content, action, canEdit, startEdit, meta, deleteUrl) {
     meta = meta || {
       isTodo: false, dueDate: "", people: { known: [], extra: [] },
       ort: "", color: "", status: "open",
     };
     ensureNoteEditor();
+    mention.schliesse(); // eine offene @-Auswahl gehoert zur vorigen Notiz
     noteCanEdit = canEdit;
+    noteDeleteUrl = deleteUrl || null;
+    if (noteDelForm && noteDeleteUrl) {
+      noteDelForm.action = noteDeleteUrl;
+      noteDelForm.dataset.confirm = "„" + title
+        + "“ wirklich löschen? Das lässt sich nicht rückgängig machen.";
+    }
     noteTitleEl.textContent = title;
     noteForm.action = action;
     // PDF-Export nur fuer gespeicherte Notizen: die Save-Action traegt owner/rel.
@@ -374,5 +478,11 @@ export function initNoteDialog(baseUrl) {
     });
   });
 
-  return { openNote: openNote, knownByUsername: people.knownByUsername };
+  return {
+    openNote: openNote,
+    knownByUsername: people.knownByUsername,
+    // { open, tip, hide } — reicht notes.js nach, sobald die Hover-/Klick-
+    // Bindung steht.
+    setNoteHooks: function (h) { hooks = h || {}; },
+  };
 }

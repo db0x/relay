@@ -216,3 +216,58 @@ test.describe("Loeschen", () => {
     await expect(page.locator("table.files")).toBeVisible();
   });
 });
+
+test.describe("Passwort eines Nutzers setzen", () => {
+  // Nur mit der zweiten Stufe des Admins — die hat er in DIESEM Container
+  // nicht (ADMIN_2FA laeuft im eigenen Container, siehe security.spec.js).
+  // Geprueft wird hier also die Absage, und dass sie wirklich nichts aendert.
+  test.beforeEach(async ({ page }) => { await loginAsAdmin(page); });
+
+  test("der Knopf steht bei normalen Nutzern, nicht bei Admins", async ({ page }) => {
+    const u = await createUser(page);
+    const a = await createUser(page, { admin: true });
+    await openMenuDialog(page, "dlg-users");
+    await expect(userRow(page, u.username)
+      .locator('button[data-dialog^="dlg-pw-"]')).toHaveCount(1);
+    await expect(userRow(page, a.username)
+      .locator('button[data-dialog^="dlg-pw-"]')).toHaveCount(0);
+    // und beim Admin selbst auch nicht
+    await expect(userRow(page, ADMIN.username)
+      .locator('button[data-dialog^="dlg-pw-"]')).toHaveCount(0);
+  });
+
+  test("ohne zweite Stufe lehnt der Server ab — und aendert nichts",
+    async ({ page, browser }) => {
+      const u = await createUser(page);
+      await postForm(page, "/users/password", {
+        target: u.username, pw1: "ganz-neues-passwort", pw2: "ganz-neues-passwort",
+        code: "123456",
+      });
+      await page.goto("/");
+      await expectFlash(page, "zweite Stufe");
+
+      // Das alte Passwort gilt weiter, das versuchte neue nicht.
+      const ctx = await browser.newContext();
+      const p = await ctx.newPage();
+      await login(p, u.username, u.password);
+      await expect(p.locator(".uname")).toBeVisible();
+      await ctx.close();
+    });
+
+  test("ein normaler Nutzer kommt an die Route gar nicht heran", async ({ page, browser }) => {
+    const opfer = await createUser(page);
+    const taeter = await createUser(page);
+    const ctx = await browser.newContext();
+    const p = await ctx.newPage();
+    await login(p, taeter.username, taeter.password);
+    await postForm(p, "/users/password", {
+      target: opfer.username, pw1: "fremdes-passwort", pw2: "fremdes-passwort", code: "123456",
+    });
+    // Zugang des Opfers unveraendert
+    const ctx2 = await browser.newContext();
+    const p2 = await ctx2.newPage();
+    await login(p2, opfer.username, opfer.password);
+    await expect(p2.locator(".uname")).toBeVisible();
+    await ctx.close(); await ctx2.close();
+  });
+});

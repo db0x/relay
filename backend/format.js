@@ -1,5 +1,6 @@
 // Deutsche Anzeige-Formatierung, gemeinsam genutzt von routes/browse.js
-// (Dateiliste) und routes/admin.js (Backup-Log).
+// (Dateiliste), routes/admin.js (Backup-Log) und routes/notes.js (Notiz-Netz).
+const path = require("path");
 
 // Zeitstempel -> "05.07.2026, 14:30"
 function formatDate(ms) {
@@ -15,4 +16,18 @@ function formatDuration(ms) {
   return `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`;
 }
 
-module.exports = { formatDate, formatDuration };
+// Notizen heissen {uuid}-{Titel}.md — angezeigt wird nur der Titel; alle
+// Links und Aktionen laufen weiter ueber den vollen Namen.
+const NOTE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.*)\.md$/i;
+function labelFromName(name) {
+  // Immer nur der Dateiname: hier kommt teils der volle relative Pfad an
+  // (Datei in einem Unterordner). Ohne basename stand in der Liste
+  // "Steuer/Nebenkosten.xlsx" statt "Nebenkosten.xlsx".
+  const base = path.basename(name);
+  const m = base.match(NOTE_RE);
+  // Unterstriche stammen aus secureFilename (Leerzeichen im Titel) —
+  // fuer die Anzeige wieder zu Leerzeichen
+  return m ? (m[1].replace(/_/g, " ") || "Notiz") : base;
+}
+
+module.exports = { formatDate, formatDuration, NOTE_RE, labelFromName };

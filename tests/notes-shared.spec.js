@@ -9,6 +9,7 @@ const { test, expect } = require("@playwright/test");
 const {
   loginAsAdmin, login, logout, createUser, uniqueName, createNote,
   deskIcon, shareFile, waitAppReady, expectFlash,
+  confirmDialog,
 } = require("./helpers/relay");
 const { BASE_URL } = require("./test-env");
 
@@ -120,6 +121,28 @@ test.describe("Freigegebene Notizen kennzeichnen", () => {
       await expect(page.locator("#note-tip")).not.toContainText("Freigegeben von");
     });
 
+  test("wer sie nur freigegeben bekommen hat, sieht ihn nicht — auch mit Bearbeiten-Recht",
+    async ({ page, browser }) => {
+      const { ctx, page: p } = await setup(page, browser, "edit");
+      await p.goto("/?p=Notizen");
+      await waitAppReady(p);
+
+      // die eigene Notiz: Knopf da
+      await p.locator("table.files .note-open").filter({ hasText: mine }).click();
+      await expect(p.locator("#dlg-note")).toBeVisible();
+      await expect(p.locator("#note-delete")).toBeVisible();
+      await p.locator("#dlg-note .dialog-x").click();
+
+      // die fremde Notiz: bearbeiten ja, löschen nein
+      await p.goto("/");
+      await waitAppReady(p);
+      await deskIcon(p, shared).click();
+      await expect(p.locator("#dlg-note")).toBeVisible();
+      await expect(p.locator("#note-edit"), "Bearbeiten ist erlaubt").toBeVisible();
+      await expect(p.locator("#note-delete"), "Löschen nicht").toBeHidden();
+      await ctx.close();
+    });
+
   test("Freigabe- und Erledigt-Overlay stehen in verschiedenen Ecken",
     async ({ page, browser }) => {
       // Unten rechts ist der Standardplatz — wer allein da ist, sitzt dort.
@@ -164,4 +187,35 @@ test.describe("Freigegebene Notizen kennzeichnen", () => {
       expect(beide.haken.unten).toBe(false);
       await ctx.close();
     });
+});
+
+test.describe("Notiz aus dem Lese-Dialog löschen", () => {
+  // Der Knopf sitzt oben rechts neben "Als PDF öffnen" und "Bearbeiten".
+  // Entscheidend ist, WER ihn sieht: löschen darf nur der Besitzer — eine mit
+  // BEARBEITEN-Recht freigegebene Notiz gehört trotzdem einem anderen.
+  test("der Besitzer sieht ihn und die Notiz ist danach weg", async ({ page }) => {
+    await loginAsAdmin(page);
+    const u = await createUser(page);
+    await logout(page);
+    await login(page, u.username, u.password);
+    await waitAppReady(page);
+
+    const titel = "Wegwerf " + uniqueName("n");
+    await createNote(page, titel);
+    await page.goto("/?p=Notizen");
+    await waitAppReady(page);
+    await expect(page.locator("table.files .note-open")).toHaveCount(1);
+
+    await page.locator("table.files .note-open").first().click();
+    await expect(page.locator("#dlg-note")).toBeVisible();
+    await expect(page.locator("#note-delete")).toBeVisible();
+
+    // Loeschen laeuft ueber die gemeinsame Rueckfrage (form[data-confirm])
+    await page.click("#note-delete");
+    await Promise.all([page.waitForNavigation(), confirmDialog(page)]);
+    await waitAppReady(page);
+    await expectFlash(page, "gelöscht");
+    await expect(page.locator("table.files .note-open")).toHaveCount(0);
+  });
+
 });

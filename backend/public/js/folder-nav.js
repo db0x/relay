@@ -11,7 +11,7 @@ import { bindOwnOnly } from "./files/own-filter.js";
 import { bindUpload } from "./files/upload.js";
 import { bindCreateButtons } from "./files/create-file.js";
 import { bindImageOpen, bindImageThumbs } from "./files/image-view.js";
-import { attachScrollbar, detachScrollbars, bindScrollbars } from "./core/scrollbars.js";
+import { detachScrollbars, bindScrollbars } from "./core/scrollbars.js";
 
 // config: { bindNoteOpen } — bindNoteOpen(root) aus dem Notiz-Modul, oder
 // null, wenn keine Notiz-UI vorhanden ist.
@@ -48,9 +48,9 @@ export function initFolderNav(config) {
     bindImageThumbs(pageEl);   // Rueckfall-Icon fuer kaputte Vorschaubilder
     if (bindNoteOpen) bindNoteOpen(pageEl);
     bindConfirmForms(pageEl);
-    // Bildlaufleiste des Fensters neu aufbauen (ihre Huelle ist beim
-    // innerHTML-Tausch mit weggefallen) plus die Flaechen im neuen Inhalt
-    attachScrollbar(pageEl);
+    // Bildlaufleisten im neuen Inhalt aufbauen (ihre Huelle ist beim
+    // innerHTML-Tausch mit weggefallen). Der rollende Rumpf .page-body steht
+    // in AREAS und ist damit mit erledigt — das Fenster selbst rollt nicht.
     bindScrollbars(pageEl);
     // Zeilen-Dialoge: Backdrop-Buchhaltung beim Schliessen + "Freigabe entziehen"
     bindDialogClose(rowDialogsEl);
@@ -89,8 +89,10 @@ export function initFolderNav(config) {
     syncDirFields(pageEl.dataset.dir);
     // Nach oben: die Bildlaufleiste wird gleich frisch aufgebaut und startet
     // ohnehin bei 0 — die Zeile greift, wenn OverlayScrollbars nicht geladen
-    // ist und #page selbst der Scroller bleibt.
-    pageEl.scrollTop = 0;
+    // ist und der Rumpf selbst der Scroller bleibt. (Der Rumpf ist neu, der
+    // Ausdruck muss also NACH dem innerHTML-Tausch stehen.)
+    var rumpf = pageEl.querySelector(".page-body");
+    if (rumpf) rumpf.scrollTop = 0;
     rebindFolder();
     return true;
   }

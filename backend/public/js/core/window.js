@@ -151,7 +151,10 @@ export function createWindow(config) {
 
   place();
   window.addEventListener("resize", place);
-  attachScrollbar(el); // eigene Bildlaufleiste — gilt fuer JEDES Fenster
+  // Eigene Bildlaufleiste — gilt fuer JEDES Fenster, haengt aber am ROLLENDEN
+  // Teil: Kopf- und Fusszeile bleiben stehen (siehe .page-body in index.css).
+  // Fenster ohne eigenen Rumpf bekommen sie wie bisher als Ganzes.
+  attachScrollbar(el.querySelector(".page-body") || el);
 
   // Gezogen wird NUR an der Titelleiste — wie bei einem echten Fenster und wie
   // beim Notiz-Dialog (.dialog-note .dialog-head). Frueher war die ganze Karte

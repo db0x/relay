@@ -22,6 +22,14 @@ export function initNotes() {
     knownByUsername: dialog.knownByUsername,
   });
   hover.bindNoteOpen(document);
+  // Verweise per @ im Notiztext verhalten sich wie die verlinkte Notiz selbst
+  // (Vorschau beim Hinfahren, Oeffnen im selben Dialog) — erst jetzt moeglich,
+  // vorher kennen sich Dialog und Lader nicht.
+  dialog.setNoteHooks({
+    open: hover.openNoteByPath,
+    tip: hover.showNoteTip,
+    hide: hover.hideNoteTip,
+  });
 
   // MUSS nach der Notiz-Bindung laufen (Icons sind .note-open), aber die
   // Reihenfolge Karte-vor-Icon-Layout kapselt initDesktopLayout selbst.

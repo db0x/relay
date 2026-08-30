@@ -18,7 +18,7 @@ const noteicon = require("../noteicon");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
 const { BLANKS, BASE, DOCTYPE, IMAGE_TYPES, MAX_UPLOAD_MB } = require("../config");
-const { formatDate, formatDuration } = require("../format");
+const { formatDate, formatDuration, NOTE_RE, labelFromName } = require("../format");
 const { loginRequired } = require("./auth");
 
 const router = express.Router();
@@ -44,19 +44,8 @@ function isImageName(name) {
   return !!IMAGE_TYPES[(name.split(".").pop() || "").toLowerCase()];
 }
 
-// Notizen heissen {uuid}-{Titel}.md — angezeigt (Liste, Dialoge, Rueckfragen)
-// wird nur der Titel; alle Links/Aktionen laufen weiter ueber den vollen Namen
-const NOTE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.*)\.md$/i;
-function labelFromName(name) {
-  // Immer nur der Dateiname: hier kommt teils der volle relative Pfad an
-  // (Datei in einem Unterordner). Ohne basename stand in der Liste
-  // "Steuer/Nebenkosten.xlsx" statt "Nebenkosten.xlsx".
-  const base = path.basename(name);
-  const m = base.match(NOTE_RE);
-  // Unterstriche stammen aus secureFilename (Leerzeichen im Titel) —
-  // fuer die Anzeige wieder zu Leerzeichen
-  return m ? (m[1].replace(/_/g, " ") || "Notiz") : base;
-}
+// NOTE_RE/labelFromName stehen in ../format.js — das Notiz-Netz braucht
+// dieselbe Ableitung (routes/notes.js).
 
 // Anzeigename einer Notiz. Der Dateiname traegt nur ASCII (secureFilename),
 // darum steht der echte Titel — mit Emojis, Umlauten, ss — in note_meta.title.
@@ -587,6 +576,42 @@ router.get("/search", loginRequired, (req, res) => {
       ? { ...h, src: `${BASE}/image/${p}`, download: `${BASE}/download/${p}` }
       : (h.isNote ? h : { ...h, href: `${BASE}/edit/${p}` });
   }));
+});
+
+// Kurzinfo zu EINER Datei — fuer das Hover-Kaertchen an Verweisen im Notiztext
+// (public/js/files/file-tip.js). Notizen brauchen das nicht: die zeigen dort
+// ihre gewohnte Inhaltsvorschau ueber /notes/raw + /notes/meta.
+router.get("/fileinfo/:owner/*", loginRequired, (req, res) => {
+  const me = req.session.user;
+  const owner = req.params.owner, fid = req.params[0];
+  const acc = accessFor(me, owner, fid);
+  if (!acc) return res.sendStatus(404);
+  const abs = pathFor(owner, fid);
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return res.sendStatus(404);
+
+  const st = fs.statSync(abs);
+  const name = path.basename(fid);
+  const info = {
+    label: labelFor(fid, owner), icon: iconFor(name),
+    size: formatSize(st.size), modified: formatDate(st.mtimeMs),
+    isOwner: owner === me,
+  };
+  // Wer die Datei nicht besitzt, erfaehrt nur, VON WEM er sie hat — nicht, wer
+  // sie sonst noch bekommen hat. Die Empfaengerliste gehoert dem Besitzer;
+  // dieselbe Aufteilung wie bei den Badges der Dateiliste.
+  if (info.isOwner) {
+    info.shares = shares.listForFile(owner, fid).map((s) => ({
+      username: s.target, name: s.display_name, perm: s.perm,
+      hasAvatar: avatars.has(s.target),
+    }));
+  } else {
+    const u = users.get(owner);
+    info.sharedBy = {
+      username: owner, name: u ? u.display_name : owner, perm: acc,
+      hasAvatar: avatars.has(owner),
+    };
+  }
+  res.json(info);
 });
 
 // neuer Unterordner im aktuellen Ordner

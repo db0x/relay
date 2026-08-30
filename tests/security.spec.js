@@ -521,6 +521,76 @@ test.describe("Zweite Stufe für Admins (TOTP)", () => {
     expect(await zweite.text()).toContain("stimmt nicht");
   });
 
+  // --- Passwort eines Nutzers zuruecksetzen ------------------------------
+  // Die eine Admin-Aktion, mit der man in fremde Dokumente kommt, ohne dass es
+  // auffaellt (Sperren und Loeschen merkt der Betroffene sofort). Sie verlangt
+  // darum IMMER die zweite Stufe des Admins — hier ist sie eingerichtet.
+  test("ein Passwort setzen verlangt den Code des Admins", async ({ page }) => {
+    await anmelden(page, URL, PW);
+    await zweiPost(page, { code: await frischerCode() });
+
+    // Zielnutzer anlegen
+    const opfer = { username: "opfer", pw: "erstes-passwort" };
+    await page.request.post(`${URL}/users/create`, {
+      form: {
+        username: opfer.username, display: "Opfer", password: opfer.pw,
+        _csrf: await nachweisVon(page, `${URL}/`),
+      },
+    });
+
+    const setze = async (felder) => page.request.post(`${URL}/users/password`, {
+      form: { target: opfer.username, ...felder, _csrf: await nachweisVon(page, `${URL}/`) },
+      maxRedirects: 0,
+    });
+    // Wohin fuehrt eine Anmeldung mit diesem Passwort? "" heisst: nirgendwohin —
+    // eine ABGELEHNTE Anmeldung leitet nicht um, sie zeigt die Seite erneut.
+    const kommtRein = async (pw) => {
+      const ctx = await page.context().browser().newContext();
+      const p = await ctx.newPage();
+      const res = await anmelden(p, URL, { username: opfer.username, password: pw });
+      const ziel = res.headers()["location"] || "";
+      await ctx.close();
+      return ziel;
+    };
+
+    // falscher Code -> nichts passiert
+    await setze({ pw1: "zweites-passwort", pw2: "zweites-passwort", code: "000000" });
+    expect(await kommtRein(opfer.pw), "altes Passwort gilt weiter").toBe("/");
+    expect(await kommtRein("zweites-passwort"), "neues gilt NICHT").toBe("");
+
+    // richtiger Code -> gesetzt, und der Nutzer muss es selbst neu waehlen
+    await setze({ pw1: "zweites-passwort", pw2: "zweites-passwort", code: await frischerCode() });
+    expect(await kommtRein(opfer.pw), "altes Passwort ist weg").toBe("");
+    expect(await kommtRein("zweites-passwort"), "Einmal-Passwort fuehrt zum Wechsel")
+      .toBe("/passwort-setzen");
+  });
+
+  test("das Passwort eines ANDEREN Admins laesst sich so nicht setzen",
+    async ({ page }) => {
+      await anmelden(page, URL, PW);
+      await zweiPost(page, { code: await frischerCode() });
+      const nachweis = await nachweisVon(page, `${URL}/`);
+      await page.request.post(`${URL}/users/create`, {
+        form: { username: "zweiadmin", display: "Zweit", password: "start-passwort", admin: "1", _csrf: nachweis },
+      });
+      const res = await page.request.post(`${URL}/users/password`, {
+        form: {
+          target: "zweiadmin", pw1: "neues-passwort", pw2: "neues-passwort",
+          code: await frischerCode(), _csrf: await nachweisVon(page, `${URL}/`),
+        },
+        maxRedirects: 0,
+      });
+      expect(res.status()).toBe(302);
+      // das alte Passwort gilt weiter
+      const ctx = await page.context().browser().newContext();
+      const p = await ctx.newPage();
+      const an = await anmelden(p, URL, { username: "zweiadmin", password: "start-passwort" });
+      // Admin ohne eigene zweite Stufe landet auf deren Einrichtung — Hauptsache
+      // NICHT auf der Anmeldung: das Passwort wurde also nicht veraendert.
+      expect(an.headers()["location"]).not.toContain("/login");
+      await ctx.close();
+    });
+
   test("„diesem Gerät vertrauen“ spart den Code — bis man die Geräte vergisst",
     async ({ page }) => {
       await anmelden(page, URL, PW);

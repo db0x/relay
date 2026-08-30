@@ -67,7 +67,12 @@ body{
      so blitzt die Karte nicht kurz oben-links auf) */
   left:max(16px, (100vw - min(840px, 100vw - 32px)) / 2);
   width:min(840px,calc(100% - 32px));
-  max-height:calc(100vh - 112px);overflow:auto;
+  /* Kopf- und Fusszeile eines Fensters sind Rahmen und bleiben stehen: das
+     Fenster selbst rollt NICHT (overflow:hidden), gerollt wird allein der
+     Rumpf .page-body darin. Vorher scrollte die ganze Karte, die Titelleiste
+     wanderte also aus dem Blick. */
+  max-height:calc(100vh - 112px);overflow:hidden;
+  display:flex;flex-direction:column;
   background:var(--card);
   border:1px solid var(--line);border-radius:var(--radius);
   box-shadow:var(--win-shadow);
@@ -85,6 +90,27 @@ body{
 body:not(.desk-ready) .page,
 body:not(.desk-ready) .note-desktop{opacity:0}
 .note-desktop{transition:opacity .3s ease}
+/* Der rollende Teil zwischen Kopf/Brotkrumen und Fusszeile. min-height:0 ist
+   Pflicht: ein Flex-Kind darf sonst nicht unter seine Inhaltshoehe schrumpfen
+   und wuerde die Karte aufblaehen, statt zu rollen. Die Bildlaufleiste haengt
+   an diesem Element (js/core/window.js) — so laeuft ihre Bahn auch nicht mehr
+   hinter der Titelleiste durch.
+
+   Seitlich reicht der Rumpf bis an die KARTENKANTE und holt sich das
+   Kartenmass als eigenes padding zurueck. Zwei Dinge auf einmal:
+   die Leiste liegt damit im Randstreifen (--page-pad 22px gegen 12px Leiste)
+   statt auf dem Inhalt — sonst deckt sie die Zeilenmenues rechts zu —, und
+   der Inhalt steht trotzdem exakt unter Titelleiste und Fusszeile.
+   (Vor dem stehenden Rahmen war das ganze Fenster der Scroller, dessen
+   padding sorgte fuer dasselbe.) */
+.page-body{
+  flex:1 1 auto;min-height:0;overflow:auto;
+  margin-inline:calc(-1 * var(--page-pad));
+  padding-inline:var(--page-pad);
+}
+/* Die Bahn endet jetzt zwischen Kopf und Fuss, nicht mehr an den runden
+   Kartenecken — der grosse Endabstand von .page waere hier verschenkter Weg. */
+.page-body .os-scrollbar{--os-padding-axis:4px}
 .page{transition:opacity .3s ease,box-shadow .22s ease}
 /* Vorderstes Fenster: kraeftigerer Schatten (js/core/window.js vergibt die
    Klasse beim Stapeln neu). Der weiche Uebergang macht den Wechsel beim
@@ -137,10 +163,19 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* 6px Griff, 3px vom Rand — dieselben Masse wie --os-size 12 mit 3px Polster */
 .CodeMirror-overlayscroll-vertical{right:3px;top:0;width:6px}
 .CodeMirror-overlayscroll-horizontal{bottom:3px;left:0;height:6px}
+/* Ausblenden wie bei den uebrigen Leisten (autoHide:"leave", siehe
+   js/core/scrollbars.js): ohne Zeiger im Editor unsichtbar. Das Addon kennt
+   dafuer keine Option — es geht aber ohne JS, weil "Zeiger im Bereich" genau
+   das ist, was :hover beschreibt. Der Nachlauf steckt im transition-delay des
+   RUHEZUSTANDS: sie geht verzoegert weg (wie autoHideDelay), kommt aber sofort. */
 .CodeMirror-overlayscroll-vertical div,
 .CodeMirror-overlayscroll-horizontal div{
   position:absolute;border-radius:999px;background:rgba(31,41,55,.22);
-  transition:background .12s ease;
+  opacity:0;transition:opacity .2s ease .7s,background .12s ease;
+}
+.note-editor-pane:hover .CodeMirror-overlayscroll-vertical div,
+.note-editor-pane:hover .CodeMirror-overlayscroll-horizontal div{
+  opacity:1;transition:opacity .1s ease,background .12s ease;
 }
 .CodeMirror-overlayscroll-vertical div{right:0;width:100%}
 .CodeMirror-overlayscroll-horizontal div{bottom:0;height:100%}
@@ -152,18 +187,25 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* margin:0 — der Abstand UNTER der Trennlinie kommt aus dem padding-top der
    Spaltenkoepfe (bzw. der Brotkrumen), damit er genauso gross ist wie der
    darueber und nicht beides addiert wird. */
+/* Titelleiste eines Fensters — dieselbe Anmutung wie der Kopf eines Dialogs
+   (.dialog-head): schmal und als getoenter Streifen abgesetzt, damit beide
+   Fensterarten gleich gelesen werden.
+   Die negativen Raender ziehen sie bis an die Fensterkanten (oben, links,
+   rechts); nur so laeuft die Toenung ueber die volle Breite und nimmt die
+   Rundung mit. Waagerecht bleibt --page-pad als padding stehen: Titel und
+   Aktionen behalten damit dieselbe Linie wie Spaltenkoepfe, Dateinamen und
+   Zeilenmenues darunter — das Raster der Karte gilt weiter.
+   Nur HIER wird gezogen (core/window.js); touch-action:none, damit das auch
+   mit dem Finger geht statt zu scrollen. */
 .page-head{
   display:flex;align-items:center;gap:.6rem;
-  /* Nur HIER wird gezogen (core/window.js), nicht mehr im ganzen Fenster —
-     touch-action:none, damit das auch mit dem Finger geht statt zu scrollen.
-     Der negative obere Rand zieht die Leiste bis an die Fensterkante hoch:
-     der Rahmenstreifen darueber (--page-pad) gehoert optisch zu ihr und soll
-     mitziehen. Das gleiche Mass als padding zurueck -> der Inhalt der Leiste
-     steht unveraendert auf dem Raster, und die Trennlinie bleibt eingerueckt
-     wie die Tabelle darunter. */
-  margin:calc(var(--page-pad) * -1) 0 0;
-  padding:var(--page-pad) 0 var(--page-gap);
-  border-bottom:1px solid var(--line-soft);
+  margin:calc(var(--page-pad) * -1) calc(var(--page-pad) * -1) var(--page-gap);
+  /* .45rem statt .65rem wie im Dialogkopf: dort sitzt ein 22px-Icon, hier
+     34px hohe Knoepfe — mit gleichem Polster waere die Leiste hoeher. So
+     kommen beide Fensterarten auf dieselbe Bauhoehe. */
+  padding:.45rem var(--page-pad);
+  border-bottom:1px solid var(--line);background:#f7f8fa;
+  border-radius:var(--radius) var(--radius) 0 0;
   cursor:move;touch-action:none;
 }
 .page-head img{display:block;flex:0 0 auto}
@@ -573,6 +615,11 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* padding-bottom:0 (statt der 1.1rem der .dialog-Basis): die Fuss-Abstaende
    steuert allein die note-form, damit alle vertikalen Abstaende gleich sind */
 .dialog.dialog-note{width:56vw;height:56vh;max-width:none;max-height:none;padding-bottom:0}
+/* Der einzige Dialog, der NICHT beschneidet: die Luecke der Vergroessern-Ecke
+   liegt ausserhalb seiner Flaeche, ein Knopf darin waere sonst weg. Gefahrlos,
+   weil hier kein Kind einen eigenen Hintergrund hat — es steht also nichts
+   ueber die runden Ecken hinaus (nachgesehen, nicht vermutet). */
+.dialog.dialog-note{overflow:visible}
 
 /* Bild-Vorschau: waechst mit dem Bild, bleibt aber im Fenster. Der dunkle
    Grund laesst freigestellte PNGs und helle Fotos gleichermassen wirken. */
@@ -595,17 +642,84 @@ body:not(.desk-ready) .note-desktop{opacity:0}
    Kopf-Knoepfe. margin-left:auto am ERSTEN schiebt die ganze Gruppe nach rechts */
 #dlg-image-tab,#dlg-image-download{width:28px;height:28px;flex:0 0 auto}
 #dlg-image-tab{margin-left:auto}
-/* Bearbeiten-Modus: skalierbar ueber eine eigene, unsichtbare Griffecke
-   unten rechts (kein CSS resize:both — dessen UA-Marker laesst sich nicht
-   ueberall ausblenden). Verschieben am Kopf. Logik in index.js. */
+/* Skalierbar ueber eine eigene, unsichtbare Griffecke unten rechts (kein CSS
+   resize:both — dessen UA-Marker laesst sich nicht ueberall ausblenden),
+   verschiebbar am Kopf. Beides gilt in BEIDEN Modi: auch eine Lese-Ansicht
+   kann fuer ihren Inhalt zu klein oder zu gross sein. Logik in
+   js/notes/note-dialog.js, die Groesse wird je Modus getrennt gemerkt.
+   Untergrenzen im Lese-Modus kleiner — dort fehlt die Editor-Spalte. */
 .dialog.dialog-note:not(.note-view){
   min-width:min(520px,92vw);min-height:min(320px,60vh);
 }
-.note-resize{
-  position:absolute;right:0;bottom:0;width:18px;height:18px;
-  cursor:nwse-resize;z-index:3;touch-action:none;
+.dialog.dialog-note.note-view{
+  min-width:min(320px,92vw);min-height:min(200px,36vh);
 }
-.note-view .note-resize{display:none}
+/* Vergroessern-Ecke. Der Griff selbst bleibt unsichtbar und nimmt alle
+   Zeigerereignisse; sichtbar wird beim Hinfahren die Ecke des Dialogs, die
+   nach innen ausweicht (corner-shape:scoop), und der Knopf in der Luecke.
+   Kann ein Browser corner-shape nicht, bleibt die Ecke rund — der Knopf
+   erscheint trotzdem, die Bedienung ist also nirgends schlechter. */
+.note-resize{
+  /* Ueber die Ecke hinaus geschoben, damit der Knopf in der Luecke sitzt
+     (moeglich durch overflow:visible unten). Verschoben wird der GRIFF, nicht
+     nur die Optik — so bleibt die ganze Kreisflaeche greifbar.
+     border-radius:50%: nur der Kreis nimmt Ereignisse an. Als Quadrat lag die
+     Ecke des Griffs sonst ueber dem Rand des Speichern-Knopfs und haette dort
+     Klicks geschluckt.
+     Bewusst OHNE cursor:nwse-resize: der Knopf zeigt selbst, was er tut — ein
+     wechselnder Zeiger waere doppelt gemoppelt (Nutzerwunsch). */
+  position:absolute;right:-16px;bottom:-16px;width:34px;height:34px;
+  border-radius:50%;
+  z-index:3;touch-action:none;
+  display:grid;place-items:center;
+}
+.note-resize-btn{
+  width:26px;height:26px;border-radius:50%;
+  display:grid;place-items:center;
+  /* die Ereignisse gehoeren dem Griff darunter — der Knopf ist reine Anzeige */
+  pointer-events:none;
+  background:var(--card);color:var(--muted);
+  border:1px solid var(--line);box-shadow:0 2px 8px rgba(16,24,40,.18);
+  opacity:0;transform:scale(.55);
+  /* ohne Vorlauf: beim Weggehen verschwindet er zuerst, dann schliesst die Ecke */
+  transition:opacity .07s ease,transform .07s ease;
+}
+/* Die beiden Bewegungen laufen NACHEINANDER, nicht uebereinander: beim
+   Hinfahren weicht erst die Ecke, dann kommt der Knopf — beim Weggehen zuerst
+   der Knopf, dann schliesst die Ecke. Gleichzeitig ueberblendeten sie sich
+   sichtbar und es wirkte unruhig.
+   Umgesetzt ueber transition-delay je Zustand: die Werte stehen positionsgleich
+   zur transition-Liste, deshalb muss die hier vollstaendig wiederholt werden
+   (die .dialog-Regel darueber kennt die Ecken-Eigenschaften nicht mehr).
+   corner-shape ist ueberhaupt nur animierbar, weil hinter den Schluesselwoertern
+   ein interpolierbarer Superellipsen-Parameter steckt. */
+/* Doppelklasse .dialog.dialog-note ist Pflicht, nicht Geschmack: die
+   .dialog-Basisregel steht WEITER UNTEN in dieser Datei und setzt transition
+   ebenfalls. Bei gleicher Spezifitaet gewinnt die spaetere — die Ecke sprang
+   dann ohne Bewegung von 14 auf 20px (gemessen: 1ms). Dieselbe Falle wie bei
+   der Breite von .dialog.dialog-note weiter oben. */
+.dialog.dialog-note{
+  transition:opacity .18s ease,transform .18s ease,
+    display .18s ease allow-discrete,
+    corner-shape .1s ease,border-bottom-right-radius .1s ease;
+  transition-delay:0s,0s,0s,.08s,.08s; /* zu: Ecke wartet auf den Knopf */
+}
+/* :has statt einer Klasse per JS: der Zustand ist reines Hovern, und der Griff
+   liegt dank overflow:visible (unten) auch dann noch unter dem Zeiger, wenn
+   die Ecke sich weggewoelbt hat — sonst flackerte es zwischen beiden Formen. */
+.dialog.dialog-note:has(.note-resize:hover){
+  transition-delay:0s,0s,0s,0s,0s;     /* auf: Ecke laeuft sofort los */
+  border-bottom-right-radius:20px;
+  corner-bottom-right-shape:scoop;
+}
+.dialog-note:has(.note-resize:hover) .note-resize-btn{
+  opacity:1;transform:none;
+  /* .1s Vorlauf = Dauer der Ecken-Bewegung darueber */
+  transition:opacity .08s ease .1s,transform .12s cubic-bezier(.2,.9,.3,1.2) .1s;
+}
+@media (prefers-reduced-motion:reduce){
+  .note-resize-btn{transition:none}
+}
 .dialog-note .dialog-head{cursor:move;touch-action:none}
 /* Nur-Lesen-Notiz: keine Editor-Spalte, nur die gerenderte Ansicht —
    der Dialog wird dafuer auf Lesebreite verschmaelert */
@@ -622,6 +736,28 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .note-main{position:relative}
 .note-view-actions{position:absolute;top:.15rem;right:.4rem;z-index:2;display:flex;gap:.25rem}
 .note-view-actions .iconbtn[hidden]{display:none}
+/* Loeschen steht abgesetzt ganz aussen: die Luecke ist der Schutz davor, es
+   beim Zielen auf die harmlosen Nachbarn mitzunehmen. */
+.note-view-actions .iconbtn-danger{margin-left:.9rem}
+/* Der Netz-Knopf zeigt, dass sein Modus laeuft. Anders als bei den Umschaltern
+   der Topbar, wo genau das NICHT gewollt war (siehe .view-btn): hier gibt es
+   drei Ansichten derselben Notiz, und man muss sehen, in welcher man steckt.
+   Das Icon ist ein <img> und folgt keinem currentColor — es wird darum per
+   filter auf Weiss gezogen (brightness(0) macht daraus Schwarz, invert(1)
+   Weiss). Dasselbe Mittel wie bei der Lupe im dunklen Anwendungs-Menue. */
+.note-view-actions .iconbtn[aria-pressed="true"]{
+  /* Dezent mit Absicht: der Modus ist eine Nebeninformation, kein Alarm.
+     Ein kurzer Strich unter dem Icon wie bei einem Reiter, dazu eine kaum
+     merkliche Fuellung — Rand und Icon bleiben unveraendert.
+     ::before, NICHT ::after: das ::after jedes [data-tip] ist der Tooltip
+     (siehe [data-tip]::after weiter unten), das waere sonst weg. */
+  position:relative;background:#f4f8ff;
+}
+.note-view-actions .iconbtn[aria-pressed="true"]::before{
+  content:"";position:absolute;left:50%;transform:translateX(-50%);
+  bottom:4px;width:14px;height:2px;border-radius:2px;background:var(--brand);
+}
+.note-view-actions .iconbtn[aria-pressed="true"]:hover{background:#eaf1ff}
 .dialog-note[open]{display:flex;flex-direction:column}
 /* Ein einheitlicher vertikaler Abstand (--note-gap) fuer ALLE Zonen-Abstaende:
    Vorschau|Metadaten|Fuss und die Trennlinien liegen dadurch gleichmaessig.
@@ -633,7 +769,10 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 }
 /* zweispaltig: Editor links, Live-Vorschau rechts — je 50% */
 .note-main{flex:1;min-height:0;display:flex;gap:.9rem}
-.note-editor-pane{flex:0 0 50%;min-width:0;display:flex;flex-direction:column}
+/* position:relative = Bezugsrahmen der @-Auswahl (js/notes/mention.js): die
+   haengt an der Schreibmarke und muss beim Verschieben, Skalieren und
+   Verschieben des Splitters mitwandern */
+.note-editor-pane{flex:0 0 50%;min-width:0;display:flex;flex-direction:column;position:relative}
 /* Markdown-Toolbar ueber dem Editor */
 .note-toolbar{
   display:flex;align-items:center;gap:2px;flex-wrap:wrap;
@@ -660,6 +799,28 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   box-shadow:0 8px 28px rgba(16,24,40,.16);
 }
 .emoji-panel[hidden]{display:none}
+
+/* Verlinken per @: dieselben Trefferzeilen wie die Suche im Anwendungs-Menue
+   (.app-hit & Co.), nur in einem eigenen Kasten an der Schreibmarke.
+   Die Lage setzt js/notes/mention.js. */
+.mention-panel{
+  position:absolute;z-index:7;width:min(340px,calc(100% - .8rem));
+  padding:.25rem;background:#fff;
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  box-shadow:0 8px 28px rgba(16,24,40,.16);
+}
+.mention-panel[hidden]{display:none}
+.mention-list{margin:0;max-height:min(40vh,240px);overflow-y:auto}
+.mention-list[hidden]{display:none}
+.mention-hint{margin:.3rem .4rem}
+/* Fusszeile der Auswahl — erscheint nur bei Bildern, wo es zwei sinnvolle
+   Ergebnisse gibt (einbetten oder verlinken) */
+.mention-foot{
+  margin:.15rem 0 0;padding:.35rem .5rem 0;
+  border-top:1px solid var(--line-soft);
+  color:var(--muted);font-size:.76rem;
+}
+.mention-foot[hidden]{display:none}
 .emoji-group-name{
   margin:.5rem 0 .2rem;font-size:.68rem;letter-spacing:.04em;
   text-transform:uppercase;color:var(--muted);font-weight:600;
@@ -680,6 +841,11 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   flex:1 1 0;min-width:0;overflow:auto;
   background:#fff;padding:.4rem 1rem .4rem .2rem;
 }
+/* [hidden] allein reicht hier NICHT: OverlayScrollbars setzt seinem Behaelter
+   display:flex !important (die GRUNDREGEL in js/core/scrollbars.js nennt es).
+   Ohne dieses !important stand im Netz-Modus die Textvorschau weiter daneben,
+   statt ihm Platz zu machen. */
+.note-preview[hidden]{display:none !important}
 /* Splitter zwischen Editor und Vorschau: ziehen aendert die Aufteilung
    (index.js, persistiert im localStorage); im Nur-Lesen-Modus unsichtbar */
 .note-splitter{
@@ -731,6 +897,9 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .note-foot{
   display:flex;justify-content:space-between;align-items:center;gap:.9rem;
   padding-top:var(--note-gap);border-top:1px solid var(--line);flex:0 0 auto;
+  /* rechts etwas mehr Luft als das Formularmass: dort unten sitzt die
+     Vergroessern-Ecke, und "Speichern" soll ihr nicht ins Gehege kommen */
+  padding-right:1.1rem;
 }
 /* nimmt den Platz zwischen Farbtupfer (links) und Speichern (rechts) ein */
 .note-status{color:var(--danger);font-size:.85rem;min-height:1.2em;flex:1;min-width:0}
@@ -896,6 +1065,91 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .md-render a{color:var(--brand)}
 .md-render hr{border:0;border-top:1px solid var(--line);margin:1em 0}
 
+/* Verweis auf ein Dokument oder eine Notiz (per @ gesetzt, js/notes/doclinks.js).
+   Bewusst als kleine Kachel mit Typ-Icon statt als unterstrichener Link: das
+   Ziel liegt IN Relay, und die Unterstreichung ist in unserem Design nicht
+   vorgesehen. white-space:nowrap haelt Icon und Titel zusammen. */
+.md-render a.doc-link{
+  display:inline-flex;align-items:center;gap:.3em;
+  padding:.05em .4em;border-radius:6px;
+  background:var(--line-soft);text-decoration:none;white-space:nowrap;
+}
+.md-render a.doc-link:hover{background:#e6ebf2}
+/* ohne Klickziel (Hover-Vorschau) bleibt es reine Anzeige */
+.md-render a.doc-link[role],.md-render a.doc-link[href],
+.md-render a.doc-link.image-open{cursor:pointer}
+.doc-link-icon{flex:0 0 auto;display:block}
+/* Eingebettetes Bild (![…](relay/…)): etwas gebaendigt, damit ein Foto den
+   Notiztext nicht erschlaegt. Wo es anklickbar ist, zeigt der Zeiger das an. */
+.md-render img.doc-img{
+  display:block;margin:.5em 0;border-radius:8px;
+  max-height:60vh;object-fit:contain;object-position:left;
+}
+.md-render img.doc-img.image-open{cursor:zoom-in}
+
+/* --- Notiz-Netz ---------------------------------------------------------
+   Dritter Modus der Lese-Ansicht (js/notes/netz.js): die Notiz in der Mitte,
+   links wer auf sie verweist, rechts worauf sie verweist. Die Richtung liest
+   man an der LAGE ab — deshalb braucht es keine Pfeilspitzen.
+   Die Kanten liegen als SVG darunter, die Knoten als Knoepfe darueber; die
+   Lage setzt JS in Pixeln, weil sie von der Fenstergroesse abhaengt. */
+/* overflow:auto statt hidden: bei vielen Verweisen waechst die Flaeche unter
+   den Knoten (js/notes/netz.js setzt die Hoehe) und man rollt, statt dass sich
+   Knoten uebereinanderlegen. */
+.note-netz{position:relative;flex:1;min-width:0;min-height:240px;overflow:auto}
+.note-netz[hidden]{display:none}
+.netz-kanten{position:absolute;top:0;left:0;width:100%;pointer-events:none}
+.netz-knoten-lage{position:absolute;top:0;left:0;width:100%}
+.netz-kante{
+  fill:none;stroke:var(--line);stroke-width:1.5;
+}
+/* Beidseitig = kraeftiger. Tote Ziele gestrichelt und blass. */
+.netz-kante-beide{stroke:var(--brand);stroke-width:2;opacity:.55}
+.netz-kante-tot{stroke-dasharray:3 4;opacity:.45}
+
+/* Die Lage setzt JS als MITTELPUNKT, zentriert wird hier — so darf der Knoten
+   so hoch werden, wie sein Inhalt braucht (fremde Notizen tragen eine zweite
+   Zeile mit dem Besitzer). */
+.netz-knoten{
+  position:absolute;width:132px;min-height:62px;
+  transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;
+  padding:.3rem .4rem;border:1px solid var(--line);border-radius:10px;
+  background:var(--card);font:inherit;color:var(--ink);text-align:center;
+  cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease,transform .12s ease;
+}
+.netz-knoten:hover{border-color:var(--brand);box-shadow:0 4px 14px rgba(16,24,40,.12)}
+.netz-knoten:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.netz-ico{display:block;flex:0 0 auto}
+.netz-label{
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:.82rem;line-height:1.2;
+}
+.netz-von{
+  display:flex;align-items:center;gap:.3em;max-width:100%;min-width:0;
+  font-size:.7rem;color:var(--muted);
+}
+.netz-von-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* die Mitte traegt sich kraeftiger und liegt ueber den Kanten */
+.netz-mitte{
+  border-color:var(--brand);box-shadow:0 6px 18px rgba(16,24,40,.14);
+  font-weight:600;z-index:2;
+}
+/* Ziel weg oder nicht freigegeben: nicht anklickbar, als Frage markiert */
+.netz-tot{cursor:default;border-style:dashed;color:var(--muted);background:transparent}
+.netz-tot:hover{border-color:var(--line);box-shadow:none}
+.netz-tot-mark{
+  display:grid;place-items:center;width:26px;height:26px;border-radius:50%;
+  border:1px dashed var(--line);color:var(--muted);font-size:.8rem;
+}
+/* Der Hinweis sitzt UNTER der Mitte — die wird auch ohne Nachbarn gezeichnet */
+.netz-leer{
+  position:absolute;inset:auto 12% 16% 12%;
+  margin:0;text-align:center;color:var(--muted);font-size:.9rem;line-height:1.5;
+}
+.netz-leer[hidden]{display:none}
+@media (prefers-reduced-motion:reduce){.netz-knoten{transition:none}}
+
 /* Frei platzierbare Notiz-Icons ("Desktop") neben der Liste --------------
    Overlay-Ebene ueber die ganze Seite, laesst Klicks durch (pointer-events:
    none); nur die Icons selbst fangen Zeiger ab.
@@ -1011,6 +1265,19 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   padding-top:.5rem;margin-top:.5rem;border-top:1px solid var(--line);
   font-size:.74rem;
 }
+/* Kurzinfo-Kaertchen an einem Datei-Verweis im Notiztext (js/files/file-tip.js).
+   Teilt sich Rahmen, Schatten und Ein-/Ausblenden mit der Notiz-Vorschau
+   (.note-tip), ist aber kein Textblock: Breite richtet sich nach dem Inhalt. */
+.doc-tip{width:max-content;max-width:min(320px,90vw);gap:.35rem}
+.doc-tip-head{display:flex;align-items:center;gap:.45rem;font-weight:600}
+.doc-tip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-tip-meta{color:var(--muted);font-size:.8rem}
+.doc-tip-shares{
+  display:flex;flex-direction:column;gap:.4rem;
+  padding-top:.5rem;margin-top:.15rem;border-top:1px solid var(--line);
+}
+.doc-tip-shares-title{color:var(--muted);font-size:.78rem}
+
 /* Notiz-Namen sind Buttons, sollen aber wie die Datei-Links aussehen */
 button.fname{
   background:none;border:0;padding:0;margin:0;font:inherit;

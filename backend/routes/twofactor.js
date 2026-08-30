@@ -45,12 +45,9 @@ router.post("/zwei-faktor", loginRequired, (req, res) => {
     return fehler(`Zu viele Fehlversuche. Bitte in ${Math.ceil(gebremst.sekunden / 60)} Minuten erneut versuchen.`);
   }
 
-  const eingabe = String(req.body.code || "").trim();
-  // Ein Wiederherstellungscode ist laenger und enthaelt Bindestriche —
-  // deshalb muss der Nutzer nicht sagen, welche Art Code er tippt.
-  const passt = eingabe.replace(/\s|-/g, "").length > totp.STELLEN
-    ? zwei.verbraucheWiederherstellungscode(me, eingabe)
-    : zwei.pruefeCode(me, eingabe);
+  // Zahl oder Wiederherstellungscode — die Unterscheidung trifft zwei.js,
+  // damit das Zuruecksetzen durch einen Admin dieselbe Regel benutzt.
+  const passt = zwei.pruefeEingabe(me, req.body.code);
 
   if (!passt) {
     guard.fehlversuch(me, req.ip);

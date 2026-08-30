@@ -17,7 +17,9 @@ const notifications = require("../notifications");
 const users = require("../users");
 const avatars = require("../avatars");
 const { accessFor } = require("../access");
-const { secureFilename, securePath, pathFor } = require("../storage");
+const { imageType } = require("./images"); // erkennt Bilddateien am Namen
+const { secureFilename, securePath, pathFor, dirFor, walkFiles } = require("../storage");
+const { labelFromName } = require("../format");
 const { BASE, DS_INTERNAL, HOST_INTERNAL, PUBLIC_DS, JWT_SECRET, FILE_SECRET, EDITOR_THEME, dsFetchUrl } = require("../config");
 const { loginRequired } = require("./auth");
 
@@ -137,6 +139,114 @@ router.post("/notes/status", loginRequired, express.json(), (req, res) => {
   if (acc !== "owner" && acc !== "edit") return res.sendStatus(403);
   notemeta.setStatus(owner, filename, status);
   res.json({ status });
+});
+
+// --- Notiz-Netz ---------------------------------------------------------
+//
+// Welche Notizen haengen mit dieser zusammen? Verweise stehen NUR als Text in
+// den Notizen (siehe public/js/notes/doclinks.js), es gibt keinen Index.
+// Daraus folgt eine Asymmetrie:
+//   ausgehend  — steht in der Notiz selbst, ein Regex genuegt
+//   eingehend  — nur zu finden, indem man ALLE erreichbaren Notizen durchsieht
+//
+// Bewusst ohne Index-Tabelle: die muesste bei Speichern, Umbenennen, Loeschen
+// und Verschieben mitgezogen werden — vier Stellen, an denen sie stillschweigend
+// veralten kann, und ein veralteter Graph zeigt Verbindungen, die es nicht mehr
+// gibt. Ein paar hundert kleine Markdown-Dateien zu lesen kostet Millisekunden.
+// Wird das je spuerbar, ist ein Index eine reine Beschleunigung und laesst sich
+// nachruesten, ohne die Ansicht anzufassen.
+//
+// Es kommen NUR Notizen ins Netz (.md) — Dokumente und Bilder sind Blaetter,
+// sie koennen nicht zurueckverweisen.
+const NETZ_VERWEIS = /!?\[((?:[^\]\\]|\\.)*)\]\(relay\/([^)\s]+)\)/g;
+
+function verweiseIn(text) {
+  const out = [];
+  for (const m of String(text).matchAll(NETZ_VERWEIS)) {
+    let teile;
+    try { teile = m[2].split("/").map(decodeURIComponent); } catch (e) { continue; }
+    const owner = teile.shift();
+    const rel = teile.join("/");
+    if (owner && rel && /\.md$/i.test(rel)) out.push({ owner, rel, label: m[1] });
+  }
+  return out;
+}
+
+// Alle Notizen, die dieser Nutzer sehen darf — eigene und freigegebene.
+// Dieselbe Menge, aus der auch die Suche schoepft.
+function erreichbareNotizen(me) {
+  const map = new Map();
+  const add = (owner, rel) => {
+    if (!/\.md$/i.test(rel)) return;
+    map.set(`${owner}/${rel}`, { owner, rel });
+  };
+  walkFiles(dirFor(me)).forEach((rel) => add(me, rel));
+  shares.listForUser(me).forEach((sh) => add(sh.owner, sh.filename));
+  return map;
+}
+
+router.get("/notes/netz/:owner/*", loginRequired, (req, res) => {
+  const me = req.session.user;
+  const owner = req.params.owner, fid = req.params[0];
+  if (!accessFor(me, owner, fid)) return res.sendStatus(404);
+  let text;
+  try { text = fs.readFileSync(pathFor(owner, fid), "utf8"); } catch (e) { return res.sendStatus(404); }
+
+  const schluessel = (o, r) => `${o}/${r}`;
+  const mitte = schluessel(owner, fid);
+  const erreichbar = erreichbareNotizen(me);
+
+  const knoten = (o, r) => {
+    const m = notemeta.get(o, r);
+    const u = o === me ? null : users.get(o);
+    return {
+      owner: o, rel: r,
+      label: m.title || labelFromName(r),
+      color: m.color || "", dark: notemeta.isDark(m.color),
+      status: notemeta.normalizeStatus(m.status),
+      // Bei fremden Notizen steht der Besitzer am Knoten — mit Bild, wenn er
+      // eines hat (sonst zeichnet die Anzeige seinen Anfangsbuchstaben).
+      fremd: o !== me, von: u ? u.display_name : o,
+      hatBild: o !== me && avatars.has(o),
+    };
+  };
+
+  // ausgehend
+  const raus = [], tot = [];
+  const gesehen = new Set();
+  for (const v of verweiseIn(text)) {
+    const k = schluessel(v.owner, v.rel);
+    if (k === mitte || gesehen.has(k)) continue;
+    gesehen.add(k);
+    // "nicht erreichbar" fasst zwei Faelle zusammen — geloescht/umbenannt ODER
+    // nicht (mehr) freigegeben. Absichtlich ununterscheidbar: die Auskunft,
+    // dass es eine Notiz GIBT, gehoert nicht zu den Dingen, die ein Verweis
+    // preisgeben darf.
+    if (erreichbar.has(k) && fs.existsSync(pathFor(v.owner, v.rel))) raus.push(knoten(v.owner, v.rel));
+    else tot.push({ label: v.label || labelFromName(v.rel) });
+  }
+
+  // eingehend: wer verweist auf die Mitte?
+  const rein = [];
+  for (const [k, n] of erreichbar) {
+    if (k === mitte) continue;
+    let t;
+    try { t = fs.readFileSync(pathFor(n.owner, n.rel), "utf8"); } catch (e) { continue; }
+    if (t.indexOf("(relay/") === -1) continue;   // billiger Vorfilter
+    if (verweiseIn(t).some((v) => schluessel(v.owner, v.rel) === mitte)) rein.push(knoten(n.owner, n.rel));
+  }
+
+  // beidseitige Verbindungen stehen nur EINMAL im Netz, auf der Ausgangsseite
+  const reinKeys = new Set(rein.map((n) => schluessel(n.owner, n.rel)));
+  raus.forEach((n) => { n.beide = reinKeys.has(schluessel(n.owner, n.rel)); });
+  const rausKeys = new Set(raus.map((n) => schluessel(n.owner, n.rel)));
+
+  res.json({
+    mitte: knoten(owner, fid),
+    raus,
+    rein: rein.filter((n) => !rausKeys.has(schluessel(n.owner, n.rel))),
+    tot,
+  });
 });
 
 // Position eines Notiz-Icons auf dem "Desktop" merken (je Betrachter)
@@ -301,8 +411,65 @@ async function metaBadgeImage(meta) {
 // verpacken (OnlyOffice interpretiert semantisches HTML + einfache CSS-Regeln).
 // badge (optional) haengt die Metadaten-Badges als Bild unten unter einer
 // Trennlinie an.
-function pdfHtmlDoc(md, badge) {
-  const body = marked.parse(md);
+// Verweise auf andere Dokumente (per @ gesetzt, siehe public/js/notes/doclinks.js)
+// zeigen auf ein Ziel INNERHALB von Relay — im PDF gibt es das nicht. Der Titel
+// bleibt als hervorgehobener Text stehen; ein Link dorthin liefe ins Leere.
+const APP_VERWEIS = /<a href="relay\/[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
+function verweiseAlsText(html) {
+  return html.replace(APP_VERWEIS,
+    '<span style="background:#f1f3f5;padding:.1em .35em;border-radius:4px">$1</span>');
+}
+
+// Eingebettete Bilder (![…](relay/…)) muessen fuer das PDF WIRKLICH ins
+// Dokument: der DocumentServer holt die Quell-HTML ueber eine kurzlebige
+// Adresse und kann unsere /image-Route weder erreichen noch sich dort anmelden.
+// Also als data:-URI einbetten — vorher verkleinert, sonst blaeht ein
+// Handyfoto (Base64 kostet ein Drittel obendrauf) die HTML auf zweistellige
+// Megabyte.
+//
+// betrachter ist entscheidend: eingebettet wird nur, was DERJENIGE sehen darf,
+// der das PDF anfordert. Eine Notiz kann ein Bild eines Dritten einbetten —
+// dann bleibt an dieser Stelle der alt-Text stehen.
+const PDF_BILD = /<img src="relay\/([^"]*)"([^>]*)>/gi;
+const PDF_BILD_MAX = 1400;   // laengste Kante im PDF
+const PDF_BILDER_MAX = 12;   // Deckel je Notiz — Konvertierung soll nicht kippen
+
+async function bilderEinbetten(html, betrachter) {
+  const treffer = [...html.matchAll(PDF_BILD)];
+  if (!treffer.length) return html;
+  const ersatz = new Map();
+  let gezaehlt = 0;
+  for (const t of treffer) {
+    if (ersatz.has(t[0])) continue;
+    let uri = null;
+    try {
+      const teile = t[1].split("/").map(decodeURIComponent);
+      const owner = teile.shift();
+      const rel = teile.join("/");
+      if (gezaehlt < PDF_BILDER_MAX && owner && rel &&
+          accessFor(betrachter, owner, rel) && imageType(rel)) {
+        const buf = await sharp(pathFor(owner, rel))
+          .rotate()                                   // EXIF-Drehung anwenden
+          .resize({ width: PDF_BILD_MAX, height: PDF_BILD_MAX,
+                    fit: "inside", withoutEnlargement: true })
+          .flatten({ background: "#ffffff" })         // PNG-Transparenz -> weiss
+          .jpeg({ quality: 80 })
+          .toBuffer();
+        uri = "data:image/jpeg;base64," + buf.toString("base64");
+        gezaehlt++;
+      }
+    } catch (e) { /* unlesbar oder kein Bild -> alt-Text */ }
+    // Ohne Zugriff (oder bei Fehlern) die Quelle entfernen: der Browser bzw.
+    // der Konverter zeigt dann den alt-Text statt eines kaputten Symbols.
+    ersatz.set(t[0], uri
+      ? `<img src="${uri}"${t[2]} style="max-width:100%">`
+      : `<img${t[2]}>`);
+  }
+  return html.replace(PDF_BILD, (m) => ersatz.get(m) || `<img>`);
+}
+
+async function pdfHtmlDoc(md, badge, betrachter) {
+  const body = await bilderEinbetten(verweiseAlsText(marked.parse(md)), betrachter);
   const meta = badge
     ? `<div style="margin-top:1.4em;padding-top:.8em;border-top:1px solid #e5e7eb">`
       + `<img src="${badge.dataUri}" width="${badge.width}" height="${badge.height}"/></div>`
@@ -373,7 +540,7 @@ router.get("/edit/notepdf/:owner/*", loginRequired, async (req, res) => {
   const srcExp = Math.floor(Date.now() / 1000) + 60;
   let badge = null;
   try { badge = await metaBadgeImage(notemeta.get(owner, fid)); } catch (e) { console.error("Badge-Bild fehlgeschlagen:", e.message); }
-  const html = pdfHtmlDoc(md, badge);
+  const html = await pdfHtmlDoc(md, badge, req.session.user);
   pdfSources.set(srcId, { html, expires: Date.now() + 60000 });
   prune(pdfSources);
   const srcUrl = `${HOST_INTERNAL}${BASE}/notes/pdf-src/${srcId}`

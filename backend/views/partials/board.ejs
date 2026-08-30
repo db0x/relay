@@ -35,6 +35,8 @@
     </button>
   </header>
 
+  <%# wie in der Dateiliste: nur der Rumpf rollt %>
+  <div class="page-body">
   <div class="board-cols">
     <% boardCols.forEach(function(col){ %>
     <%# data-status: js/board.js liest daraus, welcher Stand beim Ablegen
@@ -53,6 +55,7 @@
                 class="note-open board-card<%= n.isOwner ? "" : " card-foreign note-shared" %><%= n.color ? " note-colored" : "" %><%= n.dark ? " note-dark" : "" %><%= n.status === "closed" ? " note-desk-done" : "" %>"
                 data-owner="<%= n.owner %>" data-rel="<%= n.relpath %>"
                 data-label="<%= n.label %>" data-canedit="<%= n.canedit ? 1 : 0 %>"
+          data-isowner="<%= n.isOwner ? 1 : 0 %>"
                 data-status="<%= n.status %>" data-due="<%= n.dueDate %>"
                 <% if (n.color) { %>style="--note-color:<%= n.color %>"<% } %>
                 aria-label="Notiz: <%= n.label %>">
@@ -73,6 +76,7 @@
     </section>
     <% }); %>
   </div>
+  </div><%# Ende .page-body %>
 
   <% if (boardForeign) { %>
   <%# Fusszeile mit Filter — dasselbe Muster wie unter der Dateiliste %>
