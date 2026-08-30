@@ -4,18 +4,36 @@
 # throwaway container with an empty database (see tests/global-setup.js), so
 # the workflow needs nothing but Docker and Node — no DocumentServer, no
 # secrets, no persistent state.
+#
+# WARUM DREI SHARDS: die Suite laeuft strikt seriell (workers:1) — alle Tests
+# teilen sich EINE Datenbank im Wegwerf-Container. Sie zu parallelisieren ginge
+# nur mit einem Container je Worker; das Aufteilen auf mehrere Laeufe kostet
+# dagegen nichts. Weil fullyParallel:false gesetzt ist, verteilt Playwright
+# ganze DATEIEN — die serielle TOTP-Gruppe in security.spec.js bleibt damit in
+# einem Shard beisammen.
 name: E2E
 
 on:
+  # Bewusst nur main: ein Pull Request laeuft sonst DOPPELT (einmal fuer den
+  # Push auf den Branch, einmal fuer den PR) und belegt die Laeufer zweimal.
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Je Shard, nicht fuer die ganze Suite. Grosszuegig: ein Laeufer hat zwei
+    # Kerne und ist deutlich langsamer als eine Entwicklermaschine.
+    timeout-minutes: 25
+
+    strategy:
+      # Ein roter Shard soll die anderen nicht abwuergen — sonst sieht man nur
+      # den ersten Fehler und nicht, was sonst noch kaputt ist.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     steps:
       - uses: actions/checkout@v4
@@ -34,15 +52,16 @@ jobs:
         working-directory: tests
         run: npx playwright install --with-deps chromium
 
-      - name: Run E2E tests
+      - name: Run E2E tests (shard ${{ matrix.shard }}/3)
         working-directory: tests
-        run: npm test
+        run: npx playwright test --shard=${{ matrix.shard }}/3
 
-      # Bei rot: Report mit Screenshots und Traces der fehlgeschlagenen Tests
+      # Bei rot: Report mit Screenshots und Traces der fehlgeschlagenen Tests.
+      # Der Name MUSS den Shard tragen — gleichnamige Artefakte kollidieren.
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard }}
           path: tests/playwright-report/
           retention-days: 14
