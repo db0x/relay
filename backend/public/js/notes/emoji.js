@@ -111,7 +111,11 @@ export function initEmoji(config) {
 
   // --- Auswahl oeffnen/schliessen ---
   if (button && panel) {
-    fillPanel(panel, function (ch) {
+    // Befuellt wird NIE der Behaelter selbst: der traegt die Bildlaufleiste,
+    // und OverlayScrollbars haengt seine Huelle da hinein (GRUNDREGEL in
+    // js/core/scrollbars.js). Die Gruppen kommen in den Rumpf darin.
+    var body = panel.querySelector(".emoji-panel-body") || panel;
+    fillPanel(body, function (ch) {
       insert(ch);
       panel.hidden = true;
       button.setAttribute("aria-expanded", "false");

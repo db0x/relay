@@ -798,7 +798,12 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   border:1px solid var(--line);border-radius:var(--radius-sm);
   box-shadow:0 8px 28px rgba(16,24,40,.16);
 }
-.emoji-panel[hidden]{display:none}
+/* [hidden] allein reicht NICHT: OverlayScrollbars setzt seinem Behaelter
+   display:flex !important (GRUNDREGEL in js/core/scrollbars.js) — ohne das
+   !important bliebe die Auswahl nach dem Klick offen stehen. */
+.emoji-panel[hidden]{display:none !important}
+/* Rumpf: hier landen die Gruppen, damit die Huelle der Leiste heil bleibt */
+.emoji-panel-body{width:100%}
 
 /* Verlinken per @: dieselben Trefferzeilen wie die Suche im Anwendungs-Menue
    (.app-hit & Co.), nur in einem eigenen Kasten an der Schreibmarke.

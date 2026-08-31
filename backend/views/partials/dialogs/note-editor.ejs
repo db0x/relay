@@ -109,9 +109,15 @@
           </button>
           <%# befuellt js/notes/emoji.js beim ersten Oeffnen. Liegt IN der
               Werkzeugleiste, damit es sich immer an deren Unterkante haengt —
-              auch wenn sie bei schmalem Dialog auf zwei Zeilen umbricht. %>
+              auch wenn sie bei schmalem Dialog auf zwei Zeilen umbricht.
+              Zwei Ebenen wie bei der Vorschau: #emoji-panel ist der
+              Scroll-Behaelter (traegt die Bildlaufleiste, js/core/scrollbars.js),
+              die Gruppen kommen IMMER in #emoji-panel-body — sonst reisst das
+              Befuellen die Huelle heraus und die Gruppen stehen nebeneinander. %>
           <div class="emoji-panel" id="emoji-panel" role="dialog"
-               aria-label="Emoji auswählen" hidden></div>
+               aria-label="Emoji auswählen" hidden>
+            <div class="emoji-panel-body" id="emoji-panel-body"></div>
+          </div>
         </div>
         <textarea class="note-text" name="md" spellcheck="false"
                   aria-label="Markdown-Inhalt der Notiz"></textarea>
