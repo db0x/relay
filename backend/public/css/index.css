@@ -645,16 +645,38 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 
 /* Video-Wiedergabe: derselbe Zuschnitt wie die Bild-Vorschau, nur breiter —
    Filme sind fast immer im Querformat. Schwarzer Grund, damit die Balken bei
-   abweichendem Seitenverhaeltnis nicht wie ein Fehler aussehen. */
-.dialog.dialog-video{width:fit-content;max-width:min(94vw,1200px);padding-bottom:0}
+   abweichendem Seitenverhaeltnis nicht wie ein Fehler aussehen.
+   FESTE Groesse statt fit-content: der Dialog laesst sich am Griff unten
+   rechts ziehen, und dafuer braucht er Masse, an denen das Ziehen ansetzt.
+   Die Untergrenzen fangen ab, dass man ihn auf nichts zusammenzieht. */
+.dialog.dialog-video{
+  width:min(92vw,1000px);height:min(76vh,620px);
+  max-width:none;min-width:320px;min-height:220px;padding-bottom:0;
+}
+/* [open]: display darf NIE ohne — sonst blendet der Browser den geschlossenen
+   Dialog nicht mehr aus (siehe .dialog:not([open]) weiter unten) */
+.dialog.dialog-video[open]{display:flex;flex-direction:column}
+.dialog.dialog-video .dialog-head{flex:0 0 auto}
 .video-view{
-  display:flex;flex-direction:column;align-items:center;
+  flex:1 1 auto;min-height:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:0 1.1rem 1.1rem;
 }
 .video-view video{
-  display:block;width:min(86vw,1000px);max-height:calc(100vh - 12rem);
+  display:block;width:100%;height:100%;object-fit:contain;
   background:#000;border-radius:var(--radius-sm);
 }
+/* Griff zum Skalieren, unten rechts. Ruhig im Hintergrund, deutlich sobald
+   der Zeiger im Dialog ist — wie beim Notiz-Dialog, nur ohne dessen
+   Ecken-Animation (dort ist der Dialog hell, hier liegt darunter der Film). */
+.video-resize{
+  position:absolute;right:2px;bottom:2px;width:26px;height:26px;
+  display:grid;place-items:center;z-index:3;
+  cursor:nwse-resize;touch-action:none;border-radius:6px;
+  opacity:0;transition:opacity .12s ease;
+}
+.dialog.dialog-video:hover .video-resize{opacity:.55}
+.video-resize:hover{opacity:1 !important;background:var(--line-soft)}
 /* Rueckfall, wenn der Browser das Format nicht abspielen kann (mkv/avi mit
    fremdem Codec) — js/files/video-view.js blendet ihn statt des <video> ein */
 .video-err{
@@ -687,27 +709,60 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .dialog.dialog-video.video-max[open]{
   /* Das FENSTER bekommt den Player: kein Aussenabstand, kein Rand, keine
      runden Ecken — sonst bliebe genau der helle Rahmen ums Bild stehen, der
-     hier stoert. Uebrig ist allein die Titelleiste (Schliessen, Herunterladen,
-     zurueck auf normale Groesse). */
+     hier stoert. */
   inset:0;margin:0;
   width:100vw;max-width:none;
   height:100vh;max-height:none;
   border:0;border-radius:0;box-shadow:none;
   display:flex;flex-direction:column;
 }
-/* Titelleiste: runde Ecken und der .2rem-Abstand darunter muessen weg — der
-   waere der letzte Spalt zwischen ihr und dem Film */
+/* Im Fenstermodus gibt es nichts zu ziehen — der Griff waere nur im Weg */
+.dialog.dialog-video.video-max[open] .video-resize{display:none}
+
+/* Die Titelleiste LEGT SICH UEBER den Film und faehrt nach oben weg: beim
+   Schauen soll nichts danebenstehen. Zurueck kommt sie ueber den unsichtbaren
+   Streifen am oberen Rand (.video-peek) — und sie bleibt, solange der Zeiger
+   auf ihr steht, sonst waere kein Knopf zu treffen. Die beiden Flaechen
+   beruehren sich (Streifen 64px, Leiste ~50px), darum kein Flackern dazwischen.
+   Dunkel und halbdurchlaessig: eine helle Leiste ueber einem Film sieht aus
+   wie ein Fehler, nicht wie die Bedienung eines Players. */
+.dialog.dialog-video.video-max[open] .video-peek{
+  display:block;position:absolute;top:0;left:0;right:0;height:64px;z-index:3;
+}
 .dialog.dialog-video.video-max[open] .dialog-head{
-  flex:0 0 auto;margin-bottom:0;border-radius:0;
+  position:absolute;top:0;left:0;right:0;z-index:4;
+  margin-bottom:0;border-radius:0;
+  background:rgba(18,20,26,.82);border-bottom-color:rgba(255,255,255,.12);
+  color:#fff;
+  transform:translateY(-100%);transition:transform .2s ease;
 }
-.dialog.dialog-video.video-max[open] .video-view{
-  flex:1 1 auto;min-height:0;padding:0;justify-content:center;
+.dialog.dialog-video.video-max[open] .video-peek:hover + .dialog-head,
+.dialog.dialog-video.video-max[open] .dialog-head:hover{transform:none}
+.dialog.dialog-video.video-max[open] .dialog-head h2{color:#fff}
+.dialog.dialog-video.video-max[open] .dialog-head .dialog-x{color:rgba(255,255,255,.75)}
+.dialog.dialog-video.video-max[open] .dialog-head .dialog-x:hover{
+  background:rgba(255,255,255,.14);color:#fff;
 }
-.dialog.dialog-video.video-max[open] .video-view video{
-  width:100%;height:100%;max-height:none;object-fit:contain;
-  /* die Ecken uebernimmt der Dialog (border-radius + overflow:hidden) */
-  border-radius:0;
+.dialog.dialog-video.video-max[open] .dialog-head .iconbtn{
+  background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22);color:#fff;
 }
+.dialog.dialog-video.video-max[open] .dialog-head .iconbtn:hover{
+  background:rgba(255,255,255,.24);border-color:rgba(255,255,255,.34);
+}
+.dialog.dialog-video.video-max[open] .dialog-head .iconbtn img{filter:invert(1) brightness(1.6)}
+/* Der eingerastete Umschalter traegt sonst sein helles Blau in die dunkle
+   Leiste. Der Selektor MUSS die id enthalten: #dlg-video-max[aria-pressed]
+   weiter oben schlaegt jede noch so lange Klassenkette. */
+.dialog.dialog-video.video-max[open] #dlg-video-max[aria-pressed="true"]{
+  background:rgba(255,255,255,.3);border-color:rgba(255,255,255,.5);
+}
+@media (prefers-reduced-motion:reduce){
+  .dialog.dialog-video.video-max[open] .dialog-head{transition:none}
+}
+/* ausserhalb des Fenstermodus liegt der Streifen brach */
+.video-peek{display:none}
+.dialog.dialog-video.video-max[open] .video-view{padding:0}
+.dialog.dialog-video.video-max[open] .video-view video{border-radius:0}
 
 /* Ordner der geteilten Bibliothek: dieselbe Kennzeichnung wie eine Freigabe,
    aber im eigenen Farbregister — sie kommt vom Server, nicht von einem Nutzer */

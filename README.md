@@ -255,9 +255,17 @@ server** — typically a video collection on a NAS. Set `SHARED_LIB` in the
   to a download hint when the browser cannot. The dialog header has a
   **window-size toggle**: it drops its own frame and hands the whole browser
   window to the player (aspect ratio kept — this is *not* the player's own
-  fullscreen, the title bar stays). Playback starts on its own; the click on
+  fullscreen, which additionally hides the browser's own chrome). In that mode
+  the title bar slides out of the way and comes back when the pointer reaches
+  the top edge (a 64px hover strip in front of it, plus the bar itself, so
+  there is no gap to flicker in). In normal size the dialog can be **dragged
+  larger** at the grip in its bottom-right corner; the size is remembered. Playback starts on its own; the click on
   the file name is the user gesture browsers require for sound, and a refused
-  start is caught so the play button simply stays put. Everything else in the
+  start is caught so the play button simply stays put. **Escape while
+  fullscreen belongs to the browser** — the global handler in `core/dialogs.js`
+  bails out when `document.fullscreenElement` is set; without that, one key
+  press left the viewer inside fullscreen in front of a black frame, because
+  closing the dialog also strips the video source. Everything else in the
   library can be downloaded; images open the existing preview dialog.
 - **Documents, spreadsheets, presentations and PDFs open in OnlyOffice**, in
   **view mode**, via `/lib/edit/*` — a separate path, because "lib" would be a
