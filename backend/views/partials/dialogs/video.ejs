@@ -1,0 +1,39 @@
+<%# Video-Wiedergabe: OnlyOffice kann mit Videos nichts anfangen, darum ein
+    eigener Dialog — mit dem <video> des Browsers, ganz ohne zusaetzliche
+    Bibliothek. Die Quelle setzt js/files/video-view.js erst beim Oeffnen und
+    nimmt sie beim Schliessen wieder weg; sonst laedt die Startseite jedes
+    Video mit bzw. der Ton liefe nach dem Schliessen weiter. %>
+<dialog id="dlg-video" class="dialog dialog-video">
+  <header class="dialog-head">
+    <img src="<%= base %>/static/img/video.svg" alt="" width="22" height="22">
+    <h2 id="dlg-video-title">Video</h2>
+    <%# "Auf Fenstergroesse": vergroessert den DIALOG auf das ganze Fenster —
+        etwas anderes als das echte Vollbild, das der Player selbst anbietet.
+        Ein Umschalter mit EINEM Symbol: der eingerastete Zustand steht in
+        aria-pressed (das CSS faerbt den Knopf dann wie beim Ueberfahren) und
+        im Tooltip, den js/files/video-view.js umschreibt. %>
+    <button type="button" class="iconbtn" id="dlg-video-max" aria-pressed="false"
+            data-tip="Auf Fenstergröße vergrößern" aria-label="Auf Fenstergröße vergrößern">
+      <img src="<%= base %>/static/img/window-maximize.svg" alt="" width="16" height="16">
+    </button>
+    <a class="iconbtn" id="dlg-video-download" href="#" download
+       data-tip="Herunterladen" aria-label="Video herunterladen">
+      <img src="<%= base %>/static/img/download.svg" alt="" width="16" height="16">
+    </a>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+  <div class="video-view">
+    <%# preload="metadata" ist der Zustand VOR dem Oeffnen — solange kein src
+        gesetzt ist, laedt ohnehin nichts. Beim Oeffnen startet
+        js/files/video-view.js die Wiedergabe selbst (play()), statt hier
+        autoplay zu setzen: so laesst sich ein abgelehnter Start abfangen. %>
+    <video id="dlg-video-player" controls preload="metadata" playsinline></video>
+    <p class="video-err" id="dlg-video-err" hidden>
+      Dieses Video kann der Browser nicht abspielen — vermutlich ein Codec, den
+      er nicht kennt. Über das Herunterladen-Symbol oben lässt es sich mit einem
+      Abspielprogramm öffnen.
+    </p>
+  </div>
+</dialog>

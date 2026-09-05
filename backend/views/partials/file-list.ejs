@@ -19,7 +19,9 @@
         Ordner (siehe syncDirFields in js/folder-nav.js fuer die Dialoge,
         die ausserhalb liegen). %>
     <%# page-head-end: alles ab hier rueckt an den rechten Rand (margin-left:auto) %>
-    <div class="page-actions page-head-end">
+    <%# In der Bibliothek (?p=lib:...) faellt die ganze Gruppe weg: dort wird
+        nur gelesen, es gibt weder Hochladen noch Neuer Ordner. %>
+    <div class="page-actions page-head-end"<%= libMode ? " hidden" : "" %>>
       <%# ein Knopf: oeffnet die Dateiauswahl, die Auswahl laedt sofort hoch (js/files/upload.js) %>
       <form class="upload-form" action="<%= base %>/upload?_csrf=<%= csrf %>" method="post" enctype="multipart/form-data"
             data-max-mb="<%= maxUploadMb %>">
@@ -75,7 +77,11 @@
       </thead>
       <tbody>
         <% if (files.length) { files.forEach(function(f, i){ %>
-        <tr<%- f.isOwner ? "" : ' class="row-foreign"' %>>
+        <%# row-foreign steuert den Filter "Nur eigene Dateien" — der meint
+            Freigaben ANDERER NUTZER. Die Bibliothek gehoert dem Server und
+            bleibt davon unberuehrt, sonst liesse ein aktiver Filter in ihr
+            eine komplett leere Liste zurueck. %>
+        <tr<%- (f.isOwner || f.isLib) ? (f.isLib ? ' class="row-lib"' : "") : ' class="row-foreign"' %>>
           <td class="col-name">
             <div class="file-cell">
               <%# Notizen als <use> aufs <symbol> — nur so traegt das Icon die
@@ -84,7 +90,7 @@
               <svg class="ficon note-ico<%= f.noteColor ? " note-colored" : "" %><%= f.noteDark ? " note-dark" : "" %>"
                    width="28" height="28" aria-hidden="true" focusable="false"
                    <% if (f.noteColor) { %>style="--note-color:<%= f.noteColor %>"<% } %>><use href="#note-ico"/></svg>
-              <% } else if (f.isImage) { %>
+              <% } else if (f.isImage && !f.isLib) { %>
               <%# echtes Vorschaubild statt Einheits-Icon (serverseitig
                   verkleinert, siehe routes/images.js). Schlaegt das Laden fehl
                   (kaputte Datei), blendet js/files/image-view.js das
@@ -96,13 +102,35 @@
               <img class="ficon" src="<%= base %>/static/img/<%= f.icon %>.svg" alt="" width="28" height="28">
               <% } %>
               <span class="fname-wrap">
-                <% if (f.isDir) { %>
+                <%# Bibliothek zuerst: ihre Links haengen an eigenen Routen und
+                    stehen fertig im Zeilen-Objekt (routes/browse.js: libRow) %>
+                <% if (f.isLib && f.isDir) { %>
+                <a class="fname" href="<%= f.href %>"><%= f.label %></a>
+                <% } else if (f.isLib && f.isVideo) { %>
+                <button type="button" class="fname video-open"
+                        data-src="<%= f.src %>" data-download="<%= f.download %>"
+                        data-label="<%= f.label %>"><%= f.label %></button>
+                <% } else if (f.isLib && f.isImage) { %>
+                <button type="button" class="fname image-open"
+                        data-src="<%= f.src %>" data-download="<%= f.download %>"
+                        data-label="<%= f.label %>"><%= f.label %></button>
+                <% } else if (f.isLib) { %>
+                <%# alles Uebrige aus der Bibliothek: herunterladen %>
+                <a class="fname" href="<%= f.download %>"><%= f.label %></a>
+                <% } else if (f.isDir) { %>
                 <a class="fname" href="<%= base %>/?p=<%= encodeURIComponent(f.relpath) %>"><%= f.label %></a>
                 <% } else if (f.isNote) { %>
                 <button type="button" class="fname note-open" data-owner="<%= f.owner %>"
                         data-rel="<%= f.relpath %>" data-label="<%= f.label %>"
                         data-canedit="<%= (f.isOwner || f.perm === "edit") ? 1 : 0 %>"
                         data-isowner="<%= f.isOwner ? 1 : 0 %>"><%= f.label %></button>
+                <% } else if (f.isVideo) { %>
+                <%# Videos ebenso wenig -> eigener Dialog mit dem <video> des
+                    Browsers (js/files/video-view.js) %>
+                <button type="button" class="fname video-open"
+                        data-src="<%= base %>/video/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>"
+                        data-download="<%= base %>/download/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>"
+                        data-label="<%= f.label %>"><%= f.label %></button>
                 <% } else if (f.isImage) { %>
                 <%# Bilder kann OnlyOffice nicht oeffnen -> eigener
                     Vorschau-Dialog (js/files/image-view.js) %>
@@ -116,7 +144,11 @@
                 <% if (f.todo) { %>
                 <span class="badge badge-todo<%= f.todo.overdue ? " badge-todo-over" : "" %>">ToDo<%= f.todo.dueLabel ? " · fällig " + f.todo.dueLabel : "" %></span>
                 <% } %>
-                <% if (!f.isOwner) { %>
+                <% if (f.isLib) { %>
+                <%# libHint nennt bei den Einstiegen den Ort in der Bibliothek —
+                    zwei Freigaben koennen denselben Namen tragen %>
+                <span class="badge badge-lib">Bibliothek<%= f.libHint ? " · " + f.libHint : "" %></span>
+                <% } else if (!f.isOwner) { %>
                 <span class="badge">von <%= f.ownerName %><% if (f.perm === "view") { %> · nur lesen<% } %></span>
                 <% } else if (f.shares.length) { %>
                 <span class="badge badge-soft share-badge" tabindex="0">geteilt · <%= f.shares.length %>
@@ -141,6 +173,8 @@
           <td class="col-size"><%= f.size %></td>
           <td class="col-date"><%= f.modified %></td>
           <td class="col-actions">
+            <%# Bibliotheksordner haben keine Aktion — kein Kebab-Knopf %>
+            <% if (!(f.isLib && f.isDir)) { %>
             <%# alle Aktionen in EINEM Kontextmenue pro Zeile (Kebab-Knopf) %>
             <div class="row-menu">
               <button type="button" class="iconbtn row-menu-btn" aria-haspopup="true"
@@ -148,7 +182,11 @@
                 <img src="<%= base %>/static/img/open-menu.svg" alt="" width="16" height="16">
               </button>
               <div class="menu-panel row-menu-panel" hidden>
-                <% if (f.isDir) { %>
+                <% if (f.isLib) { %>
+                <a class="menu-item menu-item-ico" href="<%= f.download %>">
+                  <img src="<%= base %>/static/img/download.svg" alt="" width="16" height="16">Herunterladen
+                </a>
+                <% } else if (f.isDir) { %>
                 <form class="del-form" action="<%= base %>/rmdir/<%= encPath(f.relpath) %>" method="post"
                       data-confirm="Ordner „<%= f.label %>“ löschen? Das geht nur, wenn er leer ist.">
                   <input type="hidden" name="_csrf" value="<%= csrf %>">
@@ -180,17 +218,20 @@
                 <% } %>
               </div>
             </div>
+            <% } %>
           </td>
         </tr>
         <% }); } else { %>
-        <tr><td class="empty" colspan="4">Dieser Ordner ist leer — oben eine Datei anlegen oder hochladen.</td></tr>
+        <tr><td class="empty" colspan="4"><%= libMode
+          ? "Dieser Ordner der Bibliothek ist leer."
+          : "Dieser Ordner ist leer — oben eine Datei anlegen oder hochladen." %></td></tr>
         <% } %>
       </tbody>
     </table>
   </div>
   </div><%# Ende .page-body %>
 
-  <% if (files.some(function(f){ return !f.isOwner; })) { %>
+  <% if (files.some(function(f){ return !f.isOwner && !f.isLib; })) { %>
   <%# Fusszeile mit Filter: nur sichtbar, wenn es ueberhaupt Freigaben gibt %>
   <footer class="list-footer">
     <label class="switch-label">

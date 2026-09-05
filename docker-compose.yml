@@ -48,6 +48,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}              # nur bei Erstinstallation; leer = Zufallspasswort im Log
       - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-}                # Browser-Upload-Limit; leer = 128
       - MAX_FILE_MB=${MAX_FILE_MB:-}                    # harte Datei-Obergrenze (API); leer = 512
+      - SHARED_LIB=${SHARED_LIB:-}                      # Host-Pfad der Video-Bibliothek; leer = keine Bibliothek
     # Haertung: keine zusaetzlichen Rechte, keine Capabilities. Der Prozess
     # laeuft weiterhin als root IM Container -- ein Wechsel auf einen eigenen
     # Benutzer braucht ein `chown` der Datenverzeichnisse auf dem Host und
@@ -71,6 +72,13 @@ services:
       - ${DOCUMENTS_DIR:-./documents}:/data/documents
       - ${STATE_DIR:-./state}:/data/state               # Nutzerdatenbank (users.db)
       - ${BACKUP:-./backup}:/data/backup                # Ziel fuer "Backup ausfuehren" (Admin-Menue, rsync)
+      # Geteilte Bibliothek (Videos): gehoert dem Server, nicht einem Nutzer.
+      # :ro — Relay liest sie ausschliesslich; schon der Kernel laesst hier
+      # keinen Schreibzugriff zu, unabhaengig davon, was der Code tut.
+      # Ohne SHARED_LIB in der .env wird ein leerer Ordner im Projekt
+      # eingehaengt (Compose kann kein Volume weglassen) -- die Bibliothek ist
+      # dann schlicht leer und taucht nirgends auf.
+      - ${SHARED_LIB:-./library}:/data/library:ro
     # im LAN erreichbar; Browser-Routen sind per Login geschuetzt
     ports: ["${BIND_ADDR:-0.0.0.0}:${UI_PORT:-5001}:5000"]
     depends_on: [documentserver]

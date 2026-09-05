@@ -64,6 +64,19 @@ function db() {
     );
     CREATE INDEX IF NOT EXISTS shares_by_target ON shares(target);
 
+    -- Leserecht auf einen Ordner der geteilten Bibliothek (library.js).
+    -- folder ist IMMER ein Ordner der obersten Ebene unterhalb von
+    -- SHARED_LIB; das Recht gilt fuer alles darunter. Bewusst keine
+    -- Fremdschluessel auf users: geloescht wird ueber users.del mit.
+    CREATE TABLE IF NOT EXISTS library_access (
+      username TEXT NOT NULL,
+      folder   TEXT NOT NULL,
+      -- abweichender Anzeigename fuer DIESEN Nutzer; NULL = so heissen wie im
+      -- Dateisystem. Entkoppelt die Ablage von dem, was der Nutzer sieht.
+      label    TEXT,
+      PRIMARY KEY (username, folder)
+    );
+
     -- App-weite Einstellungen (Admin-Dialog), Werte JSON-kodiert (settings.js)
     CREATE TABLE IF NOT EXISTS settings (
       key   TEXT PRIMARY KEY,
@@ -174,6 +187,11 @@ function db() {
   // Dateinamen zurueck.
   if (!metaCols.includes("title"))
     _db.exec("ALTER TABLE note_meta ADD COLUMN title TEXT");
+  // library_access.label kam mit den abweichenden Anzeigenamen dazu.
+  // NULL vertraegt sich mit dem Altbestand: dort steht weiter der Ordnername.
+  const libCols = _db.prepare("PRAGMA table_info(library_access)").all().map((c) => c.name);
+  if (libCols.length && !libCols.includes("label"))
+    _db.exec("ALTER TABLE library_access ADD COLUMN label TEXT");
   // desktop_layout.minimized kam mit dem Minimieren der Dateiliste dazu
   const layoutCols = _db.prepare("PRAGMA table_info(desktop_layout)").all().map((c) => c.name);
   if (!layoutCols.includes("minimized"))

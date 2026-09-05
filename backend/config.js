@@ -61,6 +61,13 @@ module.exports = {
   ADMIN_LAN_ONLY: adminLanOnly,
   ADMIN_2FA: admin2fa,
   DOCS: "/data/documents",                        // Wurzel der Nutzer-Dateien
+  // Wurzel der geteilten Bibliothek. Der Host-Pfad steht in der .env
+  // (SHARED_LIB) und wird von docker-compose NUR LESEND (:ro) hierher
+  // eingehaengt — die Bibliothek gehoert nicht Relay, sie wird nur gezeigt.
+  LIB_DIR: "/data/library",
+  // derselbe Host-Pfad im Klartext, ausschliesslich fuer den Hinweis im
+  // Admin-Dialog ("ist ueberhaupt eine Bibliothek konfiguriert?").
+  SHARED_LIB: process.env.SHARED_LIB || "",
   STATE_DIR: process.env.STATE_DIR || "/data/state", // Nutzerdatenbank + Avatare
   BACKUP_DIR: "/data/backup",                     // Ziel fuer "Backup ausfuehren" (rsync)
   PUBLIC_DS: publicDs,
@@ -101,6 +108,22 @@ module.exports = {
     jpg: "image/jpeg", jpeg: "image/jpeg",
     gif: "image/gif",
     webp: "image/webp",
+  },
+
+  // Videodateien: Endung -> MIME-Typ. Wie IMAGE_TYPES eine WHITELIST — der
+  // Content-Type kommt NIE aus der Datei selbst, und zusammen mit nosniff kann
+  // eine als .mp4 getarnte HTML-Datei nicht als Seite ausgefuehrt werden.
+  // Abgespielt wird mit dem eingebauten <video> des Browsers, ganz ohne
+  // Bibliothek; mkv/avi sind mit aufgefuehrt, weil sie in Filmsammlungen die
+  // Regel sind — ob der Browser sie kann, haengt am Codec (der Dialog faengt
+  // den Fehlschlag ab und bietet stattdessen das Herunterladen an).
+  VIDEO_TYPES: {
+    mp4: "video/mp4", m4v: "video/mp4",
+    webm: "video/webm",
+    ogv: "video/ogg",
+    mov: "video/quicktime",
+    mkv: "video/x-matroska",
+    avi: "video/x-msvideo",
   },
 
   // leere Vorlagen (im Image mitgeliefert) fuer "Neue Datei"

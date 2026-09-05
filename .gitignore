@@ -6,6 +6,11 @@ documents/
 state/
 docs/
 
+# Ersatz-Einhängepunkt der geteilten Bibliothek, wenn SHARED_LIB leer ist
+# (docker-compose braucht einen Pfad). Bleibt leer, der Ordner selbst nicht ins Repo.
+library/*
+!library/.gitkeep
+
 # Node
 node_modules/
 npm-debug.log*

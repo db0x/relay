@@ -192,7 +192,8 @@ export function initMention(config) {
     if (!q) { warte("Tippen, um ein Dokument zu suchen …"); return; }
     var meins = ++token;
     timer = setTimeout(function () {
-      sucheDokumente(baseUrl, q).then(function (hits) {
+      // true = ohne Bibliothek (siehe search-core.js)
+      sucheDokumente(baseUrl, q, true).then(function (hits) {
         if (meins !== token || !start) return;
         if (hits.length) zeige(hits);
         else { treffer = []; warte("Nichts gefunden."); }

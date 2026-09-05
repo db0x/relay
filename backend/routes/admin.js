@@ -10,6 +10,7 @@ const notifications = require("../notifications");
 const settings = require("../settings");
 const doclang = require("../doclang");
 const maintenance = require("../maintenance");
+const library = require("../library");
 const { secureFilename, dirFor } = require("../storage");
 const { darfVonHier } = require("../zone");
 const { BASE, DOCS, STATE_DIR, BACKUP_DIR } = require("../config");
@@ -57,6 +58,48 @@ router.post("/settings/langs", adminRequired, (req, res) => {
   req.flash("ok", hidden.length
     ? `Sprachauswahl gespeichert — ${hidden.length} Sprache(n) ausgeblendet.`
     : "Sprachauswahl gespeichert — alle Sprachen sichtbar.");
+  res.redirect(`${BASE}/`);
+});
+
+// Leserechte auf die geteilte Bibliothek setzen (ein Dialog je Nutzer in der
+// Nutzerverwaltung). Das Formular schickt IMMER alle angehakten Ordner, die
+// Rechte werden also komplett ersetzt — kein Nachhalten von Differenzen.
+//
+// Gegengeprueft wird gegen die tatsaechlich vorhandenen Ordner der obersten
+// Ebene: ein untergeschobener Name (oder einer, den es nicht mehr gibt) landet
+// gar nicht erst in der Datenbank. Anders als bei Freigaben sind hier auch
+// Admins zugelassen — die Bibliothek gehoert dem Server, nicht einem Nutzer;
+// sie an einem Verwaltungszugang vorbei zu sperren, brachte niemandem etwas.
+router.post("/users/library", adminRequired, (req, res) => {
+  const target = (req.body.target || "").trim();
+  const row = users.get(target);
+  if (!row) {
+    req.flash("err", "Unbekannter Nutzer.");
+  } else {
+    let gewaehlt = req.body.folder || [];
+    if (!Array.isArray(gewaehlt)) gewaehlt = [gewaehlt];
+    // Gegen den TATSAECHLICHEN Ordnerbaum pruefen: ein untergeschobener Pfad
+    // (oder einer, den es nicht mehr gibt) landet gar nicht erst in der
+    // Datenbank. library.setGrants wirft danach noch weg, was schon von einem
+    // Recht weiter oben abgedeckt ist, und zaehmt die Anzeigenamen.
+    const vorhanden = library.folderTree().map((k) => k.rel);
+    // Der Anzeigename eines Ordners steht in einem Feld "lbl:<pfad>" — ein
+    // eigenes name-Attribut je Zeile. Ein gemeinsamer Name ginge nicht: nicht
+    // angehakte Kaestchen schickt der Browser nicht mit, die Reihenfolge der
+    // Namensfelder passte dann nicht mehr zu der der Ordner.
+    const ordner = vorhanden
+      .filter((f) => gewaehlt.includes(f))
+      .map((f) => ({ folder: f, label: req.body[`lbl:${f}`] }));
+    library.setGrants(target, ordner);
+    protokoll.notiere("admin.bibliothek", req, req.session.user,
+      `${target} -> ${ordner.length ? ordner.join(", ") : "kein Zugriff"}`);
+    // Die gespeicherte Zahl kann kleiner sein als die angehakte (abgedeckte
+    // Unterordner fallen weg) — darum nachlesen statt mitzaehlen.
+    const gespeichert = library.grantedFolders(target).length;
+    req.flash("ok", gespeichert
+      ? `${row.display_name} sieht jetzt ${gespeichert} Bibliotheksordner.`
+      : `${row.display_name} hat keinen Zugriff mehr auf die Bibliothek.`);
+  }
   res.redirect(`${BASE}/`);
 });
 
@@ -263,9 +306,24 @@ router.post("/backup/run", adminRequired, async (req, res) => {
     // (im Container gehoert ohnehin alles root); Inhalt/Rechte/Zeiten
     // bleiben ueber -a erhalten.
     const rsyncArgs = ["-a", "--no-owner", "--no-group", "--delete", "-v", "--stats"];
+    // Die BIBLIOTHEK gehoert ausdruecklich NICHT ins Backup: sie gehoert dem
+    // Server, wird nur gelesen und ist auf einer ganz anderen Ebene gesichert
+    // (NAS). Normalerweise liegt sie ausserhalb von DOCS und kommt hier gar
+    // nicht vorbei -- steht SHARED_LIB aber auf einem Pfad INNERHALB von
+    // DOCUMENTS_DIR, sitzt dieselbe Sammlung mitten im Nutzerbaum und rsync
+    // wuerde sie mitnehmen. Dann wird sie hier ausgeschlossen (siehe
+    // library.insideDocs) und der Admin liest im Log, dass es passiert ist.
+    const bibDrin = library.insideDocs();
+    const bibAus = bibDrin ? [`--exclude=/${bibDrin}/`] : [];
     const r1 = await execFile("rsync",
-      [...rsyncArgs, DOCS + "/", path.join(BACKUP_DIR, "documents") + "/"], opts);
-    log += "== Dokumente ==\n" + r1.stdout;
+      [...rsyncArgs, ...bibAus, DOCS + "/", path.join(BACKUP_DIR, "documents") + "/"], opts);
+    log += "== Dokumente ==\n";
+    if (bibDrin) {
+      log += `Hinweis: Die Bibliothek (SHARED_LIB) liegt unter „${bibDrin}" INNERHALB\n`
+        + "der Nutzerdateien und wurde ausgelassen — sie wird getrennt gesichert.\n"
+        + "Sauberer ist ein SHARED_LIB-Pfad ausserhalb von DOCUMENTS_DIR.\n\n";
+    }
+    log += r1.stdout;
     const r2 = await execFile("rsync",
       [...rsyncArgs, STATE_DIR + "/", path.join(BACKUP_DIR, "state") + "/"], opts);
     log += "\n== Datenbank ==\n" + r2.stdout;

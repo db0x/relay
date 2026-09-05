@@ -6,6 +6,7 @@
 //   routes/admin.js  — Nutzerverwaltung (nur Admins)
 //   routes/api.js    — Token-Datei-API fuer Sync/Voltage inkl. Forcesave
 //   routes/browse.js — Startseite, Datei-/Ordner-Aktionen, Freigaben
+//   routes/media.js  — Videos (eigene/freigegebene) und die geteilte Bibliothek
 //   routes/editor.js — OnlyOffice: /edit, signierte /files-Links, /callback
 const crypto = require("crypto");
 const path = require("path");
@@ -167,6 +168,7 @@ app.use(mount, require("./routes/admin").router);
 app.use(mount, require("./routes/api").router);
 app.use(mount, require("./routes/browse").router);
 app.use(mount, require("./routes/images").router);
+app.use(mount, require("./routes/media").router);
 app.use(mount, require("./routes/notes").router);
 app.use(mount, require("./routes/editor").router);
 

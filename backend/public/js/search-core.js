@@ -10,8 +10,13 @@
 // GET /search liefert je Treffer schon alles Noetige (siehe routes/browse.js).
 // Fehler enden bewusst als leere Liste: eine Suche, die nichts findet, ist
 // derselbe Zustand wie eine, die nicht antwortet — es gibt nichts zu waehlen.
-export function sucheDokumente(baseUrl, q) {
-  return fetch(baseUrl + "/search?q=" + encodeURIComponent(q), { credentials: "same-origin" })
+//
+// ohneBibliothek: die @-Verlinkung im Notiz-Editor braucht das. Ihr Verweis
+// besteht aus Besitzer + Pfad, und einen Besitzer hat eine Bibliotheksdatei
+// nicht — angeboten werden darf dort also nur, was sich auch verlinken laesst.
+export function sucheDokumente(baseUrl, q, ohneBibliothek) {
+  return fetch(baseUrl + "/search?q=" + encodeURIComponent(q) + (ohneBibliothek ? "&lib=0" : ""),
+    { credentials: "same-origin" })
     .then(function (r) { return r.ok ? r.json() : []; });
 }
 

@@ -53,6 +53,7 @@ var AREAS = [
   ".emoji-panel",  // Emoji-Auswahl
   ".backup-log",   // rsync-Ausgabe im Backup-Dialog (Text im <code> darin)
   ".lang-scroll",  // Sprachauswahl in den Einstellungen (Liste liegt darin)
+  ".lib-picker",   // Bibliotheksordner in der Nutzerverwaltung (.lib-list darin)
 ].join(",");
 
 function lib() {

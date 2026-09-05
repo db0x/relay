@@ -642,6 +642,132 @@ body:not(.desk-ready) .note-desktop{opacity:0}
    Kopf-Knoepfe. margin-left:auto am ERSTEN schiebt die ganze Gruppe nach rechts */
 #dlg-image-tab,#dlg-image-download{width:28px;height:28px;flex:0 0 auto}
 #dlg-image-tab{margin-left:auto}
+
+/* Video-Wiedergabe: derselbe Zuschnitt wie die Bild-Vorschau, nur breiter —
+   Filme sind fast immer im Querformat. Schwarzer Grund, damit die Balken bei
+   abweichendem Seitenverhaeltnis nicht wie ein Fehler aussehen. */
+.dialog.dialog-video{width:fit-content;max-width:min(94vw,1200px);padding-bottom:0}
+.video-view{
+  display:flex;flex-direction:column;align-items:center;
+  padding:0 1.1rem 1.1rem;
+}
+.video-view video{
+  display:block;width:min(86vw,1000px);max-height:calc(100vh - 12rem);
+  background:#000;border-radius:var(--radius-sm);
+}
+/* Rueckfall, wenn der Browser das Format nicht abspielen kann (mkv/avi mit
+   fremdem Codec) — js/files/video-view.js blendet ihn statt des <video> ein */
+.video-err{
+  margin:0;max-width:40ch;padding:1.4rem 0;color:var(--muted);
+  font-size:.85rem;line-height:1.5;text-align:center;
+}
+#dlg-video-max,#dlg-video-download{width:28px;height:28px;flex:0 0 auto}
+/* margin-left:auto am ERSTEN der Gruppe schiebt beide nach rechts */
+#dlg-video-max{margin-left:auto}
+
+/* eingerasteter Umschalter: derselbe Blauton wie beim Ueberfahren, damit auf
+   einen Blick zu sehen ist, dass die Fenstergroesse aktiv ist */
+#dlg-video-max[aria-pressed="true"]{border-color:var(--brand);background:#f0f6ff}
+
+/* "Auf Fenstergroesse": der Dialog nimmt das ganze Fenster ein (bis auf einen
+   schmalen Rand), und der Player bekommt den GANZEN Rumpf — kein Innenabstand
+   mehr, der Film sitzt Kante an Kante unter der Titelleiste. Bewusst NICHT
+   dasselbe wie das Vollbild des Players: Titelleiste und Seite dahinter
+   bleiben sichtbar.
+   object-fit:contain vergroessert den Film so weit wie moeglich, ohne das
+   Seitenverhaeltnis anzutasten; was uebrig bleibt, ist der schwarze Grund des
+   Players und wirkt damit wie sein eigener Rahmen, nicht wie eine Luecke. */
+/* ACHTUNG [open]: ohne das ueberschreibt display:flex das display:none, mit
+   dem der Browser einen GESCHLOSSENEN <dialog> ausblendet. Genau so entstand
+   ein Fehler, der die ganze Seite lahmlegte: Wer den Fenstermodus einmal
+   benutzt hatte, bekam die Klasse beim naechsten Seitenaufbau aus dem
+   localStorage zurueck — der geschlossene Dialog lag dann unsichtbar
+   (opacity:0) und bildschirmfuellend ueber allem und schluckte jeden Klick.
+   Dasselbe Muster wie bei .dialog-note[open] weiter oben. */
+.dialog.dialog-video.video-max[open]{
+  /* Das FENSTER bekommt den Player: kein Aussenabstand, kein Rand, keine
+     runden Ecken — sonst bliebe genau der helle Rahmen ums Bild stehen, der
+     hier stoert. Uebrig ist allein die Titelleiste (Schliessen, Herunterladen,
+     zurueck auf normale Groesse). */
+  inset:0;margin:0;
+  width:100vw;max-width:none;
+  height:100vh;max-height:none;
+  border:0;border-radius:0;box-shadow:none;
+  display:flex;flex-direction:column;
+}
+/* Titelleiste: runde Ecken und der .2rem-Abstand darunter muessen weg — der
+   waere der letzte Spalt zwischen ihr und dem Film */
+.dialog.dialog-video.video-max[open] .dialog-head{
+  flex:0 0 auto;margin-bottom:0;border-radius:0;
+}
+.dialog.dialog-video.video-max[open] .video-view{
+  flex:1 1 auto;min-height:0;padding:0;justify-content:center;
+}
+.dialog.dialog-video.video-max[open] .video-view video{
+  width:100%;height:100%;max-height:none;object-fit:contain;
+  /* die Ecken uebernimmt der Dialog (border-radius + overflow:hidden) */
+  border-radius:0;
+}
+
+/* Ordner der geteilten Bibliothek: dieselbe Kennzeichnung wie eine Freigabe,
+   aber im eigenen Farbregister — sie kommt vom Server, nicht von einem Nutzer */
+.badge-lib{background:#ede9fe;color:#5b21b6}
+
+/* Auswahl der Bibliotheksordner im Nutzerverwaltungs-Dialog */
+.lib-picker{
+  /* waechst mit dem Fenster: der Baum ist der Inhalt dieses Dialogs, 240px
+     zeigten davon sieben Zeilen */
+  max-height:min(44vh,360px);overflow-y:auto;
+  padding:.6rem .7rem;border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:var(--bg);
+}
+.lib-list{display:flex;flex-direction:column;gap:.15rem}
+/* Baum: Einrueckung nach Tiefe steht an der ZEILE, nicht am Kaestchen — das
+   Namensfeld rechts soll nicht mitwandern, sonst stuenden die Felder treppig. */
+.lib-row{
+  display:flex;align-items:center;gap:.5rem;
+  padding:.15rem .35rem;border-radius:var(--radius-sm);
+  padding-left:calc(.35rem + var(--tiefe, 0) * 1.15rem);
+}
+/* ACHTUNG: display:flex oben schlaegt das display:none, mit dem der Browser
+   [hidden] umsetzt — ohne diese Zeile blieben eingeklappte Zeilen stehen.
+   (Dieselbe Falle wie beim Video-Dialog, siehe .dialog:not([open]).) */
+.lib-row[hidden]{display:none}
+.lib-row:hover{background:var(--line-soft)}
+
+/* Aufklapp-Pfeil. Ordner ohne Inhalt bekommen dieselbe Breite als Luecke,
+   damit die Namen aller Ebenen buendig untereinander stehen. */
+.lib-twist{
+  flex:0 0 auto;display:grid;place-items:center;width:18px;height:18px;padding:0;
+  border:0;background:none;color:var(--muted);cursor:pointer;border-radius:4px;
+  transition:transform .12s ease,color .12s;
+}
+.lib-twist-leer{cursor:default}
+.lib-twist:hover{color:var(--ink)}
+.lib-twist[aria-expanded="true"]{transform:rotate(90deg)}
+/* zugeklappt, aber es steckt eine Freigabe darin — sonst sucht man den Haken,
+   den man selbst gesetzt hat */
+.lib-row-gefuellt .lib-twist{color:var(--brand)}
+
+/* Kopfzeile der Auswahl: Beschriftung links, der Schalter fuer alles rechts */
+.lib-kopf{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem}
+.lib-alle{
+  border:0;background:none;padding:0;font:inherit;font-size:.8rem;
+  color:var(--brand);cursor:pointer;text-decoration:underline;
+}
+/* Der Ordner nimmt den Platz, der uebrig bleibt; lange Namen werden gekuerzt,
+   damit das Namensfeld immer an derselben Stelle steht. */
+.lib-node{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* abweichender Anzeigename: schmaler als ein normales Feld — es steht in
+   einer Liste, nicht in einem Formular */
+.lib-alias{
+  flex:0 0 auto;width:11rem;padding:.2rem .45rem;font-size:.82rem;
+}
+.lib-alias:disabled{opacity:.45;cursor:not-allowed}
+/* von einer Freigabe weiter oben abgedeckt: angehakt, aber nicht aenderbar
+   (js/library-picker.js) — gedaempft, damit klar ist, dass es mitgilt */
+.lib-node-abgedeckt{opacity:.5}
+.lib-node-abgedeckt:hover{background:none}
 /* Skalierbar ueber eine eigene, unsichtbare Griffecke unten rechts (kein CSS
    resize:both — dessen UA-Marker laesst sich nicht ueberall ausblenden),
    verschiebbar am Kopf. Beides gilt in BEIDEN Modi: auch eine Lese-Ansicht
@@ -1585,9 +1711,17 @@ a.crumb:hover{text-decoration:underline}
    sich an der Schriftlinie aus — der Icon-Knopf hat aber keinen Text und damit
    keine Schriftlinie, er haengt an seiner Unterkante und sitzt dadurch schief.
    Also mittig ausrichten und ihm die Hoehe der .btn-sm daneben geben. */
-.users-actions{text-align:right;white-space:nowrap}
-.users-actions form{display:inline-flex;vertical-align:middle;margin:0 0 0 .3rem}
+/* Aktionsspalte: nur noch der Kebab-Knopf, das Menue selbst ist position:fixed
+   und wird von js/core/dialogs.js am Knopf ausgerichtet. Deshalb hier width:1%
+   — die Spalte nimmt genau ihre Breite ein, der Rest bleibt beim Namen. */
+.users-actions{text-align:right;white-space:nowrap;width:1%}
 .users-actions .iconbtn{width:31px;height:31px}   /* = Hoehe von .btn-sm */
+/* Der Panel-Inhalt ist eine Spalte voller Menuepunkte: die Formulare darin
+   duerfen sich NICHT nebeneinander legen (die alte Regel machte sie
+   inline-flex, als die Knoepfe noch in der Zeile standen). */
+.users-actions .row-menu-panel form{display:block;margin:0}
+/* mehrere Abzeichen (Admin / gesperrt / Bibliothek) duerfen umbrechen */
+.users-table .badge{margin:1px 0}
 .users-wrap .user-create{border-top:1px solid var(--line);margin-top:.9rem;padding:.9rem 0 0}
 .user-create-row{display:flex;gap:.5rem;flex-wrap:wrap}
 .user-create-foot{display:flex;align-items:center;justify-content:space-between}
@@ -1670,6 +1804,14 @@ a.crumb:hover{text-decoration:underline}
     display .18s ease allow-discrete;
 }
 .dialog{transform:translateY(10px) scale(.97)}
+/* Sicherheitsnetz: Ein geschlossener <dialog> ist unsichtbar, WEIL der Browser
+   ihm display:none gibt — eine spaetere Regel mit mehr Gewicht (etwa
+   display:flex fuer eine Sonderansicht) hebelt das aus, und der Dialog liegt
+   dann mit opacity:0 bildschirmfuellend ueber der Seite und frisst alle
+   Klicks. Genau das ist mit .video-max passiert. Wer einem Dialog display
+   setzt, gehoert an [open] gebunden; diese Zeile faengt es zusaetzlich ab. */
+.dialog:not([open]){display:none !important}
+
 /* UA-Default ist overflow:auto — waehrend der Oeffnen-/Schliess-Transition
    blitzen dadurch Scrollbalken auf. Inhalte scrollen bei Bedarf in ihren
    eigenen Bereichen (z.B. .lang-list), nie am Dialog selbst. */
@@ -1834,8 +1976,8 @@ a.crumb:hover{text-decoration:underline}
    RAUCHGLAS — die eine Definition
    ========================================================================
    Drei Flaechen tragen dunkles Rauchglas: die Titelleiste, ihre drei Menues
-   (Anwendungen, Nachrichten, Kebab) und die vier Verwaltungs-Dialoge
-   (Mein Konto, Nutzerverwaltung, Einstellungen, Backup). Sie standen frueher
+   (Anwendungen, Nachrichten, Kebab) und die fuenf Verwaltungs-Dialoge
+   (Mein Konto, Nutzerverwaltung, Bibliothek-Freigabe, Einstellungen, Backup). Sie standen frueher
    an drei weit auseinanderliegenden Stellen der Datei — wer am Ton drehte,
    traf nur eine davon. Jetzt gilt: gedreht wird HIER.
 
@@ -2023,6 +2165,19 @@ a.crumb:hover{text-decoration:underline}
 .dialog-glass .lang-scroll{
   background:var(--glass-well);border-color:var(--glass-line);
 }
+
+/* --- Bibliothek (Ordnerauswahl) -----------------------------------------
+   Dieselbe Mulde wie die Sprachliste: eingetieft statt aufgehellt, sonst
+   stuende ein weisser Kasten im dunklen Dialog. */
+.dialog-glass .lib-picker{
+  background:var(--glass-well);border-color:var(--glass-line);
+}
+.dialog-glass .lib-row:hover{background:var(--glass-hover)}
+.dialog-glass .lib-twist{color:var(--glass-ink-muted)}
+.dialog-glass .lib-twist:hover{color:var(--glass-ink)}
+.dialog-glass .lib-row-gefuellt .lib-twist{color:#9dc0ff}
+.dialog-glass .lib-alle{color:#9dc0ff}
+.dialog-glass .lib-node-abgedeckt:hover{background:none}
 
 /* --- Backup (rsync-Ausgabe) --------------------------------------------- */
 .dialog-glass .backup-log{
