@@ -36,16 +36,24 @@ const WINDOW_KEYS = ["page", "board"];
 // (secureFilename laesst ihn nicht durch), die Marke ist also eindeutig.
 const LIB_P = "lib:";
 
-// Dateiendung -> Typ-Icon in /static/img/ (verwandte Formate teilen sich eins)
+// Dateiendung -> Typ-Icon in /static/img/ (verwandte Formate teilen sich eins).
+// Die Bueroformate kommen aus DOCTYPE statt aus eigenen Listen — so bleibt die
+// Zuordnung automatisch synchron, wenn dort eine Endung dazukommt.
+// Alles Unbekannte (.iso, .zip, .bin …) bekommt das neutrale Fragezeichen;
+// frueher stand dort das Textdokument-Icon und behauptete einen Typ, der nicht
+// stimmte. ACHTUNG: Zwilling im Browser — iconFuer() in js/notes/doclinks.js
+// faerbt die Verweise im Notiztext nach derselben Regel.
 function iconFor(name) {
   const ext = (name.split(".").pop() || "").toLowerCase();
-  if (["xlsx", "xls", "ods", "csv"].includes(ext)) return "xlsx";
-  if (["pptx", "ppt", "odp"].includes(ext)) return "pptx";
-  if (ext === "pdf") return "pdf";
   if (ext === "md") return "note";
   if (VIDEO_TYPES[ext]) return "video";
   if (IMAGE_TYPES[ext]) return "image"; // nur Rueckfall, sonst zeigt die Liste
-  return "docx"; // Standard (Textdokumente und Unbekanntes)
+  const typ = DOCTYPE[ext];
+  if (typ === "cell") return "xlsx";
+  if (typ === "slide") return "pptx";
+  if (typ === "pdf") return "pdf";
+  if (typ === "word") return "docx";
+  return "unknown";
 }
 
 // Bilder bekommen in der Liste ein echtes Vorschaubild und oeffnen einen
@@ -58,6 +66,13 @@ function isImageName(name) {
 // (js/files/video-view.js) — OnlyOffice kann damit nichts anfangen.
 function isVideoName(name) {
   return !!VIDEO_TYPES[(name.split(".").pop() || "").toLowerCase()];
+}
+
+// Formate, die OnlyOffice oeffnet (Dokumente, Tabellen, Praesentationen, PDF).
+// Fuer Nutzerdateien steckt das im /edit-Link; die Bibliothek braucht die
+// Unterscheidung ausdruecklich, um nicht alles zum Herunterladen zu machen.
+function isDocName(name) {
+  return !!DOCTYPE[(name.split(".").pop() || "").toLowerCase()];
 }
 
 // NOTE_RE/labelFromName stehen in ../format.js — das Notiz-Netz braucht
@@ -316,6 +331,9 @@ router.get("/", loginRequired, (req, res) => {
     isNote: false,
     isImage: !isDir && isImageName(name),
     isVideo: !isDir && isVideoName(name),
+    // Dokumente/Tabellen/PDF gehen in die OnlyOffice-ANSICHT, nicht in den
+    // Download — genau wie eigene Dateien, nur ohne Bearbeiten
+    isDoc: !isDir && isDocName(name),
     sizeBytes: isDir ? -1 : sizeBytes,
     size: isDir ? "—" : formatSize(sizeBytes),
     mtime, modified: formatDate(mtime),
@@ -326,6 +344,7 @@ router.get("/", loginRequired, (req, res) => {
     href: isDir ? `${BASE}/?p=${encodeURIComponent(LIB_P + rel)}` : "",
     src: isDir ? "" : `${BASE}/lib/media/${encPath(rel)}`,
     download: isDir ? "" : `${BASE}/lib/download/${encPath(rel)}`,
+    edit: isDir ? "" : `${BASE}/lib/edit/${encPath(rel)}`,
   });
 
   // Die freigeschalteten Ordner sind zugleich die EINSTIEGE — sie koennen auf
@@ -695,6 +714,7 @@ router.get("/search", loginRequired, (req, res) => {
       isNote: false,
       isImage: !isDir && isImageName(name),
       isVideo: !isDir && isVideoName(name),
+      isDoc: !isDir && isDocName(name),
       icon: isDir ? "library" : iconFor(name),
       canedit: false,
       // Herkunft wie bei den uebrigen Treffern: die Antwort auf "welches von
@@ -724,12 +744,13 @@ router.get("/search", loginRequired, (req, res) => {
     // Links erst hier bauen — so steht die Pfadkodierung an genau einer Stelle
     if (h.isLib) {
       const lp = encPath(h.relpath);
-      // Ordner fuehren in die Bibliotheksansicht, Dateien auf ihre Quelle;
-      // href ist der Rueckfall fuer alles, was kein Video/Bild ist (Download).
+      // Ordner fuehren in die Bibliotheksansicht, Dateien auf ihre Quelle.
+      // href ist der Weg fuer alles, was kein Video/Bild ist: Dokumente in die
+      // OnlyOffice-Ansicht, der Rest in den Download.
       return h.isDir
         ? { ...h, href: `${BASE}/?p=${encodeURIComponent(LIB_P + h.relpath)}` }
         : { ...h, src: `${BASE}/lib/media/${lp}`, download: `${BASE}/lib/download/${lp}`,
-          href: `${BASE}/lib/download/${lp}` };
+          href: h.isDoc ? `${BASE}/lib/edit/${lp}` : `${BASE}/lib/download/${lp}` };
     }
     const p = `${encodeURIComponent(h.owner)}/${encPath(h.relpath)}`;
     if (h.isImage) return { ...h, src: `${BASE}/image/${p}`, download: `${BASE}/download/${p}` };

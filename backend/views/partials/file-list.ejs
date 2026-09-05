@@ -114,6 +114,10 @@
                 <button type="button" class="fname image-open"
                         data-src="<%= f.src %>" data-download="<%= f.download %>"
                         data-label="<%= f.label %>"><%= f.label %></button>
+                <% } else if (f.isLib && f.isDoc) { %>
+                <%# Dokumente, Tabellen, PDF: OnlyOffice-ANSICHT (read-only),
+                    genau wie bei eigenen Dateien — nur ohne Bearbeiten %>
+                <a class="fname" href="<%= f.edit %>"><%= f.label %></a>
                 <% } else if (f.isLib) { %>
                 <%# alles Uebrige aus der Bibliothek: herunterladen %>
                 <a class="fname" href="<%= f.download %>"><%= f.label %></a>

@@ -150,6 +150,13 @@ New files and uploads land in the currently open folder.
 - **Folders cannot be shared** — only individual files are shareable; they
   appear at the recipient's top level with their path shown.
 
+File rows carry a type icon derived from `DOCTYPE` (so it stays in sync when a
+format is added there) plus notes, images and videos. Anything Relay does not
+recognise — `.iso`, `.zip`, a name without an extension — gets the neutral
+`unknown.svg` rather than the text-document icon, which used to claim a type
+that was not there. The same rule runs in the browser for document links inside
+notes (`iconFuer` in `js/notes/doclinks.js`).
+
 ## PDF
 
 PDFs can be uploaded (and shared) like any other file and open in the
@@ -252,6 +259,18 @@ server** — typically a video collection on a NAS. Set `SHARED_LIB` in the
   the file name is the user gesture browsers require for sound, and a refused
   start is caught so the play button simply stays put. Everything else in the
   library can be downloaded; images open the existing preview dialog.
+- **Documents, spreadsheets, presentations and PDFs open in OnlyOffice**, in
+  **view mode**, via `/lib/edit/*` — a separate path, because "lib" would be a
+  valid username and `/edit/lib/...` could not be told apart from a user's
+  files. The config carries `edit:false`, `mode:"view"` and, deliberately, **no
+  `callbackUrl`**: without one the DocumentServer has no way to write anything
+  back (the mount is read-only anyway, so a write would fail regardless). The
+  DocumentServer fetches the file from `/lib/files/*` under its own HMAC
+  signature (namespaced `lib:`, so a library link can never pass as a user-file
+  link), served as an attachment with nosniff; that route additionally
+  re-checks the path stays inside the library. The participant list stays
+  empty — nothing is co-edited here, so no names end up in the page source.
+  Anything else (`.zip`, a stray `.md`, …) still downloads.
 - **Search** covers the library too: the app-menu search finds granted folders
   (jump into them) and their files (play/download), labeled "Bibliothek · path".
   The index per top-level folder is cached for 60 s — search runs on every
