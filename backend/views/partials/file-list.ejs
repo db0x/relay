@@ -2,8 +2,10 @@
     erst da, statt kurz aufzublitzen und dann von JS eingeklappt zu werden. %>
 <%# data-dir: der gerade angezeigte Ordner. Die AJAX-Ordnernavigation liest ihn
     nach dem Tausch aus und zieht die versteckten dir-Felder der Dialoge
-    ausserhalb von #page nach (js/folder-nav.js: syncDirFields). %>
-<div class="page<%= pageLayout && pageLayout.minimized ? " page-min" : "" %>" id="page" data-dir="<%= curDir %>"<% if (pageLayout) { %> data-x="<%= pageLayout.x %>" data-y="<%= pageLayout.y %>"<% } %>>
+    ausserhalb von #page nach (js/folder-nav.js: syncDirFields).
+    data-fp: Fingerabdruck dieses Standes. js/folder-nav.js fragt im Takt
+    GET /changed und laedt die Liste nur nach, wenn der Wert abweicht. %>
+<div class="page<%= pageLayout && pageLayout.minimized ? " page-min" : "" %>" id="page" data-dir="<%= curDir %>" data-fp="<%= listFp %>"<% if (pageLayout) { %> data-x="<%= pageLayout.x %>" data-y="<%= pageLayout.y %>"<% } %>>
   <%# Titelleiste: zugleich Greif-Flaeche zum Verschieben (der Minimieren-Knopf
       ist ein <button> und damit von der Zieh-Logik ausgenommen, siehe
       pageDragSkip in js/desktop-layout.js) %>

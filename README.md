@@ -252,7 +252,34 @@ server** — typically a video collection on a NAS. Set `SHARED_LIB` in the
   library. `res.sendFile` answers range requests, so seeking works. Formats
   come from the `VIDEO_TYPES` whitelist (mp4/m4v, webm, ogv, mov, mkv, avi);
   whether mkv/avi actually play depends on the codec, and the dialog falls back
-  to a download hint when the browser cannot. The dialog header has a
+  to a download hint when the browser cannot. **Audio is a separate question
+  from video**: browsers decode no Dolby Digital (AC-3/E-AC-3), DTS or TrueHD,
+  which is what most movie rips carry. The picture then plays and there is
+  simply no sound — and nothing to switch on, because without a decodable track
+  the player hides its volume control. The dialog detects that (decoded audio
+  bytes stay 0 while video bytes climb; `mozHasAudio` on Firefox, and nothing
+  is claimed where neither is available) and says so instead of leaving people
+  hunting for a control that is not there. Two samples, not one, and the notice
+  is **revocable**: a big file served for the first time sits in no cache and
+  its audio decoder can start late, which produced two false alarms during
+  testing. The second sample additionally requires the *video* byte count to
+  have grown — that separates "still loading" from "decoding but silent"
+  (verified on a throttled connection) — and if audio starts after all, the
+  notice takes itself back. Measured on two real files: AC-3 →
+  video 515463 bytes / audio 0, the same movie with AAC → audio 83757.
+- **Retrofitting sound** — where the server can tell (a library video, probed
+  with `ffprobe`), the notice carries a **"Ton nachrüsten"** button instead of
+  just an explanation. Relay then builds a one-off copy with AAC audio
+  (`transcode.js`): the **picture is copied, not re-encoded**, so it costs
+  little more than reading and writing — measured 9.5 s for 3 minutes of film,
+  about 5 minutes for a 96-minute one. The film keeps playing (silently) while
+  that runs; when it is done the source is swapped and playback resumes at the
+  same second. **Seeking survives**, and that is the whole reason for building
+  a file instead of streaming a live conversion: a running conversion cannot
+  answer byte-range requests, a finished file can. One conversion at a time
+  (a queue); the copies live in `LIB_CACHE` (`/data/cache`), capped by
+  `LIB_CACHE_MB` with the oldest dropped first — scratch space, outside the
+  backup by construction, and roughly the size of the original per film. The dialog header has a
   **window-size toggle**: it drops its own frame and hands the whole browser
   window to the player (aspect ratio kept — this is *not* the player's own
   fullscreen, which additionally hides the browser's own chrome). In that mode
@@ -299,6 +326,19 @@ to rsync. `library.insideDocs()` detects it (same device + inode, which a bind
 mount preserves), the backup excludes it, and the log tells the admin it
 happened. What *does* get backed up is the grants table including display
 names — without it a restore would lose who may see what.
+
+**Repairing a library** (`deploy/`): browsers play neither Dolby Digital /
+DTS / TrueHD audio nor MPEG-2 video, and a DVD-era collection is full of both.
+Two scripts fix the source files rather than transcoding on every playback.
+`ton-nachruesten.sh` appends an AAC track (video copied, ~5 min per film);
+`bild-nachruesten.sh` re-encodes MPEG-2 to H.264 and fixes the audio in the
+same pass. Both write to a `.tmp` beside the file and only replace the original
+after every check passes — duration within 2 s, stream counts, aspect ratio
+(DVD is anamorphic: 720x576 shown as 16:9, losing that squashes the picture),
+and a full decode of the result. `--report` lists what would be touched,
+`--keep-original` leaves the source as `.orig`, and both are repeatable.
+Measured on a real 186-film library: 28 audio-only repairs in 3 h 12 min, 66
+video conversions in 13.5 h at SSIM 0.986 / PSNR 44.8 dB, files shrinking 70 %.
 
 Path safety here deliberately does **not** use `secureFilename`: library names
 are not Relay's own and may contain umlauts, spaces and brackets. Instead

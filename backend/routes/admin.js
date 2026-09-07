@@ -92,7 +92,9 @@ router.post("/users/library", adminRequired, (req, res) => {
       .map((f) => ({ folder: f, label: req.body[`lbl:${f}`] }));
     library.setGrants(target, ordner);
     protokoll.notiere("admin.bibliothek", req, req.session.user,
-      `${target} -> ${ordner.length ? ordner.join(", ") : "kein Zugriff"}`);
+      // ordner sind Objekte {folder,label} — ohne map staende hier
+      // "[object Object]" im Protokoll (genau so passiert)
+      `${target} -> ${ordner.length ? ordner.map((o) => o.folder).join(", ") : "kein Zugriff"}`);
     // Die gespeicherte Zahl kann kleiner sein als die angehakte (abgedeckte
     // Unterordner fallen weg) — darum nachlesen statt mitzaehlen.
     const gespeichert = library.grantedFolders(target).length;

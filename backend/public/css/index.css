@@ -658,6 +658,7 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 .dialog.dialog-video[open]{display:flex;flex-direction:column}
 .dialog.dialog-video .dialog-head{flex:0 0 auto}
 .video-view{
+  position:relative;
   flex:1 1 auto;min-height:0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:0 1.1rem 1.1rem;

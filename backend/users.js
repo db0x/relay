@@ -139,6 +139,8 @@ function del(username) {
   db().prepare("DELETE FROM shares WHERE owner=? OR target=?").run(username, username);
   // ebenso die Leserechte auf die Bibliothek (library.js)
   db().prepare("DELETE FROM library_access WHERE username=?").run(username);
+  // und die gemerkten Sortierungen seiner Ordner (foldersort.js)
+  db().prepare("DELETE FROM folder_sort WHERE username=?").run(username);
   require("./avatars").remove(username); // lazy: vermeidet Zyklus beim Modul-Laden
 }
 

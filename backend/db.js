@@ -124,6 +124,17 @@ function db() {
       PRIMARY KEY (username, owner, filename)
     );
 
+    -- Gemerkte Sortierung der Dateiliste je Nutzer UND Ordner (foldersort.js).
+    -- folder ist der Ordnerbezeichner aus der URL: '' = oberste Ebene,
+    -- 'steuern/2026' ein Unterordner, 'lib:filme' ein Ordner der Bibliothek.
+    CREATE TABLE IF NOT EXISTS folder_sort (
+      username TEXT NOT NULL,
+      folder   TEXT NOT NULL,
+      sort     TEXT NOT NULL,   -- 'name' | 'size' | 'date'
+      dir      TEXT NOT NULL,   -- 'asc' | 'desc'
+      PRIMARY KEY (username, folder)
+    );
+
     -- Frei verschiebbare UI-Elemente je Nutzer (z.B. key='page' fuer die
     -- Dokumentenliste). notemeta.js: getLayout/setLayout.
     CREATE TABLE IF NOT EXISTS desktop_layout (

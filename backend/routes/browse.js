@@ -16,6 +16,7 @@ const protokoll = require("../eventlog");
 const notifications = require("../notifications");
 const noteicon = require("../noteicon");
 const library = require("../library");
+const foldersort = require("../foldersort");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
 const { BLANKS, BASE, DOCTYPE, IMAGE_TYPES, VIDEO_TYPES, MAX_UPLOAD_MB } = require("../config");
@@ -245,16 +246,9 @@ router.get("/", loginRequired, (req, res) => {
   // "lib:" — in die geteilte Bibliothek. Fehlt das Leserecht oder gibt es den
   // Ordner nicht (mehr), geht es kommentarlos zurueck auf die oberste Ebene;
   // eine eigene Fehlermeldung wuerde nur verraten, was es alles gibt.
-  const rawP = String(req.query.p || "");
-  const inLib = rawP.startsWith(LIB_P);
-  const libRel = inLib ? library.safeRel(rawP.slice(LIB_P.length)) : "";
-  const libAbs = inLib && libRel && library.mayRead(me, libRel) ? library.absOf(libRel) : null;
-  if (inLib && (!libAbs || !library.isDir(libAbs))) return res.redirect(`${BASE}/`);
-
-  const cur = inLib ? "" : securePath(rawP);
-  const curAbs = cur ? path.join(userDir, cur) : userDir;
-  if (!inLib && (cur === null || !fs.existsSync(curAbs) || !fs.statSync(curAbs).isDirectory()))
-    return res.redirect(`${BASE}/`);
+  const ort = ordnerAusP(me, req.query.p);
+  if (!ort) return res.redirect(`${BASE}/`);
+  const { inLib, libRel, cur, curAbs } = ort;
 
   // owner + relpath werden fuer den Anzeigenamen gebraucht: der echte Titel
   // einer Notiz steht in note_meta, und der Schluessel dort ist der Pfad
@@ -376,10 +370,21 @@ router.get("/", loginRequired, (req, res) => {
 
   const files = own.concat(shared).concat(libFiles);
 
-  // Sortierung aus der URL; Default: Änderungsdatum absteigend. Ordner stehen
-  // immer vor den Dateien, beide Gruppen sortieren gleich.
-  const sort = ["name", "size", "date"].includes(req.query.sort) ? req.query.sort : "date";
-  const dir = req.query.dir === "asc" ? "asc" : "desc";
+  // Sortierung: was in der URL steht, ist eine frische Wahl des Nutzers — die
+  // merken wir uns fuer DIESEN Ordner (foldersort.js) und wenden sie beim
+  // naechsten Besuch wieder an. Ohne beides bleibt es beim Änderungsdatum
+  // absteigend. Ordner stehen immer vor den Dateien, beide Gruppen sortieren
+  // gleich.
+  // Schluessel ist der Ordner, wie ihn auch ?p= benennt — die Bibliothek mit
+  // ihrer Marke, damit "filme" dort nicht mit einem eigenen Ordner gleichen
+  // Namens zusammenfaellt.
+  const sortKey = inLib ? LIB_P + libRel : cur;
+  const gewaehlt = ["name", "size", "date"].includes(req.query.sort);
+  const gemerkt = gewaehlt ? null : foldersort.get(me, sortKey);
+  const sort = gewaehlt ? req.query.sort : (gemerkt ? gemerkt.sort : "date");
+  const dir = gewaehlt ? (req.query.dir === "asc" ? "asc" : "desc")
+    : (gemerkt ? gemerkt.dir : "desc");
+  if (gewaehlt) foldersort.set(me, sortKey, sort, dir);
   const cmp = {
     // nach dem ANGEZEIGTEN Namen sortieren — Notizen also nach Titel, nicht UUID
     name: (a, b) => a.label.localeCompare(b.label, "de", { sensitivity: "base" }),
@@ -437,6 +442,9 @@ router.get("/", loginRequired, (req, res) => {
   res.render("index", {
     // Reihenfolge: eigene Ordner, Bibliotheksordner, dann alle Dateien
     files: folders.concat(libFolders).concat(files),
+    // Fingerabdruck DIESES Standes — die Oberflaeche vergleicht ihn im Takt
+    // gegen GET /changed und laedt nur bei Abweichung nach (js/folder-nav.js)
+    listFp: listFingerprint(me, ort),
     columns,
     crumbs,
     curDir: cur,
@@ -643,6 +651,89 @@ router.post("/create", loginRequired, (req, res) => {
   res.redirect(`${BASE}/edit/${encodeURIComponent(req.session.user)}/${encPath(fid)}`);
 });
 
+// --- Angezeigter Ordner + sein Fingerabdruck ---------------------------
+// ?p= zeigt entweder in einen eigenen Unterordner oder — mit der Marke "lib:" —
+// in die geteilte Bibliothek. Die Aufloesung steht hier EINMAL, weil zwei
+// Stellen sie brauchen: die Liste selbst (GET /) und die Aenderungsabfrage
+// (GET /changed). Waeren es zwei Fassungen, koennten sie auseinanderlaufen —
+// und dann meldete die eine Aenderungen an einem Ordner, den die andere gar
+// nicht zeigt.
+//
+// null = kein zulaessiger Ordner (fehlendes Leserecht, geloescht, Pfadtrick).
+// Der Aufrufer schickt den Nutzer dann auf die oberste Ebene; eine eigene
+// Fehlermeldung wuerde nur verraten, was es alles gibt.
+function ordnerAusP(me, rawP) {
+  const inLib = String(rawP || "").startsWith(LIB_P);
+  if (inLib) {
+    const libRel = library.safeRel(String(rawP).slice(LIB_P.length));
+    const libAbs = libRel && library.mayRead(me, libRel) ? library.absOf(libRel) : null;
+    if (!libAbs || !library.isDir(libAbs)) return null;
+    return { inLib: true, libRel, cur: "", curAbs: libAbs };
+  }
+  const cur = securePath(String(rawP || ""));
+  if (cur === null) return null;
+  const userDir = dirFor(me);
+  const curAbs = cur ? path.join(userDir, cur) : userDir;
+  if (!fs.existsSync(curAbs) || !fs.statSync(curAbs).isDirectory()) return null;
+  return { inLib: false, libRel: "", cur, curAbs };
+}
+
+// Kurzer Wert, der sich genau dann aendert, wenn sich die angezeigte Liste
+// aendert. Gedacht fuer den Takt-Abruf aus der Oberflaeche (js/folder-nav.js):
+// die Liste neu zu bauen kostet Millisekunden und zig Kilobyte, das hier
+// kostet ein readdir und ein paar Byte. Die teure Arbeit laeuft erst, wenn
+// dieser Wert wirklich abweicht.
+//
+// Was hineingeht:
+//   - die mtime des Ordners selbst — sie springt bei Anlegen, Loeschen und
+//     Umbenennen,
+//   - Anzahl, juengste mtime und Groessensumme der Eintraege — denn eine
+//     GEAENDERTE Datei ruehrt die mtime ihres Ordners nicht an,
+//   - auf der obersten Ebene zusaetzlich die Freigaben an mich und die Zahl
+//     meiner Bibliotheksrechte: die aendert jemand ANDERS, ohne dass sich im
+//     Dateisystem hier etwas ruehrt.
+function listFingerprint(me, ort) {
+  let anzahl = 0, juengste = 0, summe = 0, ordner = 0;
+  if (ort.inLib) {
+    // dieselbe Quelle wie die Liste — library.entries filtert Punktdateien und
+    // hinausfuehrende Symlinks schon weg
+    for (const e of library.entries(ort.libRel)) {
+      anzahl++;
+      if (!e.isDir) summe += e.size;
+      if (e.mtime > juengste) juengste = e.mtime;
+    }
+  } else {
+    try { ordner = fs.statSync(ort.curAbs).mtimeMs; } catch (e) { return "weg"; }
+    let ents = [];
+    try { ents = fs.readdirSync(ort.curAbs, { withFileTypes: true }); } catch (e) { return "weg"; }
+    for (const e of ents) {
+      let st;
+      try { st = fs.statSync(path.join(ort.curAbs, e.name)); } catch (err) { continue; }
+      anzahl++;
+      if (!st.isDirectory()) summe += st.size;
+      if (st.mtimeMs > juengste) juengste = st.mtimeMs;
+    }
+  }
+  const teile = [ordner, anzahl, juengste, summe];
+  if (!ort.inLib && ort.cur === "") {
+    const fs2 = shares.fingerprintFor(me);
+    teile.push(fs2.anzahl, fs2.letzte, library.grants(me).length);
+  }
+  return teile.join("-");
+}
+
+// Takt-Abruf der Oberflaeche: nur der Fingerabdruck, sonst nichts. Weicht er
+// vom mitgelieferten Wert ab (data-fp an #page), holt der Client die Liste
+// ueber den vorhandenen AJAX-Weg nach.
+router.get("/changed", loginRequired, (req, res) => {
+  const me = req.session.user;
+  const ort = ordnerAusP(me, req.query.p);
+  res.set("Cache-Control", "no-store");
+  // Ordner weg oder nie erlaubt: ein Wert, der garantiert abweicht — dann
+  // laedt der Client nach und landet ueber GET / auf der obersten Ebene.
+  res.json({ fp: ort ? listFingerprint(me, ort) : "weg" });
+});
+
 // --- Suche ------------------------------------------------------------
 // Autovervollstaendigung im Anwendungs-Menue: sucht in den ANZEIGENAMEN aller
 // Dateien, die der Anfragende sehen darf — eigene (ueber alle Ordner hinweg)
@@ -698,24 +789,26 @@ router.get("/search", loginRequired, (req, res) => {
     });
   };
 
-  // Ordner und Dateien der Bibliothek — nur aus den freigeschalteten Baeumen
+  // Dateien der Bibliothek — nur aus den freigeschalteten Baeumen
   // (grantedFolders), nie darueber hinaus. Anders als eigene Dateien haben sie
   // keinen Besitzer; die Links stehen weiter unten.
+  // Ordner sind bewusst KEIN Treffer: gesucht wird nach Dokumenten, ein
+  // Verzeichnis waere nur ein Umweg dorthin.
   // wurzel/wurzelName: die Freigabe, unter der der Treffer liegt. Angezeigt
-  // wird ueberall ihr Anzeigename — auch im Herkunftshinweis, sonst stuende
-  // dort wieder der Ordnername aus dem Dateisystem.
-  const addLib = (rel, isDir, wurzel, wurzelName) => {
-    const name = (isDir && rel === wurzel) ? wurzelName : path.basename(rel);
+  // wird ihr Anzeigename im Herkunftshinweis, sonst stuende dort wieder der
+  // Ordnername aus dem Dateisystem.
+  const addLib = (rel, wurzel, wurzelName) => {
+    const name = path.basename(rel);
     const pos = searchNorm(name).indexOf(q);
     if (pos === -1) return;
     const ordner = path.dirname(wurzelName + rel.slice(wurzel.length));
     hits.push({
-      owner: "", relpath: rel, label: name, isLib: true, isDir,
+      owner: "", relpath: rel, label: name, isLib: true,
       isNote: false,
-      isImage: !isDir && isImageName(name),
-      isVideo: !isDir && isVideoName(name),
-      isDoc: !isDir && isDocName(name),
-      icon: isDir ? "library" : iconFor(name),
+      isImage: isImageName(name),
+      isVideo: isVideoName(name),
+      isDoc: isDocName(name),
+      icon: iconFor(name),
       canedit: false,
       // Herkunft wie bei den uebrigen Treffern: die Antwort auf "welches von
       // den gleichnamigen ist es?" — hier der Weg innerhalb der Bibliothek
@@ -732,8 +825,9 @@ router.get("/search", loginRequired, (req, res) => {
   if (req.query.lib !== "0") {
     for (const g of library.grants(me)) {
       const name = library.labelOf(g);
-      addLib(g.folder, true, g.folder, name);           // die Freigabe selbst
-      for (const e of library.walkUnder(g.folder)) addLib(e.rel, e.isDir, g.folder, name);
+      for (const e of library.walkUnder(g.folder)) {
+        if (!e.isDir) addLib(e.rel, g.folder, name);
+      }
     }
   }
 
@@ -744,13 +838,10 @@ router.get("/search", loginRequired, (req, res) => {
     // Links erst hier bauen — so steht die Pfadkodierung an genau einer Stelle
     if (h.isLib) {
       const lp = encPath(h.relpath);
-      // Ordner fuehren in die Bibliotheksansicht, Dateien auf ihre Quelle.
       // href ist der Weg fuer alles, was kein Video/Bild ist: Dokumente in die
       // OnlyOffice-Ansicht, der Rest in den Download.
-      return h.isDir
-        ? { ...h, href: `${BASE}/?p=${encodeURIComponent(LIB_P + h.relpath)}` }
-        : { ...h, src: `${BASE}/lib/media/${lp}`, download: `${BASE}/lib/download/${lp}`,
-          href: h.isDoc ? `${BASE}/lib/edit/${lp}` : `${BASE}/lib/download/${lp}` };
+      return { ...h, src: `${BASE}/lib/media/${lp}`, download: `${BASE}/lib/download/${lp}`,
+        href: h.isDoc ? `${BASE}/lib/edit/${lp}` : `${BASE}/lib/download/${lp}` };
     }
     const p = `${encodeURIComponent(h.owner)}/${encPath(h.relpath)}`;
     if (h.isImage) return { ...h, src: `${BASE}/image/${p}`, download: `${BASE}/download/${p}` };
@@ -824,6 +915,9 @@ router.post("/rmdir/*", loginRequired, (req, res) => {
     req.flash("err", `„${path.basename(rel)}“ ist nicht leer — erst den Inhalt löschen.`);
   } else {
     fs.rmdirSync(p);
+    // die gemerkte Sortierung mit weg — sonst erbte sie ein spaeter gleich
+    // benannter Ordner
+    foldersort.remove(req.session.user, rel);
     req.flash("ok", `Ordner „${path.basename(rel)}“ gelöscht.`);
   }
   redirectDir(req, res);
