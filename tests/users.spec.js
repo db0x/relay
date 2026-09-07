@@ -23,9 +23,25 @@ function userRow(page, username) {
 // (partials/dialogs/users.ejs). Vor jedem Klick auf einen Eintrag muss es
 // also erst aufgehen; nach dem Abschicken laedt die Seite neu und es ist
 // wieder zu, jede Aktion braucht darum ihren eigenen Aufruf.
+//
+// Warum das so umstaendlich aussieht: ein BILDLAUF schliesst offene Menues
+// (core/dialogs.js — fixe Panels wuerden sonst von ihrer Zeile weglaufen).
+// Playwright rollt die Zeile vor dem Klicken erst ins Bild, und dieses
+// Scroll-Ereignis kann einen Wimpernschlag NACH dem Klick eintreffen und das
+// eben geoeffnete Menue gleich wieder zuschlagen. Bei kurzer Nutzertabelle
+// passiert das nie, bei langer (die Suite legt reichlich Nutzer an) etwa in
+// jedem dritten Lauf — daher die Fehlschlaege nur im Gesamtlauf und in CI.
+// Deshalb: erst ins Bild holen, dann oeffnen, und erst weitermachen, wenn das
+// Menue wirklich offen ist; ein zugeschlagenes wird noch einmal geoeffnet.
 async function openUserMenu(page, username) {
   const row = userRow(page, username);
-  await row.locator(".row-menu-btn").click();
+  const btn = row.locator(".row-menu-btn");
+  const panel = row.locator(".row-menu-panel");
+  await btn.scrollIntoViewIfNeeded();
+  await expect(async () => {
+    await btn.click();
+    await expect(panel).toBeVisible({ timeout: 500 });
+  }).toPass({ timeout: 10000 });
   return row;
 }
 
