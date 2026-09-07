@@ -18,6 +18,17 @@ function userRow(page, username) {
     .filter({ has: page.locator(".user-names .muted", { hasText: new RegExp(`^${username}$`) }) });
 }
 
+// Die Aktionen einer Zeile (Admin-Rechte, Sperren, Passwort, Loeschen) liegen
+// in einem Kontextmenue pro Zeile — dasselbe Muster wie in der Dateiliste
+// (partials/dialogs/users.ejs). Vor jedem Klick auf einen Eintrag muss es
+// also erst aufgehen; nach dem Abschicken laedt die Seite neu und es ist
+// wieder zu, jede Aktion braucht darum ihren eigenen Aufruf.
+async function openUserMenu(page, username) {
+  const row = userRow(page, username);
+  await row.locator(".row-menu-btn").click();
+  return row;
+}
+
 test.describe("Nutzer anlegen", () => {
   test.beforeEach(async ({ page }) => { await loginAsAdmin(page); });
 
@@ -78,6 +89,7 @@ test.describe("Admin-Rechte", () => {
     const user = await createUser(page);
 
     await openMenuDialog(page, "dlg-users");
+    await openUserMenu(page, user.username);
     await Promise.all([
       page.waitForNavigation(),
       userRow(page, user.username).locator('form[action*="/users/admin"] button').click(),
@@ -87,6 +99,7 @@ test.describe("Admin-Rechte", () => {
     await expect(userRow(page, user.username)).toContainText("Admin");
 
     // Entziehen laeuft ueber die Rueckfrage
+    await openUserMenu(page, user.username);
     await userRow(page, user.username).locator('form[action*="/users/admin"] button').click();
     await expect(page.locator("#dlg-confirm")).toBeVisible();
     await Promise.all([page.waitForNavigation(), page.click("#dlg-confirm-ok")]);
@@ -137,6 +150,7 @@ test.describe("Sperren", () => {
     const user = await createUser(page);
 
     await openMenuDialog(page, "dlg-users");
+    await openUserMenu(page, user.username);
     await userRow(page, user.username).locator('form[action*="/users/lock"] button').click();
     await expect(page.locator("#dlg-confirm")).toBeVisible();
     await Promise.all([page.waitForNavigation(), page.click("#dlg-confirm-ok")]);
@@ -149,6 +163,7 @@ test.describe("Sperren", () => {
     // wieder entsperren (kein data-confirm beim Entsperren)
     await loginAsAdmin(page);
     await openMenuDialog(page, "dlg-users");
+    await openUserMenu(page, user.username);
     await Promise.all([
       page.waitForNavigation(),
       userRow(page, user.username).locator('form[action*="/users/lock"] button').click(),
@@ -185,6 +200,7 @@ test.describe("Loeschen", () => {
     const user = await createUser(page);
 
     await openMenuDialog(page, "dlg-users");
+    await openUserMenu(page, user.username);
     await userRow(page, user.username).locator('form[action*="/users/delete"] button').click();
     await expect(page.locator("#dlg-confirm")).toBeVisible();
     await Promise.all([page.waitForNavigation(), page.click("#dlg-confirm-ok")]);
