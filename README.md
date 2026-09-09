@@ -86,6 +86,13 @@ Admin and lock are mutually exclusive: admins cannot be locked (revoke the
 rights first), locked users cannot become admins (unlock first) — this also
 applies in the CLI.
 
+Every row carries **one kebab menu** with the actions that apply to that user
+(same pattern as a file row). Side by side they were up to five buttons that
+ran out of the dialog and became unreachable; in a menu the width no longer
+matters and further per-user settings fit without a rebuild. "Bibliothek" is
+the one entry that also exists for your own account and for admins — see
+[Shared library](#shared-library-videos-read-only).
+
 If there are no users at all (fresh installation), Relay automatically
 creates **`admin`/`admin`** as an admin on startup; after the first login,
 a notice reminds you to change the password.
@@ -143,6 +150,13 @@ New files and uploads land in the currently open folder.
 - **Folders cannot be shared** — only individual files are shareable; they
   appear at the recipient's top level with their path shown.
 
+File rows carry a type icon derived from `DOCTYPE` (so it stays in sync when a
+format is added there) plus notes, images and videos. Anything Relay does not
+recognise — `.iso`, `.zip`, a name without an extension — gets the neutral
+`unknown.svg` rather than the text-document icon, which used to claim a type
+that was not there. The same rule runs in the browser for document links inside
+notes (`iconFuer` in `js/notes/doclinks.js`).
+
 ## PDF
 
 PDFs can be uploaded (and shared) like any other file and open in the
@@ -190,6 +204,147 @@ This is enforced server-side in `accessFor()` (access.js) on all browser
 routes (`/edit`, `/download`, `/delete`); read-only mode is additionally baked
 into the **JWT-signed** OnlyOffice config and cannot be tampered with
 client-side.
+
+## Shared library (videos, read-only)
+
+Beside the per-user folders, Relay can show a **library that belongs to the
+server** — typically a video collection on a NAS. Set `SHARED_LIB` in the
+`.env` to the host path; docker-compose mounts it **read-only** (`:ro`) at
+`/data/library`. Empty = no library at all.
+
+- **Granting access** — an admin opens "Nutzerverwaltung" → per-user row menu →
+  **Bibliothek**: the library's folder **tree**, indented, with a checkbox on
+  every node. Folders can be granted at **any level** — all of `Doku` plus a
+  single subfolder out of `fsk6`. A grant covers everything below it, so
+  subfolders of a checked node are shown ticked and disabled, and a grant
+  already covered by one further up is dropped on save (`nurWurzeln`). Unlike
+  shares, admins can be granted access too — the library belongs to the
+  server, not to a user. The tree **collapses**: it opens showing only the top
+  level plus the paths leading to grants already given, so a real collection
+  stays workable; a collapsed folder whose subtree contains a grant highlights
+  its caret, and "Alle aufklappen" opens everything at once. Coverage is
+  computed independently of what is folded away — a collapsed subtree is
+  covered by a checked ancestor just the same. The tree is capped (500 nodes,
+  6 levels) and cached for 60 s; the cap also bounds a symlink pointing at one
+  of its own ancestors.
+- **Display name** — every granted folder can get a name of its own, next to
+  its checkbox: the user sees "Filme ab 6" where the filesystem says `fsk6`.
+  The name belongs to the **grant, not the folder** (column `label` on
+  `library_access`), so two users can see the same folder under different
+  names — and renaming for one changes nothing for the other. Empty (or equal
+  to the folder name) stores NULL and falls back to the filesystem name. The
+  name is what shows in the file list, in the breadcrumb, and in search — both
+  as the hit label and inside its "Bibliothek · …" hint, so the filesystem
+  name does not leak back in through the side door. For the same reason the
+  list badge drops its origin hint once a name is set.
+- **In the file list** — a granted folder is also the **entry point**: it shows
+  up at the top level next to the user's own folders, with a purple folder icon
+  and a "Bibliothek" badge that names its place in the library when it is
+  nested ("Bibliothek · fsk6") — two grants may share a name. Navigating uses
+  the same `?p=` parameter with a `lib:` marker (`?p=lib:Filme/2024`), so
+  breadcrumbs, sorting and the AJAX folder navigation work unchanged.
+  Breadcrumbs stop at the granted folder: a crumb above it would be a dead
+  click, the user has no access there.
+- **Read-only, really** — there is no route that writes into the library:
+  no upload, no new folder, no move, no rename, no delete. The `:ro` mount
+  enforces it a second time at the kernel level.
+- **Videos** play in a dialog with the browser's built-in `<video>` — no extra
+  library. `res.sendFile` answers range requests, so seeking works. Formats
+  come from the `VIDEO_TYPES` whitelist (mp4/m4v, webm, ogv, mov, mkv, avi);
+  whether mkv/avi actually play depends on the codec, and the dialog falls back
+  to a download hint when the browser cannot. **Audio is a separate question
+  from video**: browsers decode no Dolby Digital (AC-3/E-AC-3), DTS or TrueHD,
+  which is what most movie rips carry. The picture then plays and there is
+  simply no sound — and nothing to switch on, because without a decodable track
+  the player hides its volume control. The dialog detects that (decoded audio
+  bytes stay 0 while video bytes climb; `mozHasAudio` on Firefox, and nothing
+  is claimed where neither is available) and says so instead of leaving people
+  hunting for a control that is not there. Two samples, not one, and the notice
+  is **revocable**: a big file served for the first time sits in no cache and
+  its audio decoder can start late, which produced two false alarms during
+  testing. The second sample additionally requires the *video* byte count to
+  have grown — that separates "still loading" from "decoding but silent"
+  (verified on a throttled connection) — and if audio starts after all, the
+  notice takes itself back. Measured on two real files: AC-3 →
+  video 515463 bytes / audio 0, the same movie with AAC → audio 83757.
+- **Retrofitting sound** — where the server can tell (a library video, probed
+  with `ffprobe`), the notice carries a **"Ton nachrüsten"** button instead of
+  just an explanation. Relay then builds a one-off copy with AAC audio
+  (`transcode.js`): the **picture is copied, not re-encoded**, so it costs
+  little more than reading and writing — measured 9.5 s for 3 minutes of film,
+  about 5 minutes for a 96-minute one. The film keeps playing (silently) while
+  that runs; when it is done the source is swapped and playback resumes at the
+  same second. **Seeking survives**, and that is the whole reason for building
+  a file instead of streaming a live conversion: a running conversion cannot
+  answer byte-range requests, a finished file can. One conversion at a time
+  (a queue); the copies live in `LIB_CACHE` (`/data/cache`), capped by
+  `LIB_CACHE_MB` with the oldest dropped first — scratch space, outside the
+  backup by construction, and roughly the size of the original per film. The dialog header has a
+  **window-size toggle**: it drops its own frame and hands the whole browser
+  window to the player (aspect ratio kept — this is *not* the player's own
+  fullscreen, which additionally hides the browser's own chrome). In that mode
+  the title bar slides out of the way and comes back when the pointer reaches
+  the top edge (a 64px hover strip in front of it, plus the bar itself, so
+  there is no gap to flicker in). In normal size the dialog can be **dragged
+  larger** at the grip in its bottom-right corner; the size is remembered. Playback starts on its own; the click on
+  the file name is the user gesture browsers require for sound, and a refused
+  start is caught so the play button simply stays put. **Escape while
+  fullscreen belongs to the browser** — the global handler in `core/dialogs.js`
+  bails out when `document.fullscreenElement` is set; without that, one key
+  press left the viewer inside fullscreen in front of a black frame, because
+  closing the dialog also strips the video source. Everything else in the
+  library can be downloaded; images open the existing preview dialog.
+- **Documents, spreadsheets, presentations and PDFs open in OnlyOffice**, in
+  **view mode**, via `/lib/edit/*` — a separate path, because "lib" would be a
+  valid username and `/edit/lib/...` could not be told apart from a user's
+  files. The config carries `edit:false`, `mode:"view"` and, deliberately, **no
+  `callbackUrl`**: without one the DocumentServer has no way to write anything
+  back (the mount is read-only anyway, so a write would fail regardless). The
+  DocumentServer fetches the file from `/lib/files/*` under its own HMAC
+  signature (namespaced `lib:`, so a library link can never pass as a user-file
+  link), served as an attachment with nosniff; that route additionally
+  re-checks the path stays inside the library. The participant list stays
+  empty — nothing is co-edited here, so no names end up in the page source.
+  Anything else (`.zip`, a stray `.md`, …) still downloads.
+- **Search** covers the library too: the app-menu search finds granted folders
+  (jump into them) and their files (play/download), labeled "Bibliothek · path".
+  The index per top-level folder is cached for 60 s — search runs on every
+  keystroke and a media collection on a network share is expensive to walk.
+  The `@`-mention list in the note editor asks with `lib=0` and leaves the
+  library out: its links are owner + path, and a library file has no owner.
+- Videos in a user's **own** folder (they can only get there via the file API —
+  the upload dialog does not offer video formats) behave the same way.
+
+**The library is never backed up.** "Backup ausführen" mirrors `documents/`
+and `state/`; the library is a separate mount outside both, so rsync never
+sees it — it is the server's, read-only, and backed up on its own level (NAS).
+A symlink in a user folder does not change that either: `rsync -a` copies
+symlinks as symlinks, not their target. The one configuration that *would*
+break this is a `SHARED_LIB` pointing **inside** `DOCUMENTS_DIR` — the same
+collection then sits in the middle of the user tree and is an ordinary folder
+to rsync. `library.insideDocs()` detects it (same device + inode, which a bind
+mount preserves), the backup excludes it, and the log tells the admin it
+happened. What *does* get backed up is the grants table including display
+names — without it a restore would lose who may see what.
+
+**Repairing a library** (`deploy/`): browsers play neither Dolby Digital /
+DTS / TrueHD audio nor MPEG-2 video, and a DVD-era collection is full of both.
+Two scripts fix the source files rather than transcoding on every playback.
+`ton-nachruesten.sh` appends an AAC track (video copied, ~5 min per film);
+`bild-nachruesten.sh` re-encodes MPEG-2 to H.264 and fixes the audio in the
+same pass. Both write to a `.tmp` beside the file and only replace the original
+after every check passes — duration within 2 s, stream counts, aspect ratio
+(DVD is anamorphic: 720x576 shown as 16:9, losing that squashes the picture),
+and a full decode of the result. `--report` lists what would be touched,
+`--keep-original` leaves the source as `.orig`, and both are repeatable.
+Measured on a real 186-film library: 28 audio-only repairs in 3 h 12 min, 66
+video conversions in 13.5 h at SSIM 0.986 / PSNR 44.8 dB, files shrinking 70 %.
+
+Path safety here deliberately does **not** use `secureFilename`: library names
+are not Relay's own and may contain umlauts, spaces and brackets. Instead
+`library.js` rejects path tricks (`..`, backslash, NUL) and resolves the path
+(`realpath`), verifying it stays below the resolved library root — so a symlink
+inside the library cannot lead out of it.
 
 ## File API (token auth)
 

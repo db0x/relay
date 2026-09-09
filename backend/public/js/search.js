@@ -8,6 +8,7 @@
 // dort etwas aendert, gilt es hier automatisch mit.
 import { closeMenus } from "./core/dialogs.js";
 import { bindImageOpen } from "./files/image-view.js";
+import { bindVideoOpen } from "./files/video-view.js";
 import { sucheDokumente, fuelleTreffer } from "./search-core.js";
 
 var DEBOUNCE = 160;
@@ -87,10 +88,10 @@ export function initSearch(config) {
         el.dataset.rel = h.relpath;
         el.dataset.label = h.label;
         el.dataset.canedit = h.canedit ? "1" : "0";
-      } else if (h.isImage) {
+      } else if (h.isImage || h.isVideo) {
         el = document.createElement("button");
         el.type = "button";
-        el.className = "app-hit image-open";
+        el.className = "app-hit " + (h.isVideo ? "video-open" : "image-open");
         el.dataset.src = h.src;
         el.dataset.download = h.download;
         el.dataset.label = h.label;
@@ -109,6 +110,7 @@ export function initSearch(config) {
     // bekommen ihre echten Oeffnen-Handler, root-skopiert auf die Trefferliste.
     if (bindNoteOpen) bindNoteOpen(list);
     bindImageOpen(list);
+    bindVideoOpen(list);
 
     clearTimeout(clearTimer); // ein neues Ergebnis hebt ein laufendes Zufahren auf
     list.hidden = !hits.length;

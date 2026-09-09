@@ -121,6 +121,12 @@ export function initDialogCore() {
   document.addEventListener("click", closeMenus);
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
+    // Im Vollbild gehoert Escape dem Browser: es beendet das Vollbild, sonst
+    // nichts. Wuerden wir zusaetzlich den obersten Dialog schliessen, stuende
+    // der Nutzer nach EINEM Tastendruck im Vollbild vor einem schwarzen Bild —
+    // der Video-Dialog nimmt beim Schliessen die Quelle weg. Genau so gemessen:
+    // fullscreen=true, Dialog zu, Quelle weg.
+    if (document.fullscreenElement) return;
     closeMenus();
     // nicht-modale Dialoge kennen kein cancel-Event -> selbst schliessen
     if (dlgStack.length) dlgStack[dlgStack.length - 1].close();

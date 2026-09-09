@@ -9,6 +9,7 @@ const jwt = require("jsonwebtoken");
 
 const users = require("../users");
 const avatars = require("../avatars");
+const library = require("../library");
 const { accessFor } = require("../access");
 const { darfVonHier } = require("../zone");
 const { secureFilename, encPath, securePath, dirFor, pathFor, walkFiles } = require("../storage");
@@ -30,6 +31,18 @@ function fileToken(uid, fid, expires) {
   return crypto.createHmac("sha256", FILE_SECRET)
     .update(`${uid}:${fid}:${expires}`).digest("base64url");
 }
+
+// Dasselbe fuer die Bibliothek. Eigener Namensraum ("lib") in der Signatur:
+// ein Bibliotheks-Link darf nie als Nutzerdatei-Link durchgehen und umgekehrt —
+// die Pfade koennten sich sonst ueberschneiden.
+function libFileToken(rel, expires) {
+  return crypto.createHmac("sha256", FILE_SECRET)
+    .update(`lib:${rel}:${expires}`).digest("base64url");
+}
+
+// Gueltigkeitsdauer der signierten Links (der DocumentServer holt die Datei
+// damit ohne Login-Cookie)
+const LINK_STUNDEN = 12;
 
 router.get("/edit/:owner/*", loginRequired, (req, res) => {
   const uid = req.params.owner, fid = req.params[0];
@@ -152,7 +165,84 @@ router.get("/edit/:fid", (req, res, next) => {
   res.redirect(`${BASE}/edit/${encodeURIComponent(me)}/${encPath(target)}`);
 });
 
+// --- Bibliothek: Dokumente ANSEHEN --------------------------------------
+// Dieselbe OnlyOffice-Ansicht wie fuer eigene Dateien, aber ohne jeden Weg
+// zurueck: Ansichtsmodus, keine Bearbeitungsrechte und vor allem KEIN
+// callbackUrl — waere er da, koennte der DocumentServer die Datei
+// zurueckschreiben. Die Bibliothek wird nur gelesen; sie ist ausserdem
+// schreibgeschuetzt eingehaengt, ein Schreibversuch scheiterte also ohnehin.
+//
+// Eigener Pfad (/lib/edit) statt /edit/lib/...: "lib" waere ein zulaessiger
+// Nutzername, die beiden Routen liessen sich dann nicht unterscheiden.
+router.get("/lib/edit/*", loginRequired, (req, res) => {
+  const rel = req.params[0];
+  if (!library.mayRead(req.session.user, rel)) return res.sendStatus(404);
+  const abs = library.absOf(rel);
+  if (!abs || library.isDir(abs)) return res.sendStatus(404);
+  const ext = (rel.split(".").pop() || "").toLowerCase();
+  // wie bei den Nutzerdateien: nur Formate, die OnlyOffice oeffnet — sonst
+  // gaebe es einen signierten Link auf beliebige Inhalte
+  if (!DOCTYPE[ext]) return res.sendStatus(404);
+
+  const mtime = Math.floor(fs.statSync(abs).mtimeMs / 1000);
+  const exp = Math.floor(Date.now() / 1000) + LINK_STUNDEN * 3600;
+  const src = `${HOST_INTERNAL}${BASE}/lib/files/${encPath(rel)}`
+    + `?expires=${exp}&token=${libFileToken(rel, exp)}`;
+  const relHash = crypto.createHash("sha256").update(rel).digest("hex").slice(0, 16);
+  const config = {
+    document: {
+      fileType: ext,
+      // "lib-" im Key: Bibliothek und Nutzerdateien duerfen sich im Cache des
+      // DocumentServers nicht vermischen
+      key: `lib-${relHash}-${mtime}`,
+      title: path.basename(rel),
+      url: src,
+      permissions: { edit: false, download: true, print: true, comment: false },
+    },
+    documentType: DOCTYPE[ext] || "word",
+    editorConfig: {
+      mode: "view",
+      lang: "de-DE",
+      region: "de-DE",
+      user: { id: req.session.user, name: req.session.name },
+      customization: { uiTheme: EDITOR_THEME, features: { tabStyle: "fill" } },
+    },
+  };
+  config.token = jwt.sign(config, JWT_SECRET, { algorithm: "HS256", noTimestamp: true });
+  const embed = (o) => JSON.stringify(o).replace(/</g, "\\u003c");
+  res.render("edit", {
+    ds_api: `${PUBLIC_DS}/web-apps/apps/api/documents/api.js`,
+    config: embed(config),
+    // Leere Teilnehmerliste: hier wird nichts gemeinsam bearbeitet, also
+    // braucht der Editor keine Namen — und sie stehen dann auch nicht im
+    // Quelltext der Seite.
+    usersJson: embed([]),
+    dsOrigin: new URL(PUBLIC_DS).origin,
+    theme: EDITOR_THEME,
+  });
+});
+
 // --- DocumentServer-Schnittstelle (kein Login-Cookie, daher signiert) ----
+
+// Bibliotheksdatei fuer den DocumentServer. Wie /files: kein Login, es zaehlt
+// allein die Signatur — und immer als ANHANG mit nosniff, damit ein
+// weitergegebener Link keine Datei unter unserer Herkunft ausfuehren kann.
+router.get("/lib/files/*", (req, res) => {
+  const rel = req.params[0];
+  const exp = parseInt(req.query.expires, 10) || 0;
+  const tok = req.query.token || "";
+  const good = libFileToken(rel, exp);
+  const ok = exp >= Math.floor(Date.now() / 1000)
+    && tok.length === good.length
+    && crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(good));
+  if (!ok) return res.sendStatus(403);
+  // Zweiter Boden: die Signatur allein wuerde auch einen Pfad AUSSERHALB der
+  // Bibliothek beglaubigen, wenn er je einmal signiert wurde.
+  const abs = library.absOf(rel);
+  if (!abs || library.isDir(abs)) return res.sendStatus(404);
+  res.set("X-Content-Type-Options", "nosniff");
+  res.download(abs, path.basename(rel));
+});
 router.get("/files/:uid/*", (req, res) => {
   const uid = req.params.uid, fid = req.params[0];
   const exp = parseInt(req.query.expires, 10) || 0;

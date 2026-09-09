@@ -54,4 +54,17 @@ function listForUser(target) {
   ).all(target);
 }
 
-module.exports = { share, unshare, rename, unshareAll, permFor, listForFile, listForUser };
+// Kurzform der Freigaben AN mich: Anzahl + juengster Eintrag. Fuer den
+// Aenderungs-Fingerabdruck der Dateiliste (routes/browse.js) — die
+// vollstaendige Liste zu bauen waere dafuer zu viel, und der Index
+// shares_by_target macht daraus eine Abfrage ohne Tabellenlauf.
+function fingerprintFor(target) {
+  const r = db().prepare(
+    "SELECT COUNT(*) AS anzahl, IFNULL(MAX(created),0) AS letzte FROM shares WHERE target=?"
+  ).get(target);
+  return { anzahl: r.anzahl, letzte: r.letzte };
+}
+
+module.exports = {
+  share, unshare, rename, unshareAll, permFor, listForFile, listForUser, fingerprintFor,
+};

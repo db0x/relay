@@ -27,14 +27,20 @@ var PREFIX = "relay/";
 var BILD_TYPEN = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
 function endung(name) { return (name.split(".").pop() || "").toLowerCase(); }
 export function istBild(name) { return BILD_TYPEN.indexOf(endung(name)) !== -1; }
+var VIDEO_TYPEN = ["mp4", "m4v", "webm", "ogv", "mov", "mkv", "avi"];
+var TEXT_TYPEN = ["docx", "doc", "odt", "rtf", "txt"];
 function iconFuer(name) {
   var ext = endung(name);
   if (["xlsx", "xls", "ods", "csv"].indexOf(ext) !== -1) return "xlsx";
   if (["pptx", "ppt", "odp"].indexOf(ext) !== -1) return "pptx";
+  if (VIDEO_TYPEN.indexOf(ext) !== -1) return "video";
   if (ext === "pdf") return "pdf";
   if (ext === "md") return "note";
   if (istBild(name)) return "image";
-  return "docx";
+  if (TEXT_TYPEN.indexOf(ext) !== -1) return "docx";
+  // wie im Backend: was wir nicht kennen, gibt sich auch nicht als
+  // Textdokument aus
+  return "unknown";
 }
 
 // Pfadteile einzeln kodieren: Leerzeichen und Klammern wuerden die

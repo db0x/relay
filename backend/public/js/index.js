@@ -14,8 +14,10 @@ import { initCreateFileDialog } from "./files/create-file.js";
 import { initUpload } from "./files/upload.js";
 import { initOwnFilter } from "./files/own-filter.js";
 import { initImageView } from "./files/image-view.js";
+import { initVideoView } from "./files/video-view.js";
 import { initNotes } from "./notes/notes.js";
 import { initBackupDialog } from "./backup.js";
+import { initLibraryPicker } from "./library-picker.js";
 import { initFolderNav } from "./folder-nav.js";
 import { initScrollbars } from "./core/scrollbars.js";
 import { initSearch } from "./search.js";
@@ -48,6 +50,7 @@ initCreateFileDialog();
 initUpload();
 initOwnFilter();
 initImageView();
+initVideoView();
 // Eigene Bildlaufleisten fuer Menues, Dialoge und Vorschauen. Die FENSTER
 // versorgt createWindow selbst — jede kuenftige Ansicht bekommt sie damit
 // automatisch, ohne hier etwas nachzutragen.
@@ -74,6 +77,8 @@ createWindow({
 var notes = initNotes();
 initBoard({ baseUrl: BASE_URL, notes: notes });
 initBackupDialog();
+// Ordnerauswahl der Bibliothek (nur im Admin-Dialog vorhanden)
+initLibraryPicker();
 initFolderNav({ bindNoteOpen: notes && notes.bindNoteOpen });
 // Suche im Anwendungs-Menue. Braucht bindNoteOpen aus demselben Grund wie die
 // Ordnernavigation: gefundene Notizen sollen im Notiz-Dialog aufgehen.

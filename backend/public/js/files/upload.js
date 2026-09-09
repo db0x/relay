@@ -4,7 +4,7 @@
 import { showNotice } from "../core/dialogs.js";
 
 // Dateityp-Icon zum Namen (gleiche Gruppen wie iconFor im Backend);
-// null, wenn die Endung nicht erkennbar ist
+// Unbekanntes bekommt das neutrale Fragezeichen
 function iconForName(name) {
   var ext = (name.split(".").pop() || "").toLowerCase();
   var map = {
@@ -12,7 +12,7 @@ function iconForName(name) {
     pptx: "pptx", ppt: "pptx", odp: "pptx", pdf: "pdf",
     docx: "docx", doc: "docx", odt: "docx", rtf: "docx", txt: "docx",
   };
-  return map[ext] || null;
+  return map[ext] || "unknown";
 }
 
 // root-skopiert: Das Upload-Formular sitzt in der Titelleiste des
@@ -38,11 +38,11 @@ export function bindUpload(root) {
       msg.appendChild(strong);
       msg.appendChild(document.createTextNode(
         " ist " + mb + " MB groß — erlaubt sind maximal " + maxMb + " MB."));
-      var icon = iconForName(f.name);
       showNotice("Datei zu groß", msg, {
         danger: true,
         // Basis-URL aus der Formular-Action ableiten (beruecksichtigt BASE_PATH)
-        icon: icon ? uploadForm.action.replace(/\/upload$/, "") + "/static/img/" + icon + ".svg" : null,
+        icon: uploadForm.action.replace(/\/upload$/, "")
+          + "/static/img/" + iconForName(f.name) + ".svg",
       });
       uploadInput.value = ""; // Auswahl verwerfen, sonst haengt sie im Formular
       return;

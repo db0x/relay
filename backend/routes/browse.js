@@ -15,9 +15,11 @@ const twofactor = require("../twofactor");
 const protokoll = require("../eventlog");
 const notifications = require("../notifications");
 const noteicon = require("../noteicon");
+const library = require("../library");
+const foldersort = require("../foldersort");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
-const { BLANKS, BASE, DOCTYPE, IMAGE_TYPES, MAX_UPLOAD_MB } = require("../config");
+const { BLANKS, BASE, DOCTYPE, IMAGE_TYPES, VIDEO_TYPES, MAX_UPLOAD_MB } = require("../config");
 const { formatDate, formatDuration, NOTE_RE, labelFromName } = require("../format");
 const { loginRequired } = require("./auth");
 
@@ -27,21 +29,51 @@ const router = express.Router();
 // (desktop_layout). Neue Ansicht -> hier eintragen.
 const WINDOW_KEYS = ["page", "board"];
 
-// Dateiendung -> Typ-Icon in /static/img/ (verwandte Formate teilen sich eins)
+// Marke am ?p=-Parameter, die einen Pfad IN DER BIBLIOTHEK kennzeichnet
+// ("?p=lib:Filme/2024"). Eigene Ordner und Bibliotheksordner teilen sich
+// denselben Parameter — dadurch funktionieren Sortierlinks, Brotkrumen und
+// die AJAX-Ordnernavigation (js/folder-nav.js) ohne jede Sonderbehandlung.
+// Ein Doppelpunkt kann in einem eigenen Ordnernamen nicht vorkommen
+// (secureFilename laesst ihn nicht durch), die Marke ist also eindeutig.
+const LIB_P = "lib:";
+
+// Dateiendung -> Typ-Icon in /static/img/ (verwandte Formate teilen sich eins).
+// Die Bueroformate kommen aus DOCTYPE statt aus eigenen Listen — so bleibt die
+// Zuordnung automatisch synchron, wenn dort eine Endung dazukommt.
+// Alles Unbekannte (.iso, .zip, .bin …) bekommt das neutrale Fragezeichen;
+// frueher stand dort das Textdokument-Icon und behauptete einen Typ, der nicht
+// stimmte. ACHTUNG: Zwilling im Browser — iconFuer() in js/notes/doclinks.js
+// faerbt die Verweise im Notiztext nach derselben Regel.
 function iconFor(name) {
   const ext = (name.split(".").pop() || "").toLowerCase();
-  if (["xlsx", "xls", "ods", "csv"].includes(ext)) return "xlsx";
-  if (["pptx", "ppt", "odp"].includes(ext)) return "pptx";
-  if (ext === "pdf") return "pdf";
   if (ext === "md") return "note";
+  if (VIDEO_TYPES[ext]) return "video";
   if (IMAGE_TYPES[ext]) return "image"; // nur Rueckfall, sonst zeigt die Liste
-  return "docx"; // Standard (Textdokumente und Unbekanntes)
+  const typ = DOCTYPE[ext];
+  if (typ === "cell") return "xlsx";
+  if (typ === "slide") return "pptx";
+  if (typ === "pdf") return "pdf";
+  if (typ === "word") return "docx";
+  return "unknown";
 }
 
 // Bilder bekommen in der Liste ein echtes Vorschaubild und oeffnen einen
 // Vorschau-Dialog statt OnlyOffice (das kann mit Bildern nichts anfangen).
 function isImageName(name) {
   return !!IMAGE_TYPES[(name.split(".").pop() || "").toLowerCase()];
+}
+
+// Videos oeffnen einen eigenen Dialog mit dem <video> des Browsers
+// (js/files/video-view.js) — OnlyOffice kann damit nichts anfangen.
+function isVideoName(name) {
+  return !!VIDEO_TYPES[(name.split(".").pop() || "").toLowerCase()];
+}
+
+// Formate, die OnlyOffice oeffnet (Dokumente, Tabellen, Praesentationen, PDF).
+// Fuer Nutzerdateien steckt das im /edit-Link; die Bibliothek braucht die
+// Unterscheidung ausdruecklich, um nicht alles zum Herunterladen zu machen.
+function isDocName(name) {
+  return !!DOCTYPE[(name.split(".").pop() || "").toLowerCase()];
 }
 
 // NOTE_RE/labelFromName stehen in ../format.js — das Notiz-Netz braucht
@@ -210,10 +242,13 @@ router.get("/", loginRequired, (req, res) => {
     .filter((u) => u.username !== me && !u.is_admin);
   const hiddenLangs = settings.get("hidden_langs", []);
 
-  const cur = securePath(req.query.p || "");
-  const curAbs = cur ? path.join(userDir, cur) : userDir;
-  if (cur === null || !fs.existsSync(curAbs) || !fs.statSync(curAbs).isDirectory())
-    return res.redirect(`${BASE}/`);
+  // ?p= zeigt entweder in einen eigenen Unterordner oder — mit der Marke
+  // "lib:" — in die geteilte Bibliothek. Fehlt das Leserecht oder gibt es den
+  // Ordner nicht (mehr), geht es kommentarlos zurueck auf die oberste Ebene;
+  // eine eigene Fehlermeldung wuerde nur verraten, was es alles gibt.
+  const ort = ordnerAusP(me, req.query.p);
+  if (!ort) return res.redirect(`${BASE}/`);
+  const { inLib, libRel, cur, curAbs } = ort;
 
   // owner + relpath werden fuer den Anzeigenamen gebraucht: der echte Titel
   // einer Notiz steht in note_meta, und der Schluessel dort ist der Pfad
@@ -222,13 +257,15 @@ router.get("/", loginRequired, (req, res) => {
     const st = fs.statSync(p);
     return {
       name, label: labelFor(relpath, owner), isNote: /\.md$/i.test(name),
-      isImage: isImageName(name),
+      isImage: isImageName(name), isVideo: isVideoName(name),
       icon: iconFor(name), sizeBytes: st.size, mtime: st.mtimeMs,
       size: formatSize(st.size), modified: formatDate(st.mtimeMs),
     };
   };
 
-  const entries = fs.readdirSync(curAbs, { withFileTypes: true });
+  // In der Bibliothek wird nichts Eigenes gezeigt — die Liste besteht dort
+  // ausschliesslich aus deren Inhalt (weiter unten).
+  const entries = inLib ? [] : fs.readdirSync(curAbs, { withFileTypes: true });
 
   // Unterordner im aktuellen Ordner
   const folders = entries.filter((e) => e.isDirectory()).map((e) => {
@@ -259,8 +296,11 @@ router.get("/", loginRequired, (req, res) => {
     };
   });
 
-  // ... plus die mir freigegebenen (liegen physisch beim Besitzer) — nur oben
-  const shared = cur ? [] : shares.listForUser(me).map((s) => {
+  // ... plus die mir freigegebenen (liegen physisch beim Besitzer) — nur auf
+  // der obersten Ebene der EIGENEN Dateien. In der Bibliothek gehoeren sie
+  // nicht hin: dort steht ausschliesslich deren Inhalt (inLib laesst cur auf
+  // "", der Ordnervergleich allein wuerde sie also durchlassen).
+  const shared = (cur || inLib) ? [] : shares.listForUser(me).map((s) => {
     const p = pathFor(s.owner, s.filename);
     if (!fs.existsSync(p)) return null;   // Karteileiche: Datei wurde geloescht
     const m = meta(s.filename, p, s.owner, s.filename);
@@ -273,25 +313,92 @@ router.get("/", loginRequired, (req, res) => {
     };
   }).filter(Boolean);
 
-  const files = own.concat(shared);
+  // --- Bibliothek ------------------------------------------------------
+  // Oberste Ebene: die freigeschalteten Ordner stehen neben den eigenen.
+  // Innerhalb der Bibliothek: ihr Inhalt. Jede Bibliothekszeile gilt als
+  // FREMD (isOwner false) — damit greifen die bestehenden Regeln von selbst:
+  // keine Zeilen-Dialoge zum Freigeben/Verschieben (row-dialogs.ejs), kein
+  // Loeschen, und der Filter "Nur eigene Dateien" blendet sie aus.
+  const libRow = (name, rel, isDir, sizeBytes, mtime) => ({
+    name, label: name, relpath: rel, isDir, isLib: true, libHint: "",
+    icon: isDir ? "library" : iconFor(name),
+    isNote: false,
+    isImage: !isDir && isImageName(name),
+    isVideo: !isDir && isVideoName(name),
+    // Dokumente/Tabellen/PDF gehen in die OnlyOffice-ANSICHT, nicht in den
+    // Download — genau wie eigene Dateien, nur ohne Bearbeiten
+    isDoc: !isDir && isDocName(name),
+    sizeBytes: isDir ? -1 : sizeBytes,
+    size: isDir ? "—" : formatSize(sizeBytes),
+    mtime, modified: formatDate(mtime),
+    owner: "", ownerName: "", isOwner: false, perm: "view",
+    shares: [], availableUsers: [], todo: null, noteColor: "", noteDark: false,
+    // Fertige Links: die Bibliothek haengt an eigenen Routen (routes/media.js),
+    // das Template greift ueber isLib darauf zu.
+    href: isDir ? `${BASE}/?p=${encodeURIComponent(LIB_P + rel)}` : "",
+    src: isDir ? "" : `${BASE}/lib/media/${encPath(rel)}`,
+    download: isDir ? "" : `${BASE}/lib/download/${encPath(rel)}`,
+    edit: isDir ? "" : `${BASE}/lib/edit/${encPath(rel)}`,
+  });
 
-  // Sortierung aus der URL; Default: Änderungsdatum absteigend. Ordner stehen
-  // immer vor den Dateien, beide Gruppen sortieren gleich.
-  const sort = ["name", "size", "date"].includes(req.query.sort) ? req.query.sort : "date";
-  const dir = req.query.dir === "asc" ? "asc" : "desc";
+  // Die freigeschalteten Ordner sind zugleich die EINSTIEGE — sie koennen auf
+  // jeder Ebene liegen ("Doku" ebenso wie "fsk6/Konzerte/2024"). Angezeigt
+  // wird nur ihr eigener Name; woher in der Bibliothek sie stammen, steht im
+  // Abzeichen (libHint) — zwei Freigaben koennen gleich heissen.
+  // Inzwischen verschwundene fallen still heraus: das Recht bleibt, es zeigt
+  // nur ins Leere.
+  const libTop = (!inLib && cur === "")
+    ? library.grants(me)
+      .map((g) => ({ ...g, abs: library.absOf(g.folder) }))
+      .filter((e) => e.abs && library.isDir(e.abs))
+      .map((e) => {
+        const eltern = path.dirname(e.folder);
+        return {
+          ...libRow(library.labelOf(e), e.folder, true, -1, fs.statSync(e.abs).mtimeMs),
+          // Der Herkunftshinweis nennt den Ort im DATEISYSTEM. Bei einem
+          // eigenen Anzeigenamen bleibt er weg — er wuerde genau den Namen
+          // wieder zeigen, von dem der Nutzer entkoppelt werden soll.
+          libHint: (e.label || eltern === ".") ? "" : eltern,
+        };
+      })
+    : [];
+  const libEntries = inLib ? library.entries(libRel) : [];
+  const libFolders = libTop.concat(libEntries.filter((e) => e.isDir)
+    .map((e) => libRow(e.name, `${libRel}/${e.name}`, true, -1, e.mtime)));
+  const libFiles = libEntries.filter((e) => !e.isDir)
+    .map((e) => libRow(e.name, `${libRel}/${e.name}`, false, e.size, e.mtime));
+
+  const files = own.concat(shared).concat(libFiles);
+
+  // Sortierung: was in der URL steht, ist eine frische Wahl des Nutzers — die
+  // merken wir uns fuer DIESEN Ordner (foldersort.js) und wenden sie beim
+  // naechsten Besuch wieder an. Ohne beides bleibt es beim Änderungsdatum
+  // absteigend. Ordner stehen immer vor den Dateien, beide Gruppen sortieren
+  // gleich.
+  // Schluessel ist der Ordner, wie ihn auch ?p= benennt — die Bibliothek mit
+  // ihrer Marke, damit "filme" dort nicht mit einem eigenen Ordner gleichen
+  // Namens zusammenfaellt.
+  const sortKey = inLib ? LIB_P + libRel : cur;
+  const gewaehlt = ["name", "size", "date"].includes(req.query.sort);
+  const gemerkt = gewaehlt ? null : foldersort.get(me, sortKey);
+  const sort = gewaehlt ? req.query.sort : (gemerkt ? gemerkt.sort : "date");
+  const dir = gewaehlt ? (req.query.dir === "asc" ? "asc" : "desc")
+    : (gemerkt ? gemerkt.dir : "desc");
+  if (gewaehlt) foldersort.set(me, sortKey, sort, dir);
   const cmp = {
     // nach dem ANGEZEIGTEN Namen sortieren — Notizen also nach Titel, nicht UUID
     name: (a, b) => a.label.localeCompare(b.label, "de", { sensitivity: "base" }),
     size: (a, b) => a.sizeBytes - b.sizeBytes,
     date: (a, b) => a.mtime - b.mtime,
   }[sort];
-  for (const list of [folders, files]) {
+  for (const list of [folders, libFolders, files]) {
     list.sort(cmp);
     if (dir === "desc") list.reverse();
   }
 
   // Spaltenköpfe als Sortier-Links aufbereiten (nächste Richtung + Pfeil)
-  const pParam = cur ? `&p=${encodeURIComponent(cur)}` : "";
+  const pParam = inLib ? `&p=${encodeURIComponent(LIB_P + libRel)}`
+    : (cur ? `&p=${encodeURIComponent(cur)}` : "");
   const defaultDir = { name: "asc", size: "desc", date: "desc" };
   const columns = [
     { key: "name", label: "Datei", cls: "" },
@@ -309,17 +416,41 @@ router.get("/", loginRequired, (req, res) => {
 
   // Brotkrumen: "Meine Dateien / steuern / 2026"
   const crumbs = [{ label: "Meine Dateien", href: `${BASE}/` }];
-  cur.split("/").filter(Boolean).reduce((prefix, seg) => {
-    const rel = prefix ? `${prefix}/${seg}` : seg;
-    crumbs.push({ label: seg, href: `${BASE}/?p=${encodeURIComponent(rel)}` });
-    return rel;
-  }, "");
+  if (inLib) {
+    // Der freigeschaltete Ordner ist der Einstieg: OBERHALB davon darf keine
+    // Brotkrume stehen. Liegt die Freigabe auf "fsk6/Filme", waere ein Link
+    // auf "fsk6" ein Sackgassen-Klick — dorthin kommt der Nutzer nicht.
+    const wurzel = library.grantFor(me, libRel);
+    crumbs.push({
+      // wie in der Liste: der Anzeigename der Freigabe, nicht der Ordnername
+      label: library.labelOf(library.grants(me).find((g) => g.folder === wurzel) || { folder: wurzel }),
+      href: `${BASE}/?p=${encodeURIComponent(LIB_P + wurzel)}`,
+    });
+    libRel.slice(wurzel.length).split("/").filter(Boolean).reduce((prefix, seg) => {
+      const rel = `${prefix}/${seg}`;
+      crumbs.push({ label: seg, href: `${BASE}/?p=${encodeURIComponent(LIB_P + rel)}` });
+      return rel;
+    }, wurzel);
+  } else {
+    cur.split("/").filter(Boolean).reduce((prefix, seg) => {
+      const rel = prefix ? `${prefix}/${seg}` : seg;
+      crumbs.push({ label: seg, href: `${BASE}/?p=${encodeURIComponent(rel)}` });
+      return rel;
+    }, "");
+  }
 
   res.render("index", {
-    files: folders.concat(files),
+    // Reihenfolge: eigene Ordner, Bibliotheksordner, dann alle Dateien
+    files: folders.concat(libFolders).concat(files),
+    // Fingerabdruck DIESES Standes — die Oberflaeche vergleicht ihn im Takt
+    // gegen GET /changed und laedt nur bei Abweichung nach (js/folder-nav.js)
+    listFp: listFingerprint(me, ort),
     columns,
     crumbs,
     curDir: cur,
+    // Wir stehen IN der Bibliothek: dort gibt es nichts hochzuladen und
+    // keinen Ordner anzulegen (file-list.ejs blendet die Aktionen aus).
+    libMode: inLib,
     // frei platzierbare Notiz-Icons neben der Liste (ordnerunabhaengig sichtbar)
     // Schalter aus "Mein Konto": liegen die Notiz-Icons auf dem Desktop?
     deskNotes: !!(users.get(me) || {}).desk_notes,
@@ -389,8 +520,19 @@ router.get("/", loginRequired, (req, res) => {
       const dir = dirFor(u.username);
       const bytes = walkFiles(dir)
         .reduce((sum, rel) => sum + fs.statSync(path.join(dir, rel)).size, 0);
-      return { ...u, hasAvatar: avatars.has(u.username), size: formatSize(bytes) };
+      return {
+        ...u, hasAvatar: avatars.has(u.username), size: formatSize(bytes),
+        // Leserechte auf die Bibliothek inkl. Anzeigename ([{folder,label}]) —
+        // Nutzerverwaltung, ein Dialog je Nutzer
+        libGrants: library.grants(u.username),
+      };
     }),
+    // Auswahl im Bibliotheks-Dialog: der komplette Ordnerbaum ({rel,name,tiefe}),
+    // damit sich auf jeder Ebene einzelne Ordner freigeben lassen.
+    // libConfigured unterscheidet "SHARED_LIB nicht gesetzt" von "gesetzt,
+    // aber leer" — sonst raetselt der Admin an einer leeren Liste.
+    libAll: row.is_admin ? library.folderTree() : [],
+    libConfigured: library.configured(),
     // Das Token selbst liegt nur noch als Pruefsumme in der DB und kann
     // deshalb nicht mehr angezeigt werden. Direkt nach dem Erzeugen steht es
     // einmalig in der Sitzung — danach nie wieder (users.js: hashToken).
@@ -509,6 +651,89 @@ router.post("/create", loginRequired, (req, res) => {
   res.redirect(`${BASE}/edit/${encodeURIComponent(req.session.user)}/${encPath(fid)}`);
 });
 
+// --- Angezeigter Ordner + sein Fingerabdruck ---------------------------
+// ?p= zeigt entweder in einen eigenen Unterordner oder — mit der Marke "lib:" —
+// in die geteilte Bibliothek. Die Aufloesung steht hier EINMAL, weil zwei
+// Stellen sie brauchen: die Liste selbst (GET /) und die Aenderungsabfrage
+// (GET /changed). Waeren es zwei Fassungen, koennten sie auseinanderlaufen —
+// und dann meldete die eine Aenderungen an einem Ordner, den die andere gar
+// nicht zeigt.
+//
+// null = kein zulaessiger Ordner (fehlendes Leserecht, geloescht, Pfadtrick).
+// Der Aufrufer schickt den Nutzer dann auf die oberste Ebene; eine eigene
+// Fehlermeldung wuerde nur verraten, was es alles gibt.
+function ordnerAusP(me, rawP) {
+  const inLib = String(rawP || "").startsWith(LIB_P);
+  if (inLib) {
+    const libRel = library.safeRel(String(rawP).slice(LIB_P.length));
+    const libAbs = libRel && library.mayRead(me, libRel) ? library.absOf(libRel) : null;
+    if (!libAbs || !library.isDir(libAbs)) return null;
+    return { inLib: true, libRel, cur: "", curAbs: libAbs };
+  }
+  const cur = securePath(String(rawP || ""));
+  if (cur === null) return null;
+  const userDir = dirFor(me);
+  const curAbs = cur ? path.join(userDir, cur) : userDir;
+  if (!fs.existsSync(curAbs) || !fs.statSync(curAbs).isDirectory()) return null;
+  return { inLib: false, libRel: "", cur, curAbs };
+}
+
+// Kurzer Wert, der sich genau dann aendert, wenn sich die angezeigte Liste
+// aendert. Gedacht fuer den Takt-Abruf aus der Oberflaeche (js/folder-nav.js):
+// die Liste neu zu bauen kostet Millisekunden und zig Kilobyte, das hier
+// kostet ein readdir und ein paar Byte. Die teure Arbeit laeuft erst, wenn
+// dieser Wert wirklich abweicht.
+//
+// Was hineingeht:
+//   - die mtime des Ordners selbst — sie springt bei Anlegen, Loeschen und
+//     Umbenennen,
+//   - Anzahl, juengste mtime und Groessensumme der Eintraege — denn eine
+//     GEAENDERTE Datei ruehrt die mtime ihres Ordners nicht an,
+//   - auf der obersten Ebene zusaetzlich die Freigaben an mich und die Zahl
+//     meiner Bibliotheksrechte: die aendert jemand ANDERS, ohne dass sich im
+//     Dateisystem hier etwas ruehrt.
+function listFingerprint(me, ort) {
+  let anzahl = 0, juengste = 0, summe = 0, ordner = 0;
+  if (ort.inLib) {
+    // dieselbe Quelle wie die Liste — library.entries filtert Punktdateien und
+    // hinausfuehrende Symlinks schon weg
+    for (const e of library.entries(ort.libRel)) {
+      anzahl++;
+      if (!e.isDir) summe += e.size;
+      if (e.mtime > juengste) juengste = e.mtime;
+    }
+  } else {
+    try { ordner = fs.statSync(ort.curAbs).mtimeMs; } catch (e) { return "weg"; }
+    let ents = [];
+    try { ents = fs.readdirSync(ort.curAbs, { withFileTypes: true }); } catch (e) { return "weg"; }
+    for (const e of ents) {
+      let st;
+      try { st = fs.statSync(path.join(ort.curAbs, e.name)); } catch (err) { continue; }
+      anzahl++;
+      if (!st.isDirectory()) summe += st.size;
+      if (st.mtimeMs > juengste) juengste = st.mtimeMs;
+    }
+  }
+  const teile = [ordner, anzahl, juengste, summe];
+  if (!ort.inLib && ort.cur === "") {
+    const fs2 = shares.fingerprintFor(me);
+    teile.push(fs2.anzahl, fs2.letzte, library.grants(me).length);
+  }
+  return teile.join("-");
+}
+
+// Takt-Abruf der Oberflaeche: nur der Fingerabdruck, sonst nichts. Weicht er
+// vom mitgelieferten Wert ab (data-fp an #page), holt der Client die Liste
+// ueber den vorhandenen AJAX-Weg nach.
+router.get("/changed", loginRequired, (req, res) => {
+  const me = req.session.user;
+  const ort = ordnerAusP(me, req.query.p);
+  res.set("Cache-Control", "no-store");
+  // Ordner weg oder nie erlaubt: ein Wert, der garantiert abweicht — dann
+  // laedt der Client nach und landet ueber GET / auf der obersten Ebene.
+  res.json({ fp: ort ? listFingerprint(me, ort) : "weg" });
+});
+
 // --- Suche ------------------------------------------------------------
 // Autovervollstaendigung im Anwendungs-Menue: sucht in den ANZEIGENAMEN aller
 // Dateien, die der Anfragende sehen darf — eigene (ueber alle Ordner hinweg)
@@ -553,6 +778,7 @@ router.get("/search", loginRequired, (req, res) => {
       owner, relpath, label,
       isNote: /\.md$/i.test(name),
       isImage: isImageName(name),
+      isVideo: isVideoName(name),
       icon: iconFor(name),
       canedit,
       // Woher stammt der Treffer? Bei eigenen der Ordner, bei fremden der
@@ -563,18 +789,66 @@ router.get("/search", loginRequired, (req, res) => {
     });
   };
 
+  // Dateien der Bibliothek — nur aus den freigeschalteten Baeumen
+  // (grantedFolders), nie darueber hinaus. Anders als eigene Dateien haben sie
+  // keinen Besitzer; die Links stehen weiter unten.
+  // Ordner sind bewusst KEIN Treffer: gesucht wird nach Dokumenten, ein
+  // Verzeichnis waere nur ein Umweg dorthin.
+  // wurzel/wurzelName: die Freigabe, unter der der Treffer liegt. Angezeigt
+  // wird ihr Anzeigename im Herkunftshinweis, sonst stuende dort wieder der
+  // Ordnername aus dem Dateisystem.
+  const addLib = (rel, wurzel, wurzelName) => {
+    const name = path.basename(rel);
+    const pos = searchNorm(name).indexOf(q);
+    if (pos === -1) return;
+    const ordner = path.dirname(wurzelName + rel.slice(wurzel.length));
+    hits.push({
+      owner: "", relpath: rel, label: name, isLib: true,
+      isNote: false,
+      isImage: isImageName(name),
+      isVideo: isVideoName(name),
+      isDoc: isDocName(name),
+      icon: iconFor(name),
+      canedit: false,
+      // Herkunft wie bei den uebrigen Treffern: die Antwort auf "welches von
+      // den gleichnamigen ist es?" — hier der Weg innerhalb der Bibliothek
+      hint: ordner === "." ? "Bibliothek" : `Bibliothek · ${ordner}`,
+      _pos: pos,
+    });
+  };
+
   walkFiles(dirFor(me)).forEach((rel) => add(me, rel, "", true));
   shares.listForUser(me).forEach((s) => add(s.owner, s.filename, s.owner_name, s.perm === "edit"));
+  // lib=0 blendet die Bibliothek aus: die @-Verlinkung im Notiz-Editor
+  // (js/notes/mention.js) baut ihre Verweise aus owner+relpath — beides hat
+  // eine Bibliotheksdatei nicht, der Verweis liefe ins Leere.
+  if (req.query.lib !== "0") {
+    for (const g of library.grants(me)) {
+      const name = library.labelOf(g);
+      for (const e of library.walkUnder(g.folder)) {
+        if (!e.isDir) addLib(e.rel, g.folder, name);
+      }
+    }
+  }
 
   hits.sort((a, b) => a._pos - b._pos
     || a.label.localeCompare(b.label, "de", { sensitivity: "base" }));
   res.json(hits.slice(0, SEARCH_MAX).map((h) => {
     delete h._pos;
     // Links erst hier bauen — so steht die Pfadkodierung an genau einer Stelle
+    if (h.isLib) {
+      const lp = encPath(h.relpath);
+      // href ist der Weg fuer alles, was kein Video/Bild ist: Dokumente in die
+      // OnlyOffice-Ansicht, der Rest in den Download.
+      return { ...h, src: `${BASE}/lib/media/${lp}`, download: `${BASE}/lib/download/${lp}`,
+        href: h.isDoc ? `${BASE}/lib/edit/${lp}` : `${BASE}/lib/download/${lp}` };
+    }
     const p = `${encodeURIComponent(h.owner)}/${encPath(h.relpath)}`;
-    return h.isImage
-      ? { ...h, src: `${BASE}/image/${p}`, download: `${BASE}/download/${p}` }
-      : (h.isNote ? h : { ...h, href: `${BASE}/edit/${p}` });
+    if (h.isImage) return { ...h, src: `${BASE}/image/${p}`, download: `${BASE}/download/${p}` };
+    // Videos oeffnen denselben Abspiel-Dialog wie in der Liste — ein
+    // /edit-Link liefe in einen OnlyOffice-Editor, der damit nichts anfangen kann
+    if (h.isVideo) return { ...h, src: `${BASE}/video/${p}`, download: `${BASE}/download/${p}` };
+    return h.isNote ? h : { ...h, href: `${BASE}/edit/${p}` };
   }));
 });
 
@@ -641,6 +915,9 @@ router.post("/rmdir/*", loginRequired, (req, res) => {
     req.flash("err", `„${path.basename(rel)}“ ist nicht leer — erst den Inhalt löschen.`);
   } else {
     fs.rmdirSync(p);
+    // die gemerkte Sortierung mit weg — sonst erbte sie ein spaeter gleich
+    // benannter Ordner
+    foldersort.remove(req.session.user, rel);
     req.flash("ok", `Ordner „${path.basename(rel)}“ gelöscht.`);
   }
   redirectDir(req, res);

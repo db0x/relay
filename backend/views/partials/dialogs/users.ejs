@@ -3,7 +3,89 @@
     Dateiliste). Sie stehen NEBEN dem Verwaltungsdialog, nicht darin: ein
     <dialog> im <dialog> waere zwar erlaubt, aber das Stapeln uebernimmt
     index.js fuer Geschwister sauberer. %>
+<%# Bibliotheks-Zugriff, ein Dialog je Nutzer: welche Ordner der geteilten
+    Bibliothek (SHARED_LIB) darf dieser Nutzer LESEN? Anders als beim
+    Passwort auch fuer Admins — die Bibliothek gehoert dem Server. %>
 <% allUsers.forEach(function(u, i){ %>
+<%# xwide: der Baum traegt jetzt rechts ein Namensfeld, in 380px waere die
+    Ordnerspalte auf ein paar Zeichen zusammengedrueckt %>
+<dialog id="dlg-lib-<%= i %>" class="dialog dialog-xwide dialog-glass">
+  <header class="dialog-head">
+    <img src="<%= base %>/static/img/library.svg" alt="" width="22" height="22">
+    <h2>Bibliothek für <%= u.display_name %></h2>
+    <form method="dialog"><button class="dialog-x" aria-label="Schließen">×</button></form>
+  </header>
+  <% if (!libConfigured) { %>
+  <p class="muted dialog-hint">Es ist keine Bibliothek eingerichtet — dafür muss
+    <code>SHARED_LIB</code> in der <code>.env</code> auf einen Ordner zeigen.</p>
+  <% } else if (!libAll.length) { %>
+  <p class="muted dialog-hint">Die Bibliothek enthält noch keine Ordner. Freigeben
+    lassen sich nur Ordner der obersten Ebene.</p>
+  <% } else { %>
+  <form class="stack-form" action="<%= base %>/users/library" method="post">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="target" value="<%= u.username %>">
+    <%# Anzeigenamen der bereits erteilten Rechte: Pfad -> eigener Name %>
+    <% var libNamen = {}; u.libGrants.forEach(function(g){ libNamen[g.folder] = g.label || ""; }); %>
+    <div class="lib-kopf">
+      <span class="dialog-label">Diese Ordner darf <%= u.display_name %> lesen</span>
+      <%# Ein Schalter fuer den ganzen Baum — bei einer grossen Sammlung kommt
+          man sonst nur Zeile fuer Zeile voran. %>
+      <button type="button" class="lib-alle" aria-expanded="false">Alle aufklappen</button>
+    </div>
+    <%# Der ganze Ordnerbaum, eingerueckt nach Tiefe: freigeben laesst sich auf
+        JEDER Ebene. Ein Haken deckt alles darunter ab — js/library-picker.js
+        graut die abgedeckten Unterordner darum aus.
+        .lib-picker traegt die Bildlaufleiste, die Liste liegt DARIN —
+        siehe Grundregel in js/core/scrollbars.js %>
+    <div class="lib-picker">
+      <div class="lib-list">
+        <% libAll.forEach(function(f){ %>
+        <%# Zwei Elemente je Zeile, und das Namensfeld liegt AUSSERHALB des
+            <label>: laege es darin, wuerde jeder Klick ins Feld das
+            Kaestchen umschalten. %>
+        <div class="lib-row" data-tiefe="<%= f.tiefe %>" data-kinder="<%= f.kinder ? 1 : 0 %>"
+             style="--tiefe:<%= f.tiefe %>">
+          <%# Aufklapp-Pfeil nur bei Ordnern MIT Inhalt; die uebrigen bekommen
+              denselben Platz als Luecke, sonst stuenden die Namen versetzt.
+              Der Zustand liegt in aria-expanded, gedreht wird per CSS. %>
+          <% if (f.kinder) { %>
+          <button type="button" class="lib-twist" aria-expanded="false"
+                  aria-label="Unterordner von <%= f.name %> anzeigen">
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
+              <path d="M3 1.5 L7 5 L3 8.5" fill="none" stroke="currentColor"
+                    stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <% } else { %>
+          <span class="lib-twist lib-twist-leer" aria-hidden="true"></span>
+          <% } %>
+          <label class="check lib-node">
+            <input type="checkbox" name="folder" value="<%= f.rel %>"
+                   <%= libNamen.hasOwnProperty(f.rel) ? "checked" : "" %>> <%= f.name %>
+          </label>
+          <%# Eigenes name-Attribut je Zeile ("lbl:<pfad>"): ein gemeinsamer
+              Name ginge nicht, weil nicht angehakte Kaestchen gar nicht erst
+              mitgeschickt werden und die Reihenfolge dann nicht mehr passt.
+              Leer = so heissen wie im Dateisystem (der Platzhalter zeigt es). %>
+          <input class="field lib-alias" type="text" name="lbl:<%= f.rel %>"
+                 value="<%= libNamen[f.rel] || "" %>" placeholder="<%= f.name %>"
+                 maxlength="80" autocomplete="off" spellcheck="false"
+                 aria-label="Anzeigename für <%= f.name %>">
+        </div>
+        <% }); %>
+      </div>
+    </div>
+    <p class="muted dialog-hint">Das Recht gilt für alles darunter — und nur zum
+      Lesen: Bearbeiten, Verschieben oder Löschen gibt es in der Bibliothek nicht.
+      Freigegebene Ordner sind zugleich der Einstieg: sie erscheinen bei
+      <%= u.display_name %> in der obersten Ebene der Dateiliste — unter dem
+      Namen rechts, falls dort einer steht. Der gilt nur für
+      <%= u.display_name %>; im Dateisystem ändert sich nichts.</p>
+    <button class="btn btn-sm dialog-action">Zugriff speichern</button>
+  </form>
+  <% } %>
+</dialog>
 <% if (!u.is_admin && u.username !== me) { %>
 <dialog id="dlg-pw-<%= i %>" class="dialog">
   <header class="dialog-head">
@@ -67,51 +149,67 @@
           <td>
             <% if (u.is_admin) { %><span class="badge">Admin</span><% } %>
             <% if (u.locked) { %><span class="badge badge-lock">gesperrt</span><% } %>
+            <% if (u.libGrants.length) { %><span class="badge badge-soft">Bibliothek · <%= u.libGrants.length %></span><% } %>
           </td>
           <td class="users-actions">
-            <% if (u.username !== me) { %>
-            <%# gesperrte Nutzer koennen keine Admins werden — Knopf ausblenden %>
-            <% if (u.is_admin || !u.locked) { %>
-            <form class="unshare-form" action="<%= base %>/users/admin" method="post"
-                  <% if (u.is_admin) { %>data-confirm="<%= u.display_name %> die Admin-Rechte entziehen?"<% } %>>
-              <input type="hidden" name="_csrf" value="<%= csrf %>">
-              <input type="hidden" name="target" value="<%= u.username %>">
-              <input type="hidden" name="value" value="<%= u.is_admin ? 0 : 1 %>">
-              <button class="btn btn-secondary btn-sm">
-                <%= u.is_admin ? "Admin entziehen" : "zum Admin machen" %>
+            <%# Alle Aktionen in EINEM Kontextmenue pro Zeile — dasselbe Muster
+                wie in der Dateiliste (partials/file-list.ejs). Nebeneinander
+                gestellt waren es je nach Nutzer bis zu fuenf Schaltflaechen,
+                die aus dem Dialog herausliefen und nicht mehr erreichbar
+                waren. Im Menue ist die Breite egal, und weitere Aktionen
+                passen ohne Umbau dazu. %>
+            <div class="row-menu">
+              <button type="button" class="iconbtn row-menu-btn" aria-haspopup="true"
+                      aria-expanded="false" data-tip="Aktionen"
+                      aria-label="Aktionen für <%= u.display_name %>">
+                <img src="<%= base %>/static/img/open-menu.svg" alt="" width="16" height="16">
               </button>
-            </form>
-            <% } %>
-            <%# Admins koennen nicht gesperrt werden — Knopf ausblenden %>
-            <% if (u.locked || !u.is_admin) { %>
-            <form class="unshare-form" action="<%= base %>/users/lock" method="post"
-                  <% if (!u.locked) { %>data-confirm="<%= u.display_name %> sperren? Login, Sitzungen und API-Token sind dann blockiert."<% } %>>
-              <input type="hidden" name="_csrf" value="<%= csrf %>">
-              <input type="hidden" name="target" value="<%= u.username %>">
-              <input type="hidden" name="value" value="<%= u.locked ? 0 : 1 %>">
-              <button class="btn btn-secondary btn-sm<%= u.locked ? '' : ' btn-sm-danger' %>">
-                <%= u.locked ? "entsperren" : "sperren" %>
-              </button>
-            </form>
-            <% } %>
-            <%# Passwort zuruecksetzen: nur fuer Nicht-Admins, und der Dialog
-                dazu verlangt die zweite Stufe des Admins (routes/admin.js) %>
-            <% if (!u.is_admin) { %>
-            <button type="button" class="btn btn-secondary btn-sm"
-                    data-dialog="dlg-pw-<%= i %>">Passwort setzen</button>
-            <% } %>
-            <%# loeschen nur fuer Nicht-Admins (erst Rechte entziehen) %>
-            <% if (!u.is_admin) { %>
-            <form class="unshare-form" action="<%= base %>/users/delete" method="post"
-                  data-confirm="<%= u.display_name %> endgültig löschen? ALLE Dateien, Freigaben und das Profil werden unwiderruflich entfernt.">
-              <input type="hidden" name="_csrf" value="<%= csrf %>">
-              <input type="hidden" name="target" value="<%= u.username %>">
-              <button class="iconbtn iconbtn-danger" data-tip="Nutzer löschen" aria-label="Nutzer löschen">
-                <img src="<%= base %>/static/img/delete.svg" alt="" width="16" height="16">
-              </button>
-            </form>
-            <% } %>
-            <% } %>
+              <div class="menu-panel row-menu-panel" hidden>
+                <%# Bibliothek: die einzige Aktion, die es auch fuer den eigenen
+                    Zugang und fuer Verwaltungszugaenge gibt %>
+                <button type="button" class="menu-item" data-dialog="dlg-lib-<%= i %>">
+                  Bibliothek freigeben …
+                </button>
+                <% if (u.username !== me) { %>
+                <%# gesperrte Nutzer koennen keine Admins werden — Eintrag entfaellt %>
+                <% if (u.is_admin || !u.locked) { %>
+                <form class="del-form" action="<%= base %>/users/admin" method="post"
+                      <% if (u.is_admin) { %>data-confirm="<%= u.display_name %> die Admin-Rechte entziehen?"<% } %>>
+                  <input type="hidden" name="_csrf" value="<%= csrf %>">
+                  <input type="hidden" name="target" value="<%= u.username %>">
+                  <input type="hidden" name="value" value="<%= u.is_admin ? 0 : 1 %>">
+                  <button class="menu-item"><%= u.is_admin ? "Admin-Rechte entziehen" : "Zum Admin machen" %></button>
+                </form>
+                <% } %>
+                <%# Admins koennen nicht gesperrt werden — Eintrag entfaellt %>
+                <% if (u.locked || !u.is_admin) { %>
+                <form class="del-form" action="<%= base %>/users/lock" method="post"
+                      <% if (!u.locked) { %>data-confirm="<%= u.display_name %> sperren? Login, Sitzungen und API-Token sind dann blockiert."<% } %>>
+                  <input type="hidden" name="_csrf" value="<%= csrf %>">
+                  <input type="hidden" name="target" value="<%= u.username %>">
+                  <input type="hidden" name="value" value="<%= u.locked ? 0 : 1 %>">
+                  <button class="menu-item<%= u.locked ? "" : " menu-item-danger" %>">
+                    <%= u.locked ? "Entsperren" : "Sperren" %>
+                  </button>
+                </form>
+                <% } %>
+                <%# Passwort zuruecksetzen: nur fuer Nicht-Admins, und der Dialog
+                    dazu verlangt die zweite Stufe des Admins (routes/admin.js) %>
+                <% if (!u.is_admin) { %>
+                <button type="button" class="menu-item" data-dialog="dlg-pw-<%= i %>">
+                  Passwort setzen …
+                </button>
+                <%# loeschen nur fuer Nicht-Admins (erst Rechte entziehen) %>
+                <form class="del-form" action="<%= base %>/users/delete" method="post"
+                      data-confirm="<%= u.display_name %> endgültig löschen? ALLE Dateien, Freigaben und das Profil werden unwiderruflich entfernt.">
+                  <input type="hidden" name="_csrf" value="<%= csrf %>">
+                  <input type="hidden" name="target" value="<%= u.username %>">
+                  <button class="menu-item menu-item-danger">Nutzer löschen …</button>
+                </form>
+                <% } %>
+                <% } %>
+              </div>
+            </div>
           </td>
         </tr>
         <% }); %>
