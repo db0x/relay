@@ -26,6 +26,13 @@ const { loginRequired } = require("./auth");
 
 const router = express.Router();
 
+// Obergrenze fuer die Anzahl Dateien je Upload-Vorgang. multer haelt sie im
+// ARBEITSSPEICHER (memoryStorage) — das ist darum keine Bequemlichkeits-,
+// sondern eine echte Grenze: 50 x MAX_UPLOAD_MB waeren im schlimmsten Fall
+// mehrere Gigabyte. Wer mehr auf einmal braucht, laedt zweimal. Die
+// Oberflaeche kennt den Wert ueber data-max-files und prueft schon vorab.
+const MAX_UPLOAD_FILES = 50;
+
 // Fenster des "Desktops", deren Lage/Zustand je Nutzer gemerkt wird
 // (desktop_layout). Neue Ansicht -> hier eintragen.
 const WINDOW_KEYS = ["page", "board", "chat"];
@@ -520,6 +527,8 @@ router.get("/", loginRequired, (req, res) => {
     uploadAccept: [...Object.keys(DOCTYPE), ...Object.keys(IMAGE_TYPES)]
       .map((e) => "." + e).join(","),
     maxUploadMb: MAX_UPLOAD_MB,
+    // Obergrenze der Anzahl je Vorgang; die Oberflaeche prueft damit vorab
+    maxUploadFiles: MAX_UPLOAD_FILES,
     // Sprachauswahl im "Neue Datei"-Dialog: Woerterbuch-Sprachen des DS,
     // minus die vom Admin ausgeblendeten (Einstellungen-Dialog)
     docLangs: doclang.LANGS.filter((l) => !hiddenLangs.includes(l.code)),
@@ -993,22 +1002,37 @@ router.post("/move/*", loginRequired, (req, res) => {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
+  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024, files: MAX_UPLOAD_FILES },
 });
 router.post("/upload", loginRequired, (req, res) => {
-  // multer manuell aufrufen: eine zu grosse Datei (am Client vorbeigemogelt)
-  // soll ein sauberer Flash sein, kein nackter 500er
-  upload.single("file")(req, res, (err) => {
+  // multer manuell aufrufen: eine zu grosse Datei bzw. zu viele auf einmal
+  // (am Client vorbeigemogelt) sollen ein sauberer Flash sein, kein 500er
+  upload.array("file", MAX_UPLOAD_FILES)(req, res, (err) => {
     if (err) {
-      req.flash("err", `Die Datei ist zu groß — erlaubt sind maximal ${MAX_UPLOAD_MB} MB.`);
+      req.flash("err", err.code === "LIMIT_FILE_COUNT"
+        ? `Zu viele Dateien auf einmal — höchstens ${MAX_UPLOAD_FILES}.`
+        : `Die Datei ist zu groß — erlaubt sind maximal ${MAX_UPLOAD_MB} MB.`);
       return redirectDir(req, res);
     }
     const cur = securePath(req.body.dir || "");
-    if (cur !== null && req.file && req.file.originalname) {
-      const base = secureFilename(req.file.originalname);
-      if (base) fs.writeFileSync(pathFor(req.session.user, cur ? `${cur}/${base}` : base),
-        req.file.buffer);
+    const dateien = req.files || [];
+    let geschrieben = 0;
+    if (cur !== null) {
+      for (const f of dateien) {
+        if (!f.originalname) continue;
+        // secureFilename kann leer zurueckgeben (Name besteht nur aus
+        // unzulaessigen Zeichen) — solche werden still uebersprungen, wie
+        // vorher auch bei der einzelnen Datei.
+        const base = secureFilename(f.originalname);
+        if (!base) continue;
+        fs.writeFileSync(pathFor(req.session.user, cur ? `${cur}/${base}` : base), f.buffer);
+        geschrieben += 1;
+      }
     }
+    // Rueckmeldung nur bei mehreren: bei einer einzelnen sieht man das
+    // Ergebnis unmittelbar in der Liste, ein Flash waere dort nur Laerm.
+    if (geschrieben > 1) req.flash("ok", `${geschrieben} Dateien hochgeladen.`);
+    else if (!geschrieben && dateien.length) req.flash("err", "Nichts hochgeladen.");
     redirectDir(req, res);
   });
 });

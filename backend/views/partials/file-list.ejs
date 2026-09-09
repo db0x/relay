@@ -24,13 +24,16 @@
     <%# In der Bibliothek (?p=lib:...) faellt die ganze Gruppe weg: dort wird
         nur gelesen, es gibt weder Hochladen noch Neuer Ordner. %>
     <div class="page-actions page-head-end"<%= libMode ? " hidden" : "" %>>
-      <%# ein Knopf: oeffnet die Dateiauswahl, die Auswahl laedt sofort hoch (js/files/upload.js) %>
+      <%# ein Knopf: oeffnet die Dateiauswahl, die Auswahl laedt sofort hoch
+          (js/files/upload.js). `multiple`: mehrere Dateien auf einmal —
+          Obergrenze und Groessenpruefung stehen in data-max-mb/data-max-files
+          und ebenso im Backend (routes/browse.js). %>
       <form class="upload-form" action="<%= base %>/upload?_csrf=<%= csrf %>" method="post" enctype="multipart/form-data"
-            data-max-mb="<%= maxUploadMb %>">
+            data-max-mb="<%= maxUploadMb %>" data-max-files="<%= maxUploadFiles %>">
         <input type="hidden" name="_csrf" value="<%= csrf %>">
         <input type="hidden" name="dir" value="<%= curDir %>">
-        <input type="file" name="file" accept="<%= uploadAccept %>" hidden>
-        <button type="button" class="btn btn-secondary btn-sm upload-btn" data-tip="Datei hochladen" aria-label="Datei hochladen">
+        <input type="file" name="file" accept="<%= uploadAccept %>" multiple hidden>
+        <button type="button" class="btn btn-secondary btn-sm upload-btn" data-tip="Dateien hochladen" aria-label="Dateien hochladen">
           <img class="btn-icon" src="<%= base %>/static/img/upload.svg" alt="" width="16" height="16"><span class="tool-label">Hochladen</span>
         </button>
       </form>
