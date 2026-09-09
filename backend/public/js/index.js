@@ -21,6 +21,8 @@ import { initLibraryPicker } from "./library-picker.js";
 import { initFolderNav } from "./folder-nav.js";
 import { initScrollbars } from "./core/scrollbars.js";
 import { initSearch } from "./search.js";
+import { initChat, oeffneChatFenster } from "./chat/chat.js";
+import { initChatPasswordHook } from "./chat/password-hook.js";
 
 // Zurueck-Navigation aus dem Editor: der Browser stellt die Seite sonst aus
 // dem bfcache wieder her — eingefroren mit offenem Dialog und veralteter
@@ -70,6 +72,12 @@ createWindow({
   minBtn: "#board-minimize", key: "board", baseUrl: BASE_URL,
   cascade: 1, // versetzt zur Dateiliste starten, solange keine Lage gemerkt ist
 });
+var chatWindow = createWindow({
+  el: document.getElementById("chat"),
+  toggleBtn: document.getElementById("chat-toggle"),
+  minBtn: "#chat-minimize", key: "chat", baseUrl: BASE_URL,
+  cascade: 2, // drittes Fenster, wieder ein Stueck versetzt
+});
 
 // notes-Modul MUSS vor der Ordnernavigation initialisiert sein: die
 // zurueckgegebene bindNoteOpen-Funktion wird beim Rebind nach einem
@@ -84,7 +92,17 @@ initFolderNav({ bindNoteOpen: notes && notes.bindNoteOpen });
 // Ordnernavigation: gefundene Notizen sollen im Notiz-Dialog aufgehen.
 initSearch({ baseUrl: BASE_URL, bindNoteOpen: notes && notes.bindNoteOpen });
 
+// Chat. MUSS vor initNotifications stehen: eine Chat-Nachricht in der Glocke
+// oeffnet das Gespraech ueber oeffneChatFenster, und dafuer muss das Modul
+// sein Fenster kennen.
+var chatEl = document.getElementById("chat");
+initChat({ chatWindow: chatWindow });
+// Passwortwechsel im Konto-Dialog: den Chat-Schluessel mitnehmen, sonst waere
+// der bisherige Verlauf danach nicht mehr zu oeffnen (js/chat/password-hook.js).
+initChatPasswordHook(chatEl && chatEl.dataset.me);
+
 // Nachrichten (Glocke am Avatar). Braucht das Fenster der Dateiliste, um beim
-// Sprung zu einer Datei ein eingeklapptes Fenster wieder aufzuklappen.
-initNotifications({ pageWindow: pageWindow });
+// Sprung zu einer Datei ein eingeklapptes Fenster wieder aufzuklappen — und
+// den Chat, weil Chat-Nachrichten dorthin fuehren statt in die Dateiliste.
+initNotifications({ pageWindow: pageWindow, openChat: oeffneChatFenster });
 highlightFromUrl();

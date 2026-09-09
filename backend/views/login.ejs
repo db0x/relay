@@ -10,7 +10,7 @@
 <style>html{background:#375998;color-scheme:light}</style>
 <link rel="stylesheet" href="<%= base %>/static/css/glass.css?v=<%= v %>">
 <link rel="stylesheet" href="<%= base %>/static/css/login.css?v=<%= v %>">
-<form method="post" action="<%= base %>/login" class="glass">
+<form method="post" action="<%= base %>/login" class="glass" id="login-form">
   <input type="hidden" name="_csrf" value="<%= csrf %>">
   <h1><img src="<%= base %>/static/img/relay.svg" alt="" width="26" height="26"><%= appName %></h1>
   <% if (error) { %><div class="err"><%= error %></div><% } %>
@@ -20,6 +20,12 @@
   <input type="hidden" name="next" value="<%= next %>">
   <button>Anmelden</button>
 </form>
+<%# Chat-Schluessel: aus dem hier eingegebenen Passwort entsteht im Browser
+    der Schluessel, mit dem die Startseite den privaten Chat-Schluessel
+    auspackt (js/chat/crypto.js). Der Server erfaehrt davon nichts. Ohne
+    dieses Modul funktioniert die Anmeldung unveraendert — nur der Chat
+    fragt dann spaeter nach dem Passwort. %>
+<script type="module" src="<%= base %>/static/js/chat/login-key.js?v=<%= v %>"></script>
 <script nonce="<%= nonce %>">
   // Cursor direkt ins Namensfeld setzen — das autofocus-Attribut greift in
   // eingebetteten Ansichten (Voltage-Webview) nicht zuverlaessig. Hat der

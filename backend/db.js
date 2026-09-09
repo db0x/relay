@@ -135,6 +135,39 @@ function db() {
       PRIMARY KEY (username, folder)
     );
 
+    -- Chat: Schluesselpaar je Nutzer (Ende-zu-Ende, siehe chat.js).
+    -- Der OEFFENTLICHE Schluessel steht im Klartext — er ist zum Verteilen da.
+    -- Der PRIVATE liegt nur UMHUELLT hier: AES-GCM, Schluessel aus dem
+    -- Anmeldepasswort des Nutzers (PBKDF2 im Browser). Der Server sieht ihn
+    -- nie im Klartext und kann darum auch keine Nachricht entschluesseln —
+    -- auch nicht, wer die users.db (Backup!) in die Haende bekommt.
+    CREATE TABLE IF NOT EXISTS chat_keys (
+      username TEXT PRIMARY KEY,
+      pub_jwk  TEXT NOT NULL,   -- oeffentlicher ECDH-Schluessel (P-256) als JWK
+      priv_iv  TEXT NOT NULL,   -- base64, 12 Byte Zufall der Umhuellung
+      priv_ct  TEXT NOT NULL,   -- base64, umhuellter privater Schluessel
+      kdf      TEXT NOT NULL,   -- wie aus dem Passwort abgeleitet wurde
+      created  INTEGER NOT NULL
+    );
+
+    -- Chat-Nachrichten. Der Server speichert NUR den Geheimtext: iv + ct
+    -- kommen fertig verschluesselt aus dem Browser des Absenders. Sichtbar
+    -- bleibt fuer den Server allein, WER wem WANN geschrieben hat (das braucht
+    -- er zum Zustellen) — nicht, was drinsteht.
+    -- read_at gehoert dem EMPFAENGER: NULL = noch nicht gelesen (Glocke).
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender    TEXT NOT NULL,
+      recipient TEXT NOT NULL,
+      iv        TEXT NOT NULL,
+      ct        TEXT NOT NULL,
+      created   INTEGER NOT NULL,
+      read_at   INTEGER
+    );
+    -- Verlauf eines Gespraechs: beide Richtungen, aufsteigend nach id
+    CREATE INDEX IF NOT EXISTS chat_by_pair ON chat_messages(sender, recipient, id);
+    CREATE INDEX IF NOT EXISTS chat_by_recipient ON chat_messages(recipient, read_at);
+
     -- Frei verschiebbare UI-Elemente je Nutzer (z.B. key='page' fuer die
     -- Dokumentenliste). notemeta.js: getLayout/setLayout.
     CREATE TABLE IF NOT EXISTS desktop_layout (
@@ -203,6 +236,13 @@ function db() {
   const libCols = _db.prepare("PRAGMA table_info(library_access)").all().map((c) => c.name);
   if (libCols.length && !libCols.includes("label"))
     _db.exec("ALTER TABLE library_access ADD COLUMN label TEXT");
+  // notifications.kind kam mit dem Chat dazu: bis dahin ging es in dieser
+  // Tabelle ausschliesslich um Freigaben. 'share' als Vorgabe laesst den
+  // Altbestand unveraendert weiterlaufen; 'chat' ist die zweite Art
+  // (owner = Absender, filename/perm bleiben leer).
+  const notifCols = _db.prepare("PRAGMA table_info(notifications)").all().map((c) => c.name);
+  if (!notifCols.includes("kind"))
+    _db.exec("ALTER TABLE notifications ADD COLUMN kind TEXT NOT NULL DEFAULT 'share'");
   // desktop_layout.minimized kam mit dem Minimieren der Dateiliste dazu
   const layoutCols = _db.prepare("PRAGMA table_info(desktop_layout)").all().map((c) => c.name);
   if (!layoutCols.includes("minimized"))

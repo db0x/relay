@@ -205,6 +205,58 @@ routes (`/edit`, `/download`, `/delete`); read-only mode is additionally baked
 into the **JWT-signed** OnlyOffice config and cannot be tampered with
 client-side.
 
+## Chat (end-to-end encrypted)
+
+Users can exchange **text messages** one-to-one. The chat is a window on the
+desktop like the file list and the note board (toggle in the topbar), with the
+contact list on the left and the conversation on the right.
+
+**The server never sees a message.** It stores only ciphertext and delivers it:
+
+- Every user has an **ECDH P-256 key pair** (WebCrypto, no third-party
+  library). The public key is stored in the clear (`chat_keys.pub_jwk`) — it is
+  meant to be handed out. The private key is stored **wrapped only**: AES-GCM
+  with a key the browser derives from the login password (PBKDF2, 310k
+  iterations, SHA-256, salt derived from the username). The server knows the
+  password only as a bcrypt hash and cannot open the wrapper — not even from a
+  stolen `users.db` in the NAS backup.
+- For a conversation both sides derive the **same** AES-GCM key from their own
+  private and the other's public key (ECDH → HKDF). One ciphertext therefore
+  serves both; nothing is encrypted twice.
+- Sender and recipient go into the encryption as **additional authenticated
+  data**. They are stored in the clear (the server needs them to deliver), but
+  relabelling a row makes it undecryptable.
+- What the server does see, unavoidably: **who wrote to whom, when, and
+  roughly how long** the message was.
+
+The key derived from the password lives in the browser as a **non-extractable**
+`CryptoKey` in IndexedDB — injected script could use it, but not read it out.
+It is derived on the **login page** (the only place the password exists in the
+browser) and handed to the app across that one navigation.
+
+Consequences of real end-to-end encryption — by design, not oversights:
+
+- **HTTPS (or localhost) is required.** Browsers expose `crypto.subtle` only on
+  a secure origin; over plain HTTP in the LAN the chat stays off and says so.
+- **A password change carries the key over.** The browser rewraps the private
+  key and sends the new wrapper along with the password form; the server
+  applies it only after the change succeeded. Both the account dialog and the
+  initial-password page do this.
+- **An admin password reset loses the history.** Nobody can rewrap without the
+  old password. The chat then offers "set up again" — a new key pair, and the
+  old (unreadable) messages are deleted with it.
+- **No forward secrecy.** That is the price of a history the server
+  synchronises across devices.
+- **No server-side search** in chat messages.
+
+Delivery is live over **Server-Sent Events** (`GET /chat/stream`) — plain HTTP,
+no extra dependency, no nginx special case beyond buffering (the route sends
+`X-Accel-Buffering: no`). After a dropped connection the browser reconnects on
+its own and sends `Last-Event-ID`; the server replays exactly the gap. A new
+message also raises a **notification** on the avatar bell ("X hat dir
+geschrieben"), which opens the conversation when clicked; opening it marks
+everything from that sender as read.
+
 ## Shared library (videos, read-only)
 
 Beside the per-user folders, Relay can show a **library that belongs to the
@@ -449,6 +501,8 @@ CI runs the same suite on every push (`.github/workflows/e2e.yml`).
   a link never opens another user's files.
 - Every user has an **API token** (`manage.js token`) for the file API,
   intended for sync (rclone, Voltage desktop).
+- **Chat messages are end-to-end encrypted** — the server stores ciphertext
+  only and cannot read them (see "Chat" above). Requires HTTPS/localhost.
 - Secrets in `.env` are sensitive — don't share them, don't commit them.
 - Intended for the **home network** only: no TLS, no protection against
   brute force from the internet. Exposing it externally would require a

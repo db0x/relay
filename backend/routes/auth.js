@@ -6,6 +6,7 @@ const users = require("../users");
 const guard = require("../loginguard");
 const zwei = require("../twofactor");
 const protokoll = require("../eventlog");
+const chat = require("../chat");
 const { darfVonHier } = require("../zone");
 const { BASE, ADMIN_2FA } = require("../config");
 
@@ -157,18 +158,41 @@ router.post("/login", async (req, res) => {
   setTimeout(() => zeigeFehler("Name oder Passwort falsch."), 400); // bremst zusaetzlich
 });
 
+// Chat-Schluessel beim Passwortwechsel MITNEHMEN.
+//
+// Der private Chat-Schluessel liegt umhuellt in der Datenbank; die Huelle
+// haengt am Passwort (chat.js). Aendert sich das Passwort, muss die Huelle
+// erneuert werden — sonst waere der gesamte bisherige Verlauf verloren.
+// Aufmachen und neu zumachen kann das nur der Browser (er allein kennt beide
+// Passwoerter), darum schickt er die fertige neue Huelle als verstecktes Feld
+// mit dem Formular mit (public/js/chat/password-hook.js).
+//
+// Wird ANGEWENDET, nachdem das Passwort tatsaechlich geaendert wurde — bei
+// einem abgelehnten Wechsel bleibt die alte Huelle stehen und passt weiter.
+// Fehlt das Feld (kein Chat eingerichtet, JS aus), passiert schlicht nichts.
+function chatSchluesselMitnehmen(req) {
+  const b = req.body || {};
+  const iv = b.chat_priv_iv, ct = b.chat_priv_ct;
+  if (!chat.gueltigesChiffrat(iv, ct)) return;
+  let kdf;
+  try { kdf = JSON.parse(b.chat_kdf || ""); } catch (e) { return; }
+  if (!kdf || typeof kdf !== "object") return;
+  chat.rewrap(req.session.user, iv, ct, JSON.stringify(kdf));
+}
+
 // --- Erstpasswort setzen (must_change) ----------------------------------
 router.get(PW_SETZEN, loginRequired, (req, res) => {
-  res.render("password-change", { error: null, user: req.session.name || req.session.user });
+  res.render("password-change", { error: null, me: req.session.user, user: req.session.name || req.session.user });
 });
 
 router.post(PW_SETZEN, loginRequired, async (req, res) => {
   const { new1, new2 } = req.body;
   const fehler = (msg) =>
-    res.render("password-change", { error: msg, user: req.session.name || req.session.user });
+    res.render("password-change", { error: msg, me: req.session.user, user: req.session.name || req.session.user });
   if (new1 !== new2) return fehler("Die Passwörter stimmen nicht überein.");
   if ((new1 || "").length < 12) return fehler("Das Passwort braucht mindestens 12 Zeichen.");
   await users.setPassword(req.session.user, new1); // loescht must_change mit
+  chatSchluesselMitnehmen(req);
   req.flash("ok", "Passwort gesetzt. Willkommen!");
   res.redirect(`${BASE}/`);
 });
@@ -198,6 +222,7 @@ router.post("/password", loginRequired, async (req, res) => {
   if (new1 !== new2) return fail("new", "Die neuen Passwörter stimmen nicht überein.");
   if ((new1 || "").length < 8) return fail("new", "Das neue Passwort braucht mindestens 8 Zeichen.");
   await users.setPassword(req.session.user, new1);
+  chatSchluesselMitnehmen(req);
   protokoll.notiere("passwort.geaendert", req, req.session.user);
   req.flash("ok", "Passwort geändert.");
   res.redirect(`${BASE}/`);

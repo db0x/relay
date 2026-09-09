@@ -1,0 +1,145 @@
+<%# Chat: dasselbe Fenster-Muster wie Dateiliste und Board (frei verschiebbar,
+    Titelleiste mit Minimieren-Knopf, Umschalter in der Topbar) — die Mechanik
+    steckt in js/core/window.js, hier nur der Inhalt.
+
+    Zwei Spalten: links die Gespraechspartner, rechts der Verlauf mit dem
+    Eingabefeld darunter. Die Kontaktliste ist serverseitig gerendert, damit
+    sie beim Laden schon steht; js/chat/chat.js frischt sie danach auf.
+
+    Die Nachrichten sind ENDE-ZU-ENDE verschluesselt: was hier ankommt, sind
+    Chiffrate — den Klartext setzt erst der Browser ein (js/chat/crypto.js).
+    Deshalb steht im Verlauf serverseitig auch nichts drin.
+
+    Ohne gemerkte Lage startet der Chat EINGEKLAPPT — wie das Board: zwei
+    offene Fenster uebereinander waeren beim ersten Besuch nur im Weg. %>
+<div class="page chat<%= !chatLayout || chatLayout.minimized ? " page-min" : "" %>" id="chat"
+     data-me="<%= me %>"
+     <% if (chatLayout) { %>data-x="<%= chatLayout.x %>" data-y="<%= chatLayout.y %>"<% } %>>
+  <header class="page-head">
+    <img src="<%= base %>/static/img/chat.svg" alt="" width="22" height="22">
+    <h2 class="page-title">Chat</h2>
+    <button type="button" class="iconbtn page-min-btn page-head-end" id="chat-minimize"
+            data-tip="Minimieren" aria-label="Chat minimieren">
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+        <rect x="2" y="6.2" width="10" height="1.6" rx=".8" fill="currentColor"/>
+      </svg>
+    </button>
+  </header>
+
+  <%# .page-body traegt die Fenster-Bildlaufleiste (createWindow haengt sie an
+      JEDES Fenster). OverlayScrollbars baut seine Huelle IN dieses Element und
+      macht es zum Flex-Container — das Zwei-Spalten-Raster darf darum NICHT
+      hier sitzen, sondern erst im Kind darunter (Grundregel in
+      js/core/scrollbars.js). %>
+  <div class="page-body">
+  <div class="chat-split">
+
+    <%# --- linke Spalte: mit wem ------------------------------------- %>
+    <div class="chat-peers" id="chat-peers">
+      <ul class="chat-peer-list" id="chat-peer-list">
+        <% chatPeers.forEach(function(p){ %>
+        <li>
+          <button type="button" class="chat-peer<%= p.hasKeys ? "" : " chat-peer-nokeys" %>"
+                  data-user="<%= p.username %>" data-name="<%= p.name %>"
+                  data-haskeys="<%= p.hasKeys ? 1 : 0 %>"
+                  aria-label="Gespräch mit <%= p.name %>">
+            <% if (p.hasAvatar) { %>
+            <img class="avatar chat-peer-avatar" src="<%= base %>/avatar/<%= encodeURIComponent(p.username) %>"
+                 alt="" width="28" height="28">
+            <% } else { %>
+            <span class="avatar avatar-initial chat-peer-avatar"><%= p.name.trim().charAt(0).toUpperCase() %></span>
+            <% } %>
+            <span class="chat-peer-name"><%= p.name %></span>
+            <%# Zaehler der ungelesenen Nachrichten dieses Absenders. Immer
+                mitliefern, nur ausgeblendet — js/chat/chat.js schaltet ihn um,
+                sobald etwas ankommt oder gelesen wird. %>
+            <span class="chat-peer-unread"<%= p.unread ? "" : " hidden" %>><%= p.unread > 9 ? "9+" : p.unread %></span>
+          </button>
+        </li>
+        <% }); %>
+      </ul>
+      <% if (!chatPeers.length) { %>
+      <p class="chat-peers-empty muted">Es gibt noch niemanden, mit dem du schreiben könntest.</p>
+      <% } %>
+    </div>
+
+    <%# --- rechte Spalte: das Gespraech ------------------------------- %>
+    <div class="chat-thread">
+      <header class="chat-thread-head" id="chat-thread-head" hidden>
+        <span class="chat-thread-name" id="chat-thread-name"></span>
+        <%# Schloss-Symbol als staendige Zusicherung: was hier steht, hat der
+            Server nie im Klartext gesehen. %>
+        <span class="chat-e2e" data-tip="Ende-zu-Ende verschlüsselt — der Server kann nicht mitlesen"
+              aria-label="Ende-zu-Ende verschlüsselt">
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+            <path d="M3.2 5V3.6a2.8 2.8 0 0 1 5.6 0V5" fill="none" stroke="currentColor" stroke-width="1.3"/>
+            <rect x="2.2" y="5" width="7.6" height="5.4" rx="1.2" fill="currentColor"/>
+          </svg>
+          <span>Ende-zu-Ende</span>
+        </span>
+      </header>
+
+      <div class="chat-log" id="chat-log">
+        <%# In einen Behaelter mit eigener Bildlaufleiste darf nicht
+            hineingeschrieben werden — .chat-log traegt sie, befuellt wird das
+            Element darin (js/core/scrollbars.js). %>
+        <div class="chat-log-body" id="chat-log-body"></div>
+      </div>
+
+      <%# Kommt etwas an, waehrend man zurueckblaettert: nicht ungefragt
+          wegspringen, sondern hier Bescheid geben. Klick rollt ans Ende. %>
+      <button type="button" class="chat-new" id="chat-new" hidden>
+        <svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" focusable="false">
+          <path d="M5.5 1v8M2 6l3.5 3.5L9 6" fill="none" stroke="currentColor"
+                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Neue Nachricht</span>
+      </button>
+
+      <%# Ruhezustand: noch niemand ausgewaehlt %>
+      <p class="chat-empty" id="chat-empty">Wähle links aus, mit wem du schreiben möchtest.</p>
+
+      <%# Der Chat ist auf diesem Geraet nicht aufgeschlossen (anderer Browser,
+          Speicher geleert, Passwort anderswo geaendert). Der private
+          Schluessel laesst sich nur mit dem Passwort aus seiner Huelle holen —
+          der Server kann das nicht fuer uns tun. %>
+      <div class="chat-lock" id="chat-lock" hidden>
+        <p class="chat-lock-text" id="chat-lock-text">
+          Zum Lesen deiner Nachrichten wird dein Passwort gebraucht — der
+          Schlüssel liegt nur verschlüsselt auf dem Server.
+        </p>
+        <form class="chat-lock-form" id="chat-lock-form">
+          <input class="field" type="password" id="chat-unlock-pw" placeholder="Passwort"
+                 autocomplete="current-password" aria-label="Passwort zum Entsperren">
+          <button class="btn btn-sm" type="submit">Entsperren</button>
+        </form>
+        <p class="chat-lock-err" id="chat-lock-err" hidden></p>
+        <%# Notausgang: nach einem Passwort-Reset durch einen Admin ist der
+            alte Schluessel unwiederbringlich weg. Dann bleibt nur ein neuer —
+            mit deutlicher Ansage, dass der bisherige Verlauf dabei verloren
+            geht (er waere ohnehin nicht mehr zu oeffnen). %>
+        <%# Als FORMULAR, damit die vorhandene Rueckfrage greift (data-confirm,
+            js/core/confirm.js). data-ajax: bestaetigt wird nicht abgeschickt,
+            sondern ein Ereignis ausgeloest — js/chat/chat.js uebernimmt. %>
+        <form class="chat-lock-resetform" id="chat-lock-reset" hidden data-ajax="1"
+              data-confirm="Neuen Schlüssel erzeugen? Alle bisherigen Nachrichten werden dabei gelöscht — ohne den alten Schlüssel sind sie nicht mehr lesbar.">
+          <button class="chat-lock-reset" type="submit">Passwort vergessen? Neu einrichten</button>
+        </form>
+      </div>
+
+      <form class="chat-compose" id="chat-form" hidden>
+        <textarea class="chat-input" id="chat-input" rows="1" maxlength="4000"
+                  placeholder="Nachricht schreiben …" aria-label="Nachricht"></textarea>
+        <button class="iconbtn chat-send" id="chat-send" type="submit"
+                data-tip="Senden (Enter)" aria-label="Nachricht senden">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+            <path d="M2 15.5 16.5 9 2 2.5 2 7.4l9 1.6-9 1.6z" fill="currentColor"/>
+          </svg>
+        </button>
+      </form>
+      <p class="chat-note" id="chat-note" hidden></p>
+    </div>
+
+  </div>
+  </div><%# Ende .page-body %>
+</div>

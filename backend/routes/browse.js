@@ -14,6 +14,7 @@ const notemeta = require("../notemeta");
 const twofactor = require("../twofactor");
 const protokoll = require("../eventlog");
 const notifications = require("../notifications");
+const chat = require("../chat");
 const noteicon = require("../noteicon");
 const library = require("../library");
 const foldersort = require("../foldersort");
@@ -27,7 +28,7 @@ const router = express.Router();
 
 // Fenster des "Desktops", deren Lage/Zustand je Nutzer gemerkt wird
 // (desktop_layout). Neue Ansicht -> hier eintragen.
-const WINDOW_KEYS = ["page", "board"];
+const WINDOW_KEYS = ["page", "board", "chat"];
 
 // Marke am ?p=-Parameter, die einen Pfad IN DER BIBLIOTHEK kennzeichnet
 // ("?p=lib:Filme/2024"). Eigene Ordner und Bibliotheksordner teilen sich
@@ -203,19 +204,54 @@ function boardNotesFor(me) {
 // auch dann sauber, wenn eine Aufraeum-Stelle einmal vergessen wird.
 function notificationsFor(me) {
   return notifications.listFor(me).map((n) => {
+    const u = users.get(n.owner);
+    // Chat: zeigt auf keine Datei, sondern auf einen Absender. Die
+    // Selbstheilung unten (accessFor) waere hier falsch — sie wuerde jede
+    // Chat-Zeile sofort wegraeumen. Stattdessen faellt sie weg, wenn es den
+    // Absender nicht mehr gibt.
+    if (n.kind === "chat") {
+      if (!u) { notifications.markRead(me, n.id); return null; }
+      return {
+        id: n.id, kind: "chat", owner: n.owner, relpath: "",
+        ownerName: u.display_name, label: "", perm: "",
+        when: formatDate(n.created),
+      };
+    }
     if (!accessFor(me, n.owner, n.filename)) {
       notifications.markRead(me, n.id);
       return null;
     }
-    const u = users.get(n.owner);
     return {
-      id: n.id, owner: n.owner, relpath: n.filename,
+      id: n.id, kind: "share", owner: n.owner, relpath: n.filename,
       ownerName: u ? u.display_name : n.owner,
       label: labelFor(n.filename, n.owner),
       perm: n.perm,
       when: formatDate(n.created),
     };
   }).filter(Boolean);
+}
+
+// Gespraechspartner fuer das Chat-Fenster — serverseitig gerendert, damit die
+// Liste beim Laden schon steht (dieselbe Regel wie bei den anderen Fenstern:
+// nichts blitzt auf und springt dann). js/chat/chat.js frischt sie danach
+// ueber GET /chat/peers auf. hasKeys: wer noch nie angemeldet war, seit es
+// den Chat gibt, hat noch keinen oeffentlichen Schluessel — ihm kann man
+// noch nicht schreiben, und die Liste sagt das auch.
+function chatPeersFor(me) {
+  const unread = chat.unreadBySender(me);
+  const last = chat.lastActivity(me);
+  return users.listUsers()
+    .filter((u) => u.username !== me && !u.locked)
+    .map((u) => ({
+      username: u.username,
+      name: u.display_name,
+      hasAvatar: avatars.has(u.username),
+      hasKeys: !!chat.publicKeyFor(u.username),
+      unread: unread[u.username] || 0,
+      last: last[u.username] || 0,
+    }))
+    .sort((a, b) => (b.last - a.last)
+      || a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
 }
 
 // zurueck in den Ordner, aus dem eine Aktion kam (Formulare schicken `dir` mit)
@@ -463,6 +499,10 @@ router.get("/", loginRequired, (req, res) => {
     // plus die gemerkte Fensterlage (Default: eingeklappt, siehe board.ejs)
     boardNotes: boardNotesFor(me),
     boardLayout: notemeta.getLayout(me, "board"),
+    // Chat: Gespraechspartner und gemerkte Fensterlage (Default eingeklappt,
+    // siehe partials/chat.ejs — wie das Board draengt es sich nicht auf)
+    chatPeers: chatPeersFor(me),
+    chatLayout: notemeta.getLayout(me, "chat"),
     // offene Benachrichtigungen (Glocke am Avatar + Uebersicht)
     notifications: notificationsFor(me),
     allDirs: walkDirs(userDir).sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" })),

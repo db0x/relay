@@ -7,6 +7,7 @@ const express = require("express");
 
 const users = require("../users");
 const notifications = require("../notifications");
+const chat = require("../chat");
 const settings = require("../settings");
 const doclang = require("../doclang");
 const maintenance = require("../maintenance");
@@ -248,6 +249,9 @@ router.post("/users/delete", adminRequired, (req, res) => {
     beendeSitzungenVon(target);
     protokoll.notiere("admin.nutzer.loeschen", req, req.session.user, target);
     notifications.removeForUser(target);
+    // Chat-Schluessel und Verlauf mit. Ohne das blieben Chiffrate in fremden
+    // Gespraechen liegen, die niemand mehr oeffnen kann.
+    chat.removeForUser(target);
     fs.rmSync(dirFor(target), { recursive: true, force: true });
     req.flash("ok", `${row.display_name} wurde mitsamt allen Dateien gelöscht.`);
   }

@@ -107,6 +107,12 @@
               aria-pressed="<%= boardLayout && !boardLayout.minimized ? "true" : "false" %>">
         <img src="<%= base %>/static/img/board.svg" alt="" width="26" height="26">
       </button>
+      <%# Umschalter fuer den Chat — dritte Ansicht, dieselbe Mechanik %>
+      <button type="button" class="view-btn" id="chat-toggle"
+              data-tip="Chat" aria-label="Chat anzeigen oder ausblenden"
+              aria-pressed="<%= chatLayout && !chatLayout.minimized ? "true" : "false" %>">
+        <img src="<%= base %>/static/img/chat.svg" alt="" width="26" height="26">
+      </button>
       </div><%# Ende .tool-icons %>
       <%# "Hochladen" und "Neuer Ordner" sitzen NICHT hier, sondern in der
           Titelleiste des Dateifensters (partials/file-list.ejs): sie wirken
@@ -145,11 +151,19 @@
           <ul class="notif-list" id="notif-list">
             <% notifications.forEach(function(n){ %>
             <li>
+              <%# data-kind unterscheidet die beiden Arten (backend/notifications.js):
+                  eine Freigabe springt in die Dateiliste, eine Chat-Nachricht
+                  oeffnet das Gespraech (js/notifications.js). %>
               <button type="button" class="menu-item notif-item" data-id="<%= n.id %>"
+                      data-kind="<%= n.kind %>"
                       data-owner="<%= n.owner %>" data-rel="<%= n.relpath %>">
                 <span class="notif-text">
+                  <% if (n.kind === "chat") { %>
+                  <strong><%= n.ownerName %></strong> hat dir geschrieben
+                  <% } else { %>
                   <strong><%= n.ownerName %></strong> hat
                   „<%= n.label %>“ für dich freigegeben<% if (n.perm === "view") { %> (nur lesen)<% } %>
+                  <% } %>
                 </span>
                 <span class="notif-when"><%= n.when %></span>
               </button>

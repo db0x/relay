@@ -38,8 +38,12 @@ function highlight(row) {
   setTimeout(function () { row.classList.remove("row-highlight"); }, 2600);
 }
 
-// config: { pageWindow } — das Fenster-Objekt der Dateiliste (core/window.js),
-// damit ein zugeklapptes Fenster fuer den Sprung geoeffnet werden kann.
+// config: { pageWindow, openChat }
+//   pageWindow  Fenster-Objekt der Dateiliste (core/window.js), damit ein
+//               zugeklapptes Fenster fuer den Sprung geoeffnet werden kann
+//   openChat    Funktion(peer) — oeffnet das Chat-Fenster beim richtigen
+//               Gespraech. Chat-Nachrichten zeigen auf keine Datei, sondern
+//               auf einen Absender (siehe backend/notifications.js: kind).
 export function initNotifications(config) {
   var btn = document.getElementById("notif-btn");
   var panel = document.getElementById("notif-panel");
@@ -50,6 +54,7 @@ export function initNotifications(config) {
   var emptyEl = document.getElementById("notif-empty");
   var readAllBtn = document.getElementById("notif-read-all");
   var pageWindow = config && config.pageWindow;
+  var openChat = config && config.openChat;
   var pageEl = document.getElementById("page");
 
   // Zaehler nachfuehren, nachdem eine Nachricht verschwunden ist
@@ -76,12 +81,22 @@ export function initNotifications(config) {
     if (!item) return;
     var owner = item.dataset.owner, rel = item.dataset.rel;
 
-    // gelesen = weg, sofort und dauerhaft
-    markRead(item.dataset.id).catch(function () { /* Anzeige stimmt trotzdem */ });
+    // gelesen = weg, sofort und dauerhaft. Chat-Zeilen haben keine id, wenn
+    // sie erst im Browser entstanden sind (js/chat/chat.js) — der Server
+    // raeumt sie ohnehin beim Oeffnen des Gespraechs weg (POST /chat/read).
+    if (item.dataset.id) {
+      markRead(item.dataset.id).catch(function () { /* Anzeige stimmt trotzdem */ });
+    }
     var li = item.closest("li");
     if (li) li.remove();
     refreshBadge();
     closeMenus();
+
+    // Chat: kein Sprung in die Dateiliste, sondern ins Gespraech.
+    if (item.dataset.kind === "chat") {
+      if (openChat) openChat(owner);
+      return;
+    }
 
     // Dateiliste zeigen (war sie eingeklappt, klappt sie auf)
     if (pageWindow) pageWindow.restore();
@@ -93,6 +108,12 @@ export function initNotifications(config) {
     if (row) { highlight(row); return; }
     location.assign(BASE_URL + "/?hl=" + encodeURIComponent(owner + "/" + rel));
   });
+
+  // Der Chat legt Zeilen selbst an und raeumt sie selbst weg (neue Nachricht
+  // bei zugeklapptem Fenster, Gespraech geoeffnet). Danach muss der Zaehler
+  // an der Glocke stimmen — dafuer dieses Ereignis, statt refreshBadge quer
+  // durch die Module zu reichen.
+  document.addEventListener("relay-notif-changed", refreshBadge);
 
   refreshBadge();
 }

@@ -36,6 +36,14 @@ server {
         # Relevant fuer ADMIN_LAN_ONLY (.env) — Relay glaubt die Kopfzeile nur,
         # wenn TRUST_PROXY gesetzt ist. Kommt spaeter ein oeffentlicher Block
         # dazu (nginx-relay-tls.conf.example), MUSS der "wan" setzen.
+        # Der Chat haelt eine lange offene Verbindung (Server-Sent Events,
+        # GET /relay/chat/stream). Damit die Ereignisse SOFORT durchgehen und
+        # nicht nach 60 s abgeschnitten werden:
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_read_timeout 1h;
+        # Die Pufferung schaltet Relay je Antwort selbst ab (Kopfzeile
+        # X-Accel-Buffering: no) — nur der Ereignisstrom, nicht die ganze App.
         proxy_set_header X-Relay-Zone lan;
     }
 
