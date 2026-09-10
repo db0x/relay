@@ -16,6 +16,7 @@ const protokoll = require("../eventlog");
 const notifications = require("../notifications");
 const chat = require("../chat");
 const noteicon = require("../noteicon");
+const mimeicons = require("../mimeicons");
 const library = require("../library");
 const foldersort = require("../foldersort");
 const { accessFor } = require("../access");
@@ -45,13 +46,24 @@ const WINDOW_KEYS = ["page", "board", "chat"];
 // (secureFilename laesst ihn nicht durch), die Marke ist also eindeutig.
 const LIB_P = "lib:";
 
-// Dateiendung -> Typ-Icon in /static/img/ (verwandte Formate teilen sich eins).
-// Die Bueroformate kommen aus DOCTYPE statt aus eigenen Listen — so bleibt die
-// Zuordnung automatisch synchron, wenn dort eine Endung dazukommt.
-// Alles Unbekannte (.iso, .zip, .bin …) bekommt das neutrale Fragezeichen;
-// frueher stand dort das Textdokument-Icon und behauptete einen Typ, der nicht
-// stimmte. ACHTUNG: Zwilling im Browser — iconFuer() in js/notes/doclinks.js
-// faerbt die Verweise im Notiztext nach derselben Regel.
+// Dateiendung -> Typ-Icon, als Pfad unterhalb von /static/img/ und OHNE die
+// Endung ".svg" (die haengen alle Aufrufstellen selbst an).
+//
+// Zwei Stufen, in dieser Reihenfolge:
+//  1. Die Typen, die Relay selbst fuehrt, behalten ihr EIGENES Icon — die
+//     Bueroformate, PDF, Bild, Video, Notiz. Die sind bewusst ausgesucht und
+//     sollen nicht gegen ein Fremdsymbol getauscht werden. Sie kommen aus
+//     DOCTYPE/IMAGE_TYPES/VIDEO_TYPES statt aus eigenen Listen — so bleibt
+//     die Zuordnung automatisch synchron, wenn dort eine Endung dazukommt.
+//  2. Alles Uebrige holt sich sein Icon aus dem mitgelieferten Symbolsatz
+//     (mimeicons.js: Endung -> MIME-Typ -> public/img/mimetypes/…). Frueher
+//     bekam das ausnahmslos das neutrale Fragezeichen — ein .zip sah aus wie
+//     ein .mp3. Das Fragezeichen bleibt der letzte Rueckfall: was wir nicht
+//     kennen, gibt sich auch weiterhin nicht als etwas anderes aus.
+//
+// ACHTUNG: Zwilling im Browser — iconFuer() in js/notes/doclinks.js faerbt die
+// Verweise im Notiztext. Der kennt die MIME-Zuordnung nicht und fragt dafuer
+// die Route /fileicon/:ext (weiter unten).
 function iconFor(name) {
   const ext = (name.split(".").pop() || "").toLowerCase();
   if (ext === "md") return "note";
@@ -62,7 +74,7 @@ function iconFor(name) {
   if (typ === "slide") return "pptx";
   if (typ === "pdf") return "pdf";
   if (typ === "word") return "docx";
-  return "unknown";
+  return mimeicons.iconFor(name) || "unknown";
 }
 
 // Bilder bekommen in der Liste ein echtes Vorschaubild und oeffnen einen
@@ -589,6 +601,19 @@ router.get("/", loginRequired, (req, res) => {
       const t = req.session.freshToken || null; delete req.session.freshToken; return t;
     })(),
   });
+});
+
+// --- Icon zu einer Dateiendung ----------------------------------------
+// Fuer die Stellen, die erst im BROWSER entstehen und die MIME-Zuordnung
+// nicht kennen koennen: Verweise im Notiztext (js/notes/doclinks.js) und der
+// Upload-Dialog. Die Antwort haengt allein an der Endung und ist darum gut
+// cachebar. Weitergeleitet statt ausgeliefert: die Datei kommt weiterhin aus
+// /static — ein Ort, eine Cache-Regel.
+router.get("/fileicon/:ext", loginRequired, (req, res) => {
+  // Nur Buchstaben und Ziffern durchlassen: der Wert landet in einem Pfad.
+  const ext = String(req.params.ext || "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16);
+  res.set("Cache-Control", "public, max-age=86400");
+  res.redirect(`${BASE}/static/img/${iconFor(`x.${ext}`)}.svg`);
 });
 
 // Position eines frei verschiebbaren UI-Elements merken (aktuell nur die

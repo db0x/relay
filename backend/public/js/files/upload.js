@@ -8,16 +8,12 @@
 // starten und zu sagen, WORAN es liegt.
 import { showNotice } from "../core/dialogs.js";
 
-// Dateityp-Icon zum Namen (gleiche Gruppen wie iconFor im Backend);
-// Unbekanntes bekommt das neutrale Fragezeichen
-function iconForName(name) {
+// Typ-Icon zum Dateinamen. Wie bei den Verweisen im Notiztext fragt auch der
+// Dialog die Route danach, statt eine eigene (und damit veraltende) Liste zu
+// fuehren — die Zuordnung kennt nur der Server (mimeicons.js).
+function iconUrl(basis, name) {
   var ext = (name.split(".").pop() || "").toLowerCase();
-  var map = {
-    xlsx: "xlsx", xls: "xlsx", ods: "xlsx", csv: "xlsx",
-    pptx: "pptx", ppt: "pptx", odp: "pptx", pdf: "pdf",
-    docx: "docx", doc: "docx", odt: "docx", rtf: "docx", txt: "docx",
-  };
-  return map[ext] || "unknown";
+  return basis + "/fileicon/" + encodeURIComponent(ext || "bin");
 }
 
 function mb(bytes) {
@@ -111,9 +107,7 @@ export function bindUpload(root) {
           danger: true,
           // Ein Symbol ergibt nur bei genau einer Datei Sinn — bei mehreren
           // waere die Wahl willkuerlich.
-          icon: zuGross.length === 1
-            ? basis + "/static/img/" + iconForName(zuGross[0].name) + ".svg"
-            : null,
+          icon: zuGross.length === 1 ? iconUrl(basis, zuGross[0].name) : null,
         });
       if (!restGeht) {
         uploadInput.value = ""; // Auswahl verwerfen, sonst haengt sie im Formular
