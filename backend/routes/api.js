@@ -1,33 +1,51 @@
-// REST-API (Token-Auth, fuer Sync/Voltage): Dateiliste, Up-/Download, Loeschen,
-// Forcesave. Auth per API-Token: "Authorization: Bearer <token>" oder ?token=.
-// Arbeitet immer nur im Ordner des Token-Besitzers.
+// REST-API (fuer Voltage und Skripte im Browser-Kontext): Dateiliste,
+// Up-/Download, Loeschen, Forcesave. Auth ueber die LOGIN-SITZUNG — dieselbe
+// Anmeldung wie fuer den Rest der Oberflaeche, kein eigenes Geheimnis mehr.
+// Arbeitet immer nur im Ordner des Angemeldeten.
+//
+// Frueher lief das ueber ein API-Token pro Nutzer. Das ist entfallen: ein
+// Token war ein unbefristeter Vollzugang (ueber /edit/<datei> liess sich
+// daraus sogar eine Sitzung bauen), es musste bei jedem Client im Klartext
+// liegen, und widerrufen liess es sich nur fuer ALLE Clients gleichzeitig.
+// Die Sitzung kann all das besser: sie laeuft ab, sie steht einzeln in der
+// Datenbank (sessionstore.js) und laesst sich pro Geraet beenden.
+//
+// Folge fuer csrf.js: /api/ ist NICHT mehr von der CSRF-Pruefung ausgenommen.
+// Die Ausnahme stand dort, WEIL die API sich per Token anmeldete und eine
+// fremde Seite keines mitschicken kann. Mit Cookie-Anmeldung gilt das nicht
+// mehr, also braucht jeder aendernde Aufruf den Nachweis (Kopfzeile
+// X-CSRF-Token); GET/HEAD bleiben ohnehin frei. Voltage holt sich den Wert
+// einmalig ueber GET /api/session.
 const fs = require("fs");
 const path = require("path");
-const http = require("http");
 const express = require("express");
 const multer = require("multer");
-const jwt = require("jsonwebtoken");
 
 const users = require("../users");
 const { securePath, dirFor, pathFor, walkFiles } = require("../storage");
 const { darfVonHier } = require("../zone");
-const { DS_INTERNAL, JWT_SECRET, MAX_FILE_MB } = require("../config");
-const { activeEditorKey } = require("./editor");
+const { MAX_FILE_MB } = require("../config");
+const { forcesave } = require("./editor");
 
 const router = express.Router();
 
 // fid ist ein relativer Pfad und kommt aus der Wildcard (req.params[0]);
 // Unterordner sind erlaubt ("steuern/2026.xlsx"), Pfad-Tricks nicht.
 function apiAuth(req, res, next) {
-  const auth = req.get("Authorization") || "";
-  const tok = auth.startsWith("Bearer ") ? auth.slice(7) : (req.query.token || "");
-  const row = users.getByToken(tok);
+  // pending2fa: die Sitzung traegt zwar schon den Namen, darf aber bis zur
+  // zweiten Stufe nichts — dasselbe Tor wie in loginRequired. Ohne die Zeile
+  // waere die Datei-API der Weg daran vorbei.
+  const row = req.session && req.session.user && !req.session.pending2fa
+    ? users.get(req.session.user)
+    : null;
   // must_change: der Zugang hat noch sein Einmal-Passwort — bis das gewechselt
   // ist, gilt er auch fuer die API als nicht eingerichtet.
-  // darfVonHier: ein ADMIN-Token waere sonst die offene Hintertuer neben der
-  // LAN-Regel. Fuer alle anderen aendert sich nichts (Voltage & Co).
-  // is_admin: Verwaltungszugaenge haben kein Token (users.setAdmin verwirft es).
-  // Die Pruefung hier ist der doppelte Boden — faende sich doch eines, gilt es nicht.
+  // darfVonHier: ein Admin unterwegs wird auch hier abgewiesen, sonst waere die
+  // API die offene Hintertuer neben der LAN-Regel. Fuer alle anderen aendert
+  // sich nichts.
+  // is_admin: Verwaltungszugaenge nutzen die Datei-API nicht — sie haben die
+  // Oberflaeche. Die Regel stammt aus der Token-Zeit und bleibt bewusst
+  // bestehen: ein Admin-Konto soll keine Sync-Schnittstelle haben.
   if (!row || row.locked || row.must_change || row.is_admin || !darfVonHier(req, row))
     return res.status(401).json({ error: "unauthorized" });
   // fid gegen Pfad-Tricks absichern und mit dem Roh-Namen abgleichen
@@ -38,6 +56,22 @@ function apiAuth(req, res, next) {
   req.fid = fid;
   next();
 }
+
+// Woran ist Voltage angemeldet, und welchen CSRF-Nachweis braucht es fuer
+// seine schreibenden Aufrufe? Beides in einer Antwort, damit der Desktop-Client
+// nicht erst eine HTML-Seite laden und das <meta name="csrf-token"> daraus
+// fischen muss (beim Start haengt er auf einer eigenen Ladeseite).
+//
+// Das ist unbedenklich: die Route ist GET, also selbst nicht faelschbar, und
+// eine fremde Seite kann die ANTWORT nicht lesen — es gibt keine
+// CORS-Freigabe, und das Sitzungs-Cookie ist SameSite=Lax, ginge also bei
+// einem Cross-Site-Aufruf gar nicht erst mit.
+//
+// 401 heisst hier schlicht "nicht angemeldet"; der Client schickt den Nutzer
+// dann auf /login statt eine Konfiguration zu beklagen.
+router.get("/api/session", apiAuth, (req, res) => {
+  res.json({ user: req.uid, csrf: req.session.csrf || null });
+});
 
 router.get("/api/files", apiAuth, (req, res) => {
   // Kompatibilitaet: ohne ?recursive=1 nur die flachen Wurzel-Dateien wie frueher —
@@ -97,30 +131,10 @@ router.delete("/api/files/*", apiAuth, (req, res) => {
 //   { saved:false, no-session }    -> kein Key bekannt (z.B. nach Backend-Neustart) -> Client faellt
 //                                     auf sein normales Polling zurueck.
 function handleForcesave(req, res) {
-  const key = activeEditorKey.get(`${req.uid}/${req.fid}`);
-  if (!key) return res.json({ saved: false, reason: "no-session" });
-  const cmd = { c: "forcesave", key };
-  const body = JSON.stringify({ ...cmd, token: jwt.sign(cmd, JWT_SECRET) });
-  const u = new URL(`${DS_INTERNAL}/coauthoring/CommandService.ashx`);
-  const dreq = http.request(
-    { hostname: u.hostname, port: u.port || 80, path: u.pathname, method: "POST",
-      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
-    (dres) => {
-      const chunks = [];
-      dres.on("data", (c) => chunks.push(c));
-      dres.on("end", () => {
-        let error = -1;
-        try { error = JSON.parse(Buffer.concat(chunks).toString()).error; } catch {}
-        // 0 = forcesave gestartet; 4 = nichts zu speichern; alles andere ist ein DS-Fehler.
-        if (error === 0) return res.json({ saved: true });
-        if (error === 4) return res.json({ saved: false, reason: "no-changes" });
-        return res.json({ saved: false, reason: "ds-error", error });
-      });
-    }
-  );
-  dreq.on("error", () => res.json({ saved: false, reason: "unreachable" }));
-  dreq.write(body);
-  dreq.end();
+  // Die eigentliche Arbeit steckt in routes/editor.js — dort liegt der
+  // Session-Key (activeEditorKey), und der Editor-Dialog braucht dieselbe
+  // Funktion ueber seine eigene, sitzungsgebundene Route.
+  forcesave(req.uid, req.fid).then((r) => res.json(r));
 }
 
 module.exports = { router };

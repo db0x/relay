@@ -1,6 +1,5 @@
 // Gemeinsame SQLite-Verbindung + Schema. users.js und shares.js teilen sich diese
 // eine Verbindung (eine Datei: /data/state/users.db).
-const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
@@ -19,7 +18,6 @@ function db() {
       username     TEXT PRIMARY KEY,
       display_name TEXT NOT NULL,
       pw_hash      TEXT NOT NULL,
-      api_token    TEXT NOT NULL UNIQUE,
       is_admin     INTEGER NOT NULL DEFAULT 0,
       locked       INTEGER NOT NULL DEFAULT 0,
       -- Notiz-Icons auf dem Desktop zeigen? Je Nutzer umschaltbar (Mein Konto)
@@ -176,6 +174,10 @@ function db() {
       x         REAL NOT NULL,
       y         REAL NOT NULL,
       minimized INTEGER NOT NULL DEFAULT 0, -- eingeklappt zum Taskleisten-Icon
+      -- vom Nutzer gezogene Groesse (core/window.js). NULL = noch nie
+      -- angefasst, dann gilt das Mass aus dem CSS.
+      w         REAL,
+      h         REAL,
       PRIMARY KEY (username, key)
     );
   `);
@@ -202,20 +204,43 @@ function db() {
     _db.exec("ALTER TABLE users ADD COLUMN totp_active INTEGER NOT NULL DEFAULT 0");
   if (!cols.includes("totp_step"))
     _db.exec("ALTER TABLE users ADD COLUMN totp_step INTEGER NOT NULL DEFAULT 0");
-  // API-Token lagen frueher im KLARTEXT in dieser Datei — und die wird vom
-  // Backup aufs NAS gespiegelt. Bestandstoken werden hier einmalig durch ihre
-  // Pruefsumme ersetzt; dadurch gelten sie WEITER (der Client schickt
-  // unveraendert denselben Wert), sind aber aus der Datei nicht mehr ablesbar.
-  // Erkennungsmerkmal: ein Hash ist 64 Hex-Zeichen, ein Token 32 base64url.
-  const roheToken = _db.prepare("SELECT username, api_token FROM users").all()
-    .filter((r) => r.api_token && !/^[0-9a-f]{64}$/.test(r.api_token));
-  if (roheToken.length) {
-    const setzen = _db.prepare("UPDATE users SET api_token=? WHERE username=?");
-    for (const r of roheToken) {
-      setzen.run(crypto.createHash("sha256").update(r.api_token).digest("hex"), r.username);
-    }
-    console.log(`API-Token von ${roheToken.length} Nutzer(n) auf Pruefsummen umgestellt `
-      + "— bestehende Token gelten unveraendert weiter.");
+  // Das API-Token ist ersatzlos entfallen: die Datei-API meldet sich jetzt
+  // ueber die Sitzung an (routes/api.js), also ueber dieselbe Anmeldung wie
+  // der Rest. Damit verschwindet ein dauerhaftes, nicht ablaufendes
+  // Kontogeheimnis, das bei jedem Client im Klartext liegen musste.
+  //
+  // Die Spalte wird dabei WIRKLICH entfernt, nicht nur ignoriert — eine
+  // NOT-NULL-Spalte, die niemand mehr fuellt, waere eine Falle fuer das
+  // naechste INSERT. SQLite laesst sie nicht per DROP COLUMN fallen
+  // ("cannot drop UNIQUE column"), deshalb der uebliche Umbau: neue Tabelle,
+  // umkopieren, tauschen. Laeuft genau einmal; danach fehlt die Spalte und
+  // der Zweig greift nie wieder.
+  if (cols.includes("api_token")) {
+    // Frisch lesen statt `cols`: das wurde VOR den ALTER-Zeilen oben erhoben
+    // und kennt die dort gerade erst ergaenzten Spalten noch nicht.
+    const behalten = _db.prepare("PRAGMA table_info(users)").all()
+      .map((c) => c.name).filter((c) => c !== "api_token").join(", ");
+    _db.exec("BEGIN");
+    _db.exec(`
+      CREATE TABLE users_ohne_token (
+        username     TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        pw_hash      TEXT NOT NULL,
+        is_admin     INTEGER NOT NULL DEFAULT 0,
+        locked       INTEGER NOT NULL DEFAULT 0,
+        email        TEXT,
+        desk_notes   INTEGER NOT NULL DEFAULT 1,
+        must_change  INTEGER NOT NULL DEFAULT 0,
+        totp_secret  TEXT,
+        totp_active  INTEGER NOT NULL DEFAULT 0,
+        totp_step    INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO users_ohne_token (${behalten}) SELECT ${behalten} FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_ohne_token RENAME TO users;
+    `);
+    _db.exec("COMMIT");
+    console.log("API-Token entfernt — die Datei-API meldet sich jetzt ueber die Sitzung an.");
   }
 
   // note_meta.color kam mit den farbigen Notiz-Icons dazu, status mit dem
@@ -247,6 +272,11 @@ function db() {
   const layoutCols = _db.prepare("PRAGMA table_info(desktop_layout)").all().map((c) => c.name);
   if (!layoutCols.includes("minimized"))
     _db.exec("ALTER TABLE desktop_layout ADD COLUMN minimized INTEGER NOT NULL DEFAULT 0");
+  // w/h kamen mit dem Ziehen der Fenstergroesse dazu. NULL vertraegt sich mit
+  // dem Altbestand: wer nie an einer Ecke gezogen hat, bekommt weiter die
+  // Groesse aus dem CSS.
+  if (!layoutCols.includes("w")) _db.exec("ALTER TABLE desktop_layout ADD COLUMN w REAL");
+  if (!layoutCols.includes("h")) _db.exec("ALTER TABLE desktop_layout ADD COLUMN h REAL");
   return _db;
 }
 

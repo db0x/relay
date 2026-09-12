@@ -59,6 +59,9 @@ export function createWindow(config) {
   var el = config.el;
   if (!el) return null;
   var toggleBtn = config.toggleBtn || null;
+  // Knopf "Auf Fenstergroesse" (optional). Hier oben deklariert, weil setMax
+  // ihn braucht und nicht von der Reihenfolge weiter unten abhaengen soll.
+  var maxBtn = config.maxBtn ? el.querySelector(config.maxBtn) : null;
   var baseUrl = config.baseUrl;
   var key = config.key;
   // wie viel vom Fenster mindestens sichtbar bleiben muss (Rest darf ueber
@@ -79,7 +82,19 @@ export function createWindow(config) {
     // die gemerkte Position mit offsetWidth 0 verfaelschen. restore() ruft
     // place() ohnehin nach.
     if (isMinimized()) return;
-    var vw = window.innerWidth, vh = window.innerHeight, w = el.offsetWidth, minY = deskMinY();
+    if (isMaximized()) return passeMaxAn();
+    var vw = window.innerWidth, vh = window.innerHeight, minY = deskMinY();
+
+    // Gemerkte Groesse ZUERST: die Position wird unten gegen die Breite
+    // geklemmt, und die haengt davon ab.
+    if (el.dataset.w) {
+      el.style.width = Math.min(parseFloat(el.dataset.w), vw - 16) + "px";
+    }
+    if (el.dataset.h) {
+      el.style.height = Math.min(parseFloat(el.dataset.h), vh - minY - 16) + "px";
+    }
+
+    var w = el.offsetWidth;
     var left, top;
     if (el.dataset.x !== undefined) {
       left = parseFloat(el.dataset.x); top = parseFloat(el.dataset.y);
@@ -93,18 +108,35 @@ export function createWindow(config) {
     left = Math.max(KEEP - w, Math.min(left, vw - KEEP));
     top = Math.max(minY, Math.min(top, vh - 160));
     el.style.left = left + "px"; el.style.top = top + "px";
-    el.style.maxHeight = (vh - top - 16) + "px";
+    // Ohne gezogene Hoehe begrenzt maxHeight, damit langer Inhalt INNEN rollt
+    // statt das Fenster aus dem Bild wachsen zu lassen. MIT gezogener Hoehe
+    // gilt genau die — sonst zoege maxHeight sie beim naechsten Laden wieder
+    // zusammen.
+    el.style.maxHeight = el.dataset.h ? "none" : (vh - top - 16) + "px";
   }
 
   function saveLayout(minimized) {
+    var x = parseFloat(el.style.left) || 0;
+    var y = parseFloat(el.style.top) || 0;
+    // data-x/y sind die Quelle, aus der place() rechnet — sie kamen bisher NUR
+    // vom Seitenaufbau. Wer sein Fenster zog, aenderte damit style.left, nicht
+    // den Datensatz: beim naechsten place() (Verkleinern aus dem Vollbild,
+    // Fenstergroesse geaendert) sprang es zurueck auf die Kaskaden-Vorgabe.
+    // Hier, wo der Stand ohnehin festgehalten wird, gehoert beides zusammen.
+    el.dataset.x = String(x);
+    el.dataset.y = String(y);
     fetch(baseUrl + "/desktop/layout", {
       method: "POST", headers: schreibKopf({ "Content-Type": "application/json" }),
       credentials: "same-origin",
       body: JSON.stringify({
         key: key,
-        x: parseFloat(el.style.left) || 0,
-        y: parseFloat(el.style.top) || 0,
+        x: x,
+        y: y,
         minimized: !!minimized,
+        // nur senden, was der Nutzer wirklich gezogen hat — sonst zementierte
+        // der erste Klick die zufaellige Startgroesse aus dem CSS
+        w: el.dataset.w ? parseFloat(el.dataset.w) : null,
+        h: el.dataset.h ? parseFloat(el.dataset.h) : null,
       }),
     }).catch(function () { /* Merken ist optional — die Ansicht stimmt trotzdem */ });
   }
@@ -133,6 +165,40 @@ export function createWindow(config) {
 
   function toggle() { if (isMinimized()) restore(); else minimize(); }
 
+  // --- Maximieren ------------------------------------------------------
+  // Auf Fenstergroesse, ohne die gezogenen Masse zu verlieren: die gemerkte
+  // Lage bleibt in data-x/y/w/h stehen und place() stellt sie beim
+  // Verkleinern wieder her. Gespeichert wird der MAXIMIERTE Zustand bewusst
+  // NICHT — er ist eine Ansicht, keine Groesse.
+  function isMaximized() { return el.classList.contains("win-max"); }
+
+  function passeMaxAn() {
+    var minY = deskMinY();
+    el.style.left = "0px";
+    el.style.top = minY + "px";
+    el.style.width = window.innerWidth + "px";
+    el.style.height = (window.innerHeight - minY) + "px";
+    el.style.maxHeight = "none";
+  }
+
+  function setMax(an) {
+    if (an === isMaximized()) return;
+    el.classList.toggle("win-max", an);
+    if (maxBtn) {
+      maxBtn.setAttribute("aria-pressed", an ? "true" : "false");
+      var t = an ? "Auf normale Größe verkleinern" : "Auf Fenstergröße vergrößern";
+      maxBtn.setAttribute("data-tip", t);
+      maxBtn.setAttribute("aria-label", t);
+    }
+    if (an) passeMaxAn();
+    else {
+      // Inline-Masse wegnehmen, damit place() wieder aus data-* bzw. dem CSS
+      // rechnet — ohne das bliebe die Bildschirmgroesse als Inline-Stil stehen.
+      el.style.width = ""; el.style.height = "";
+      place();
+    }
+  }
+
   // Minimieren-Knopf delegiert binden: er sitzt IM Fenster und kann bei
   // Inhaltstausch (AJAX-Ordnernavigation) ausgewechselt werden.
   if (config.minBtn) {
@@ -154,7 +220,71 @@ export function createWindow(config) {
   // Eigene Bildlaufleiste — gilt fuer JEDES Fenster, haengt aber am ROLLENDEN
   // Teil: Kopf- und Fusszeile bleiben stehen (siehe .page-body in index.css).
   // Fenster ohne eigenen Rumpf bekommen sie wie bisher als Ganzes.
-  attachScrollbar(el.querySelector(".page-body") || el);
+  // Ausnahme `scroll:false`: wessen Inhalt selbst rollt (der Editor traegt
+  // einen iframe), bekaeme sonst eine Huelle um etwas, das keine braucht.
+  if (config.scroll !== false) attachScrollbar(el.querySelector(".page-body") || el);
+
+  // Maximieren-Knopf (optional). Wie der Minimieren-Knopf DELEGIERT gebunden:
+  // er sitzt im Fenster und kann bei einem Inhaltstausch ausgewechselt werden.
+  if (config.maxBtn) {
+    el.addEventListener("click", function (e) {
+      if (e.target.closest(config.maxBtn)) setMax(!isMaximized());
+    });
+  }
+
+  // --- Groesse ziehen ---------------------------------------------------
+  //
+  // Der Griff wird HIER erzeugt, nicht in den Vorlagen: so bekommt ihn jedes
+  // Fenster automatisch — dieselbe Regel wie bei den Bildlaufleisten. Vier
+  // Vorlagen anzufassen hiesse, die fuenfte zu vergessen.
+  //
+  // Er liegt ausserhalb von .page-head, faellt also von selbst aus der
+  // Zieh-Logik heraus (die startet nur auf der Titelleiste).
+  var griff = document.createElement("div");
+  griff.className = "win-resize";
+  griff.setAttribute("aria-hidden", "true");
+  el.appendChild(griff);
+
+  var MIN_W = config.minWidth || 320;
+  var MIN_H = config.minHeight || 200;
+
+  griff.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0 || isMaximized()) return;
+    e.preventDefault();
+    e.stopPropagation();          // nicht zugleich das Fenster anfassen
+    var r = el.getBoundingClientRect();
+    var startX = e.clientX, startY = e.clientY;
+    var startW = el.offsetWidth, startH = el.offsetHeight;
+    try { griff.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+    el.classList.add("resizing");
+
+    function move(ev) {
+      // Nach unten/rechts bis an den Bildschirmrand, nicht darueber hinaus
+      var w = Math.max(MIN_W, Math.min(startW + (ev.clientX - startX),
+        window.innerWidth - r.left - 8));
+      var h = Math.max(MIN_H, Math.min(startH + (ev.clientY - startY),
+        window.innerHeight - r.top - 8));
+      el.style.width = w + "px";
+      el.style.height = h + "px";
+      // maxHeight muss weichen, sonst schnitte es die gezogene Hoehe ab
+      el.style.maxHeight = "none";
+    }
+    function up() {
+      el.classList.remove("resizing");
+      griff.removeEventListener("pointermove", move);
+      griff.removeEventListener("pointerup", up);
+      griff.removeEventListener("pointercancel", up);
+      // offsetWidth/-Height statt getBoundingClientRect: ein Fenster mit
+      // transform (Oeffnen-Animation) laege sonst skaliert im Speicher und
+      // schrumpfte mit jedem Mal — genau so passiert beim Notiz-Dialog.
+      el.dataset.w = String(el.offsetWidth);
+      el.dataset.h = String(el.offsetHeight);
+      saveLayout(isMinimized());
+    }
+    griff.addEventListener("pointermove", move);
+    griff.addEventListener("pointerup", up);
+    griff.addEventListener("pointercancel", up);
+  });
 
   // Gezogen wird NUR an der Titelleiste — wie bei einem echten Fenster und wie
   // beim Notiz-Dialog (.dialog-note .dialog-head). Frueher war die ganze Karte
@@ -177,7 +307,11 @@ export function createWindow(config) {
       var left = Math.max(KEEP - w, Math.min(ev.clientX - ox, vw - KEEP));
       var top = Math.max(minY, Math.min(ev.clientY - oy, vh - 160));
       el.style.left = left + "px"; el.style.top = top + "px";
-      el.style.maxHeight = (vh - top - 16) + "px";
+      // Dieselbe Regel wie in place(): eine vom Nutzer GEZOGENE Hoehe gilt,
+      // sonst begrenzt maxHeight auf den Rest des Bildschirms. Ohne die
+      // Unterscheidung quetschte ein Verschieben nach unten das Fenster
+      // zusammen — und das Mass kam beim Hochschieben nicht zurueck.
+      el.style.maxHeight = el.dataset.h ? "none" : (vh - top - 16) + "px";
       moved = true;
     }
     function up() {
@@ -192,5 +326,8 @@ export function createWindow(config) {
     el.addEventListener("pointercancel", up);
   });
 
-  return { place: place, minimize: minimize, restore: restore, toggle: toggle, isMinimized: isMinimized };
+  return {
+    place: place, minimize: minimize, restore: restore, toggle: toggle,
+    isMinimized: isMinimized, isMaximized: isMaximized, setMax: setMax,
+  };
 }

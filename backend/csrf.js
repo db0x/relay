@@ -20,13 +20,17 @@ const KOPFZEILE = "x-csrf-token";
 // Anfragen ohne Nebenwirkung brauchen keinen Nachweis.
 const HARMLOS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-// Zwei Pfade sind ausgenommen, beide mit gutem Grund:
-//   /api/   — meldet sich per Token an, NICHT per Cookie. Eine fremde Seite
-//             kann kein Token mitschicken, also gibt es hier nichts zu faelschen.
-//   /callback/ — kommt vom DocumentServer (Maschine, kein Browser) und ist
-//             per JWT signiert.
+// Ausgenommen ist nur noch /callback/: das kommt vom DocumentServer (Maschine,
+// kein Browser) und ist per JWT signiert.
+//
+// /api/ stand hier frueher ebenfalls — aber nur, WEIL es sich per Token
+// anmeldete und eine fremde Seite keines mitschicken kann. Seit die Datei-API
+// ueber die Sitzung geht (routes/api.js), traegt diese Begruendung nicht mehr:
+// ein PUT auf /api/files/... waere sonst genau die Faelschung, gegen die es
+// hier geht. Voltage schickt den Nachweis als Kopfzeile mit und holt ihn sich
+// ueber GET /api/session.
 function ausgenommen(pfad) {
-  return pfad.startsWith(`${BASE}/api/`) || pfad.startsWith(`${BASE}/callback/`);
+  return pfad.startsWith(`${BASE}/callback/`);
 }
 
 function tokenFuer(req) {

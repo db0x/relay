@@ -36,7 +36,7 @@ const MAX_UPLOAD_FILES = 50;
 
 // Fenster des "Desktops", deren Lage/Zustand je Nutzer gemerkt wird
 // (desktop_layout). Neue Ansicht -> hier eintragen.
-const WINDOW_KEYS = ["page", "board", "chat"];
+const WINDOW_KEYS = ["page", "board", "chat", "editor"];
 
 // Marke am ?p=-Parameter, die einen Pfad IN DER BIBLIOTHEK kennzeichnet
 // ("?p=lib:Filme/2024"). Eigene Ordner und Bibliotheksordner teilen sich
@@ -522,6 +522,10 @@ router.get("/", loginRequired, (req, res) => {
     // siehe partials/chat.ejs — wie das Board draengt es sich nicht auf)
     chatPeers: chatPeersFor(me),
     chatLayout: notemeta.getLayout(me, "chat"),
+    // Editor-Fenster: nur Lage und Groesse werden gemerkt. WELCHES Dokument
+    // offen war, bewusst nicht — nach einem Neuladen faengt man mit leerem
+    // Fenster an (der iframe wird erst im Browser befuellt).
+    editorLayout: notemeta.getLayout(me, "editor"),
     // offene Benachrichtigungen (Glocke am Avatar + Uebersicht)
     notifications: notificationsFor(me),
     allDirs: walkDirs(userDir).sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" })),
@@ -594,12 +598,6 @@ router.get("/", loginRequired, (req, res) => {
     // aber leer" — sonst raetselt der Admin an einer leeren Liste.
     libAll: row.is_admin ? library.folderTree() : [],
     libConfigured: library.configured(),
-    // Das Token selbst liegt nur noch als Pruefsumme in der DB und kann
-    // deshalb nicht mehr angezeigt werden. Direkt nach dem Erzeugen steht es
-    // einmalig in der Sitzung — danach nie wieder (users.js: hashToken).
-    freshToken: (() => {
-      const t = req.session.freshToken || null; delete req.session.freshToken; return t;
-    })(),
   });
 });
 
@@ -628,7 +626,12 @@ router.post("/desktop/layout", loginRequired, express.json(), (req, res) => {
   // festen Namen (js/core/window.js). Weitere Ansichten hier ergaenzen.
   if (!WINDOW_KEYS.includes(key) || !Number.isFinite(x) || !Number.isFinite(y))
     return res.sendStatus(400);
-  notemeta.setLayout(req.session.user, key, x, y, b.minimized === true);
+  // Groesse ist optional (nur wer gezogen hat, schickt sie) und wird auf
+  // brauchbare Masse geklemmt: der Wert kommt aus dem Browser.
+  const masse = (v) => (Number.isFinite(Number(v)) && Number(v) > 0
+    ? Math.min(Math.round(Number(v)), 10000) : null);
+  notemeta.setLayout(req.session.user, key, x, y, b.minimized === true,
+    masse(b.w), masse(b.h));
   res.sendStatus(204);
 });
 
@@ -722,7 +725,16 @@ router.post("/create", loginRequired, (req, res) => {
   // Vom Admin ausgeblendete Sprachen zaehlen serverseitig ebenfalls nicht.
   const lang = req.body.lang || "";
   doclang.apply(p, ext, settings.get("hidden_langs", []).includes(lang) ? "" : lang);
-  res.redirect(`${BASE}/edit/${encodeURIComponent(req.session.user)}/${encPath(fid)}`);
+  // Zurueck in die Liste — mit einer Marke, welche Datei sofort aufgehen soll.
+  // Frueher ging es von hier direkt auf die Editor-VOLLSEITE; seit der Editor
+  // in einem Dialog laeuft (js/files/editor-view.js), waere das genau der
+  // Sprung aus der Anwendung heraus, den wir loswerden wollten. Dasselbe
+  // Muster wie ?hl= bei den Benachrichtigungen: die Oberflaeche liest die
+  // Marke aus und nimmt sie danach aus der Adresse.
+  // Ohne JavaScript landet man in der Liste statt im Editor — die Datei ist
+  // angelegt, ein Klick darauf fuehrt weiter.
+  const ziel = cur ? `${BASE}/?p=${encodeURIComponent(cur)}&` : `${BASE}/?`;
+  res.redirect(`${ziel}open=${encodeURIComponent(`${req.session.user}/${fid}`)}`);
 });
 
 // --- Angezeigter Ordner + sein Fingerabdruck ---------------------------

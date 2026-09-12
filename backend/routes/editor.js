@@ -11,7 +11,6 @@ const users = require("../users");
 const avatars = require("../avatars");
 const library = require("../library");
 const { accessFor } = require("../access");
-const { darfVonHier } = require("../zone");
 const { secureFilename, encPath, securePath, dirFor, pathFor, walkFiles } = require("../storage");
 const { PUBLIC_DS, HOST_INTERNAL, DS_INTERNAL, JWT_SECRET, FILE_SECRET, DOCTYPE, BASE, EDITOR_THEME, dsFetchUrl } = require("../config");
 const { loginRequired } = require("./auth");
@@ -25,6 +24,49 @@ const router = express.Router();
 // nach einem Backend-Neustart faellt der Desktop-Client automatisch auf sein
 // Polling zurueck (forcesave meldet dann "no-session").
 const activeEditorKey = new Map();
+
+// Forcesave: den DocumentServer bitten, die offene Session SOFORT zu speichern,
+// statt auf seine Karenz nach dem Verbindungsabbau zu warten.
+//
+// Die Logik stand frueher in routes/api.js (nur fuer den Desktop-Client per
+// Token). Seit der Editor auch in einem Dialog laeuft, braucht sie ein zweiter
+// Aufrufer — und zwar mit SITZUNG statt Token, denn im Dialog schliesst ein
+// angemeldeter Nutzer, der die Datei auch nur freigegeben bekommen haben kann.
+// Darum liegt sie jetzt hier, bei activeEditorKey, und beide Routen rufen sie.
+//
+// Rueckgabe (wie bisher):
+//   { saved:true }                -> es gab Aenderungen, ein status-6-Callback
+//                                    schreibt die Datei gleich
+//   { saved:false, no-changes }   -> nichts geaendert
+//   { saved:false, no-session }   -> kein Key bekannt (z.B. nach Neustart)
+function forcesave(uid, fid) {
+  return new Promise((fertig) => {
+    const key = activeEditorKey.get(`${uid}/${fid}`);
+    if (!key) return fertig({ saved: false, reason: "no-session" });
+    const cmd = { c: "forcesave", key };
+    const body = JSON.stringify({ ...cmd, token: jwt.sign(cmd, JWT_SECRET) });
+    const u = new URL(`${DS_INTERNAL}/coauthoring/CommandService.ashx`);
+    const dreq = http.request(
+      { hostname: u.hostname, port: u.port || 80, path: u.pathname, method: "POST",
+        headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
+      (dres) => {
+        const chunks = [];
+        dres.on("data", (c) => chunks.push(c));
+        dres.on("end", () => {
+          let error = -1;
+          try { error = JSON.parse(Buffer.concat(chunks).toString()).error; } catch (e) { /* s.u. */ }
+          // 0 = forcesave gestartet; 4 = nichts zu speichern; sonst DS-Fehler.
+          if (error === 0) return fertig({ saved: true });
+          if (error === 4) return fertig({ saved: false, reason: "no-changes" });
+          fertig({ saved: false, reason: "ds-error", error });
+        });
+      }
+    );
+    dreq.on("error", () => fertig({ saved: false, reason: "unreachable" }));
+    dreq.write(body);
+    dreq.end();
+  });
+}
 
 // Besitzer ist Teil der Signatur: ein Link fuer Nutzer A oeffnet nie Dateien von B
 function fileToken(uid, fid, expires) {
@@ -135,27 +177,33 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   });
 });
 
+// Speichern erzwingen aus der Oberflaeche: der Editor-Dialog ruft das beim
+// Schliessen (js/files/editor-view.js). Anders als /api/files/*/forcesave
+// laeuft es ueber die SITZUNG — und deshalb muss hier geprueft werden, ob der
+// Angemeldete diese Datei ueberhaupt bearbeiten darf. Ohne die Pruefung
+// koennte jeder das Speichern fremder Sitzungen ausloesen.
+router.post("/forcesave/:owner/*", loginRequired, async (req, res) => {
+  const uid = req.params.owner, fid = req.params[0];
+  const acc = accessFor(req.session.user, uid, fid);
+  if (acc !== "owner" && acc !== "edit") return res.sendStatus(403);
+  res.json(await forcesave(uid, fid));
+});
+
 // Kompatibilitaet fuer Voltage: die aeltere URL-Form ohne Besitzer
-// (/edit/<datei>) meint die eigene Datei. Voltage kennt keinen Nutzer und
-// keine Session — es schickt sein API-Token (?token= oder Bearer); daraus
-// wird hier der Nutzer bestimmt UND die Login-Session aufgebaut, denn die
-// Editor-Seite nach dem Redirect laeuft ueber das Session-Cookie.
+// (/edit/<datei>) meint die eigene Datei — Voltage kennt keinen Nutzernamen,
+// nur den Dateinamen. Wer angemeldet ist, sagt die Sitzung; nicht Angemeldete
+// schickt loginRequired auf /login?next=, und nach dem Anmelden geht es hier
+// weiter.
+//
+// Frueher stand davor ein Token-Bootstrap: Voltage schickte sein API-Token,
+// daraus wurde eine Sitzung gebaut. Das ist mit dem Token entfallen — die App
+// meldet sich jetzt einmal ganz normal im eigenen Fenster an und behaelt die
+// Sitzung im Profil.
+//
 // Liegt die Datei inzwischen in einem Unterordner, wird sie ueber den
 // Dateinamen gesucht — bei genau einem Treffer wird dorthin umgeleitet.
 // Muss NACH /edit/:owner/* stehen; greift nur bei einem einzigen Segment.
-router.get("/edit/:fid", (req, res, next) => {
-  // Token-Bootstrap; loginRequired dahinter prueft auch die Sperre
-  if (!req.session.user) {
-    const auth = req.get("Authorization") || "";
-    const tok = auth.startsWith("Bearer ") ? auth.slice(7) : (req.query.token || "");
-    const row = users.getByToken(tok);
-    if (row && !row.locked && !row.must_change && !row.is_admin && darfVonHier(req, row)) {
-      req.session.user = row.username;
-      req.session.name = row.display_name;
-    }
-  }
-  next();
-}, loginRequired, (req, res) => {
+router.get("/edit/:fid", loginRequired, (req, res) => {
   const me = req.session.user;
   const fid = req.params.fid;
   if (secureFilename(fid) !== fid) return res.sendStatus(404);
@@ -315,4 +363,4 @@ router.post("/callback/:uid/*", express.json(), (req, res) => {
   res.json({ error: 0 });
 });
 
-module.exports = { router, activeEditorKey };
+module.exports = { router, activeEditorKey, forcesave };

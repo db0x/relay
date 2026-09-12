@@ -2,7 +2,6 @@
 //   docker compose exec backend node manage.js add thomas "Thomas"
 //   docker compose exec backend node manage.js list
 //   docker compose exec backend node manage.js passwd thomas
-//   docker compose exec backend node manage.js token thomas
 //   docker compose exec backend node manage.js del thomas
 const readline = require("readline");
 const users = require("./users");
@@ -12,7 +11,6 @@ const USAGE = `Nutzerverwaltung:
   node manage.js list
   node manage.js passwd <name>
   node manage.js 2fa <name> off      # zweite Stufe abschalten (Notausgang)
-  node manage.js token <name>       # erzeugt ein NEUES Token und zeigt es einmalig
   node manage.js admin <name> on|off
   node manage.js lock <name> on|off
   node manage.js del <name>`;
@@ -55,14 +53,6 @@ async function main() {
     } else if (cmd === "passwd" && args.length === 1) {
       await users.setPassword(args[0], await askPassword());
       console.log("Passwort geaendert.");
-    } else if (cmd === "token" && args.length === 1) {
-      // Anzeigen geht nicht mehr — in der DB steht nur die Pruefsumme.
-      // Der Befehl erzeugt daher ein NEUES Token und gibt es einmalig aus.
-      const wer = users.get(args[0]);
-      if (!wer) fail("Unbekannter Nutzer.");
-      if (wer.is_admin) fail("Verwaltungszugaenge haben kein API-Token.");
-      console.log(users.resetToken(args[0]));
-      console.error("(neu erzeugt — das vorherige Token gilt nicht mehr)");
     } else if (cmd === "admin" && args.length === 2 && ["on", "off"].includes(args[1])) {
       users.setAdmin(args[0], args[1] === "on");
       console.log(`'${args[0]}' ist jetzt ${args[1] === "on" ? "Admin" : "kein Admin mehr"}.`);

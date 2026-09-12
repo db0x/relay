@@ -63,7 +63,7 @@ const dsQuelle = dsOrigin ? [dsOrigin] : [];
 app.use(helmet({
   // deckungsgleich mit frameAncestors unten; die alte Kopfzeile ist fuer
   // Browser gedacht, die noch kein CSP frame-ancestors auswerten
-  xFrameOptions: { action: "deny" },
+  xFrameOptions: { action: "sameorigin" },
   // HSTS gehoert dorthin, wo TLS endet — in den nginx. Von hier gesendet
   // wuerde es auch fuer reine LAN-Installationen ohne TLS gelten.
   strictTransportSecurity: false,
@@ -89,10 +89,15 @@ app.use(helmet({
       objectSrc: ["'none'"],
       baseUri: ["'none'"],
       formAction: ["'self'"],
-      // Relay selbst darf nirgends eingebettet werden (Clickjacking).
+      // Relay darf nur von RELAY SELBST eingebettet werden: der Editor-Dialog
+      // haengt die Seite /edit/... in einen iframe, damit das Bearbeiten eines
+      // Dokuments die Anwendung nicht mehr verlaesst (js/files/editor-view.js).
+      // Gegen Clickjacking schuetzt das unveraendert — eine FREMDE Seite kann
+      // Relay weiterhin nicht einbetten, und genau darum ging es. Vorher stand
+      // hier 'none', was auch das Einbetten durch uns selbst verbot.
       // ACHTUNG: bettet ein Wrapper (Voltage) Relay in einen iframe, muss das
       // hier auf die Herkunft des Wrappers erweitert werden.
-      frameAncestors: ["'none'"],
+      frameAncestors: ["'self'"],
     },
   },
 }));
@@ -137,6 +142,14 @@ app.use(session({
   store: new SqliteStore(),
   secret: SESSION_SECRET,
   resave: false,
+  // rolling: jede Anfrage schiebt das Cookie wieder um die volle Laufzeit vor.
+  // Ohne das schickt express-session bei einer unveraenderten Sitzung KEIN
+  // Set-Cookie nach (shouldSetCookie), und der Browser behaelt das Ablaufdatum
+  // vom Login-Tag — ein taeglich genutztes Voltage-Profil floege nach 90 Tagen
+  // trotzdem raus. Seit die Datei-API an der Sitzung haengt, ist das der
+  // Unterschied zwischen "einmal anmelden" und "viermal im Jahr mitten im
+  // Dokumentstart ein Login-Formular".
+  rolling: true,
   saveUninitialized: false,
   cookie: {
     maxAge: 90 * 24 * 3600 * 1000,

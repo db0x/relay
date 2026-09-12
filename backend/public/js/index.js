@@ -15,6 +15,7 @@ import { initUpload } from "./files/upload.js";
 import { initOwnFilter } from "./files/own-filter.js";
 import { initImageView } from "./files/image-view.js";
 import { initVideoView } from "./files/video-view.js";
+import { initEditorView } from "./files/editor-view.js";
 import { initNotes } from "./notes/notes.js";
 import { initBackupDialog } from "./backup.js";
 import { initLibraryPicker } from "./library-picker.js";
@@ -78,6 +79,16 @@ var chatWindow = createWindow({
   minBtn: "#chat-minimize", key: "chat", baseUrl: BASE_URL,
   cascade: 2, // drittes Fenster, wieder ein Stueck versetzt
 });
+// Editor-Fenster (OnlyOffice). scroll:false — sein Inhalt ist ein iframe und
+// rollt selbst; eine Huelle darum waere nur im Weg. maxBtn: "Auf
+// Fenstergroesse", das Umschalten macht createWindow.
+var editorWindow = createWindow({
+  el: document.getElementById("editor-win"),
+  toggleBtn: document.getElementById("editor-toggle"),
+  minBtn: "#editor-win-minimize", maxBtn: "#editor-win-max",
+  key: "editor", baseUrl: BASE_URL,
+  cascade: 3, scroll: false, minWidth: 480, minHeight: 320,
+});
 
 // notes-Modul MUSS vor der Ordnernavigation initialisiert sein: die
 // zurueckgegebene bindNoteOpen-Funktion wird beim Rebind nach einem
@@ -91,6 +102,10 @@ initFolderNav({ bindNoteOpen: notes && notes.bindNoteOpen });
 // Suche im Anwendungs-Menue. Braucht bindNoteOpen aus demselben Grund wie die
 // Ordnernavigation: gefundene Notizen sollen im Notiz-Dialog aufgehen.
 initSearch({ baseUrl: BASE_URL, bindNoteOpen: notes && notes.bindNoteOpen });
+
+// Dokumente in OnlyOffice oeffnen, ohne Relay zu verlassen. Braucht sein
+// Fenster, um es beim Oeffnen aufzuklappen und beim Schliessen wegzuraeumen.
+initEditorView({ win: editorWindow });
 
 // Chat. MUSS vor initNotifications stehen: eine Chat-Nachricht in der Glocke
 // oeffnet das Gespraech ueber oeffneChatFenster, und dafuer muss das Modul

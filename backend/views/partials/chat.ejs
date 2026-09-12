@@ -14,7 +14,7 @@
     offene Fenster uebereinander waeren beim ersten Besuch nur im Weg. %>
 <div class="page chat<%= !chatLayout || chatLayout.minimized ? " page-min" : "" %>" id="chat"
      data-me="<%= me %>"
-     <% if (chatLayout) { %>data-x="<%= chatLayout.x %>" data-y="<%= chatLayout.y %>"<% } %>>
+     <% if (chatLayout) { %>data-x="<%= chatLayout.x %>" data-y="<%= chatLayout.y %>"<% if (chatLayout.w) { %> data-w="<%= chatLayout.w %>" data-h="<%= chatLayout.h %>"<% } %><% } %>>
   <header class="page-head">
     <img src="<%= base %>/static/img/chat.svg" alt="" width="22" height="22">
     <h2 class="page-title">Chat</h2>

@@ -1,4 +1,4 @@
-// Nutzerdatenbank. Passwoerter gehasht (bcrypt), plus API-Token pro Nutzer.
+// Nutzerdatenbank. Passwoerter gehasht (bcrypt).
 //
 // bcrypt laeuft hier durchgaengig ASYNCHRON. Das ist keine Stilfrage: mit
 // Kostenfaktor 12 braucht ein Durchlauf ~250ms, und die synchrone Variante
@@ -11,31 +11,13 @@ const { db } = require("./db");
 
 const COST = 12;
 
-// url-sicheres Zufalls-Token wie Pythons secrets.token_urlsafe(24)
-function newToken() {
-  return crypto.randomBytes(24).toString("base64url");
-}
-
-// In der Datenbank steht NUR die Pruefsumme, nie das Token selbst.
-// Grund: users.db wird vom Backup aufs NAS gespiegelt, die .env nicht. Lagen
-// die Token dort im Klartext, haette ein Blick ins Backup fuer JEDEN Nutzer
-// vollen Kontozugriff bedeutet — an Passwort (bcrypt) und zweiter Stufe
-// (verschluesselt) vorbei. Ein schneller Hash reicht: das Token sind 192 Bit
-// Zufall, da ist nichts zu raten.
-function hashToken(token) {
-  return crypto.createHash("sha256").update(String(token || "")).digest("hex");
-}
-
 // mustChange: der Nutzer kommt nur bis zur Passwort-Seite, bis er ein eigenes
 // Passwort gesetzt hat (routes/auth.js). Gedacht fuer den Bootstrap-Admin.
 async function addUser(username, displayName, password, isAdmin = false, mustChange = false) {
   const hash = await bcrypt.hash(password, COST);
-  // Es wird ein Token angelegt, aber NIEMAND kennt es (nur der Hash landet in
-  // der DB). Wer die Datei-API nutzen will, erzeugt sich im Konto eines —
-  // dasselbe Muster wie bei den Wiederherstellungscodes.
   db().prepare(
-    "INSERT INTO users (username, display_name, pw_hash, api_token, is_admin, must_change) VALUES (?,?,?,?,?,?)"
-  ).run(username, displayName, hash, hashToken(newToken()), isAdmin ? 1 : 0, mustChange ? 1 : 0);
+    "INSERT INTO users (username, display_name, pw_hash, is_admin, must_change) VALUES (?,?,?,?,?)"
+  ).run(username, displayName, hash, isAdmin ? 1 : 0, mustChange ? 1 : 0);
 }
 
 // Admin-Rechte geben oder entziehen. Gesperrte Nutzer koennen keine Admins
@@ -47,18 +29,9 @@ function setAdmin(username, isAdmin) {
     throw new Error(`'${username}' ist gesperrt — erst entsperren, dann Admin machen.`);
   db().prepare("UPDATE users SET is_admin=? WHERE username=?")
     .run(isAdmin ? 1 : 0, username);
-  // Verwaltungszugaenge haben KEIN API-Token: ein Token ist ein vollwertiger
-  // Kontozugang ohne Passwort und ohne zweite Stufe — genau das, was bei einem
-  // Admin nicht sein darf. Beim Ernennen wird ein vorhandenes deshalb
-  // verworfen (ersetzt durch die Pruefsumme eines Zufallswerts, den niemand
-  // kennt; die Spalte ist NOT NULL UNIQUE).
-  if (isAdmin) {
-    db().prepare("UPDATE users SET api_token=? WHERE username=?")
-      .run(hashToken(newToken()), username);
-  }
 }
 
-// Nutzer sperren/entsperren: gesperrt = kein Login, keine Session, kein API-Token.
+// Nutzer sperren/entsperren: gesperrt = kein Login, keine Session, keine Datei-API.
 // Admins koennen nicht gesperrt werden (erst Admin-Rechte entziehen) — auch per CLI.
 function setLocked(username, locked) {
   const row = get(username);
@@ -81,25 +54,6 @@ async function verify(username, password) {
 
 function get(username) {
   return db().prepare("SELECT * FROM users WHERE username=?").get(username) || null;
-}
-
-// Nutzerzeile zum API-Token, sonst null. Fuer die Sync-/Datei-API.
-// Verglichen wird die Pruefsumme — das Token selbst steht nirgends.
-function getByToken(token) {
-  if (!token) return null;
-  return db().prepare("SELECT * FROM users WHERE api_token=?").get(hashToken(token)) || null;
-}
-
-// Wuerfelt ein neues API-Token, macht das alte damit ungueltig.
-// Erzeugt ein neues Token, legt seinen Hash ab und gibt es EINMAL im Klartext
-// zurueck. Der Aufrufer muss es dem Nutzer zeigen — ein zweites Mal gibt es
-// das nicht.
-function resetToken(username) {
-  const tok = newToken();
-  const r = db().prepare("UPDATE users SET api_token=? WHERE username=?")
-    .run(hashToken(tok), username);
-  if (r.changes === 0) throw new Error(`Unbekannter Nutzer: ${username}`);
-  return tok;
 }
 
 // Setzt das Passwort. Ohne zweites Argument faellt damit auch der Zwang, es
@@ -181,7 +135,7 @@ async function bootstrap() {
 const ready = bootstrap();
 
 module.exports = {
-  ready, hashToken,
-  addUser, setAdmin, setLocked, verify, get, getByToken, resetToken, setPassword,
+  ready,
+  addUser, setAdmin, setLocked, verify, get, setPassword,
   setDisplayName, setEmail, setDeskNotes, del, listUsers,
 };

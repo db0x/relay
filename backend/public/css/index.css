@@ -124,6 +124,36 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   .page,.note-desktop{transition:none}
 }
 .page.dragging{user-select:none}
+.page.resizing{user-select:none}
+
+/* --- Fenstergroesse ziehen ---------------------------------------------
+   Den Griff erzeugt core/window.js selbst, damit ihn JEDES Fenster bekommt
+   (dieselbe Regel wie bei den Bildlaufleisten — vier Vorlagen anzufassen
+   hiesse, die fuenfte zu vergessen). Er liegt in der unteren rechten Ecke,
+   ueber dem Inhalt, aber unter den Dialogen.
+   Zurueckhaltend gezeichnet: zwei Striche, die erst beim Ueberfahren des
+   Fensters deutlich werden. */
+.win-resize{
+  position:absolute;right:0;bottom:0;width:18px;height:18px;z-index:3;
+  cursor:nwse-resize;touch-action:none;
+  opacity:0;transition:opacity .15s ease;
+}
+.page:hover .win-resize,.page.resizing .win-resize{opacity:.45}
+.win-resize:hover{opacity:.85 !important}
+/* Die zwei Striche: als Hintergrund gezeichnet, spart ein Bild */
+.win-resize::after{
+  content:"";position:absolute;right:3px;bottom:3px;width:11px;height:11px;
+  background:
+    linear-gradient(135deg,transparent 0 45%,currentColor 45% 60%,transparent 60%),
+    linear-gradient(135deg,transparent 0 70%,currentColor 70% 85%,transparent 85%);
+  color:var(--ink);
+}
+/* Maximiert gibt es nichts zu ziehen — der Griff waere nur im Weg */
+.page.win-max .win-resize{display:none}
+
+/* Auf Fenstergroesse: die Masse setzt core/window.js (passeMaxAn), hier nur
+   die Anmutung — randlos, damit kein heller Rahmen ums Dokument bleibt. */
+.page.win-max{border-radius:0;border:0;box-shadow:none}
 
 /* --- Bildlaufleisten ---------------------------------------------------
    OverlayScrollbars (public/vendor/, verdrahtet in js/core/scrollbars.js).
@@ -620,6 +650,59 @@ body:not(.desk-ready) .note-desktop{opacity:0}
    weil hier kein Kind einen eigenen Hintergrund hat — es steht also nichts
    ueber die runden Ecken hinaus (nachgesehen, nicht vermutet). */
 .dialog.dialog-note{overflow:visible}
+
+/* --- Editor-Fenster (OnlyOffice) --------------------------------------
+   Ein Fenster wie Dateiliste, Board und Chat (.page) — nur groesser: ein
+   Textverarbeitungs-Fenster mit Menueband braucht Flaeche. Verschieben,
+   Minimieren, Maximieren und das Ziehen der Groesse kommen aus
+   js/core/window.js; hier steht nur die Anmutung. */
+.page.editor-win{
+  width:min(1180px,92vw);height:82vh;max-width:none;
+  padding:0;                      /* der Editor fuellt bis an den Rand */
+}
+/* Die Titelleiste holt sich ihren Innenabstand zurueck (padding:0 oben) und
+   bleibt die einzige Greif-Flaeche zum Ziehen. */
+.page.editor-win .page-head{
+  margin:0;padding:.45rem var(--page-gap) .45rem 14px;
+  border-radius:var(--radius) var(--radius) 0 0;
+}
+.page.editor-win.win-max .page-head{border-radius:0}
+.page.editor-win .page-title{font-size:.95rem}
+/* Schliessen sitzt ganz rechts und faerbt sich beim Ueberfahren warnend —
+   es ist die einzige Aktion hier, die etwas beendet. */
+.editor-win-close:hover{color:var(--danger)}
+
+/* Der Rumpf traegt den iframe. Bewusst NICHT .page-body: dessen
+   Bildlaufleiste (createWindow) waere eine Huelle um etwas, das selbst rollt —
+   darum wird das Fenster mit scroll:false erzeugt. */
+.editor-win-body{
+  flex:1 1 auto;min-height:0;position:relative;background:#fff;
+  border-radius:0 0 var(--radius) var(--radius);overflow:hidden;
+}
+.page.editor-win.win-max .editor-win-body{border-radius:0}
+#editor-win-frame{display:block;width:100%;height:100%;border:0}
+
+/* Waehrend des Ziehens schluckt der iframe die Zeigerereignisse — ohne das
+   bliebe der Griff beim ersten Pixel im Dokument haengen. */
+.page.editor-win.resizing #editor-win-frame,
+.page.editor-win.dragging #editor-win-frame{pointer-events:none}
+
+/* Liegt beim Schliessen ueber dem Editor, solange der DocumentServer
+   speichert. Deckend, damit in diesem Moment niemand weiterschreibt. */
+.editor-busy{
+  position:absolute;inset:0;z-index:2;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.82);
+  font-size:.9rem;color:var(--muted);
+}
+/* display:flex oben schluege sonst das hidden-Attribut (js schaltet es um) */
+.editor-busy[hidden]{display:none}
+.editor-busy-text{
+  padding:.45rem .9rem;border-radius:999px;
+  background:var(--card);box-shadow:var(--win-shadow);
+}
+/* Der Umschalter in der Topbar ist nur da, solange ein Dokument offen ist */
+.view-btn[hidden]{display:none}
 
 /* Bild-Vorschau: waechst mit dem Bild, bleibt aber im Fenster. Der dunkle
    Grund laesst freigestellte PNGs und helle Fotos gleichermassen wirken. */
@@ -2155,12 +2238,6 @@ a.crumb:hover{text-decoration:underline}
 }
 .dialog-submit{align-self:flex-end}
 .dialog-hint{padding:.9rem}
-.tokbox{padding:.55rem .9rem .9rem;display:flex;flex-direction:column;gap:.6em}
-#tok{
-  display:block;padding:.55em;background:#fff;border:1px solid var(--line);
-  border-radius:var(--radius-sm);font-size:.85em;word-break:break-all;
-}
-.reset-form{margin:0;align-self:flex-end}
 .tokhint{color:var(--muted);font-size:.8em}
 .tokhint code{background:#eef1f5;padding:.05em .35em;border-radius:5px}
 
@@ -2328,9 +2405,6 @@ a.crumb:hover{text-decoration:underline}
   border-color:var(--brand);background:var(--glass-well-focus);
   box-shadow:0 0 0 3px rgba(37,99,235,.25);
 }
-.dialog-glass #tok{
-  background:var(--glass-well);border-color:var(--glass-line);color:var(--glass-ink);
-}
 .dialog-glass .tokhint code{background:rgba(255,255,255,.12);color:var(--glass-ink)}
 
 /* Avatar-Bereich: Platzhalter und der Stift daneben */
@@ -2418,13 +2492,11 @@ a.crumb:hover{text-decoration:underline}
   --os-handle-bg-active:rgba(255,255,255,.6);
 }
 
-/* Zwei-Faktor-Abschnitt im Konto-Dialog. Aufbau wie die Token-Box darunter:
-   Spalte mit Hinweis, Knoepfe RECHTS unten — dieselbe Konvention wie
-   .dialog-submit, .dialog-action und .reset-form. Bei wenig Platz brechen sie
-   um und bleiben dabei rechtsbuendig; der zerstoerende steht zuletzt. */
+/* Zwei-Faktor-Abschnitt im Konto-Dialog: Spalte mit Hinweis, Knoepfe RECHTS
+   unten — dieselbe Konvention wie .dialog-submit und .dialog-action. Bei wenig
+   Platz brechen sie um und bleiben dabei rechtsbuendig; der zerstoerende steht
+   zuletzt. */
 .zwei-box{padding:.55rem .9rem .9rem;display:flex;flex-direction:column;gap:.6em}
 .zwei-aktionen{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.4rem}
 .zwei-aktionen form{margin:0}
 
-/* Einmalige Anzeige des frisch erzeugten API-Tokens (Konto-Dialog) */
-.tok-neu{outline:2px solid var(--brand);outline-offset:2px}

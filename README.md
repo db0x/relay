@@ -22,9 +22,9 @@ through and passes things on — documents between family members.
   - `config.js` — environment variables and constants
   - `storage.js` — path safety & filesystem (user isolation)
   - `access.js` — central authorization (`accessFor`)
-  - `routes/auth.js` — login/logout/password/token (+ `loginRequired`)
+  - `routes/auth.js` — login/logout/password (+ `loginRequired`)
   - `routes/admin.js` — user management (admins only)
-  - `routes/api.js` — token-authenticated file API for sync/Voltage incl. forcesave
+  - `routes/api.js` — session-authenticated file API for Voltage incl. forcesave
   - `routes/browse.js` — home page, file/folder actions, shares
   - `routes/editor.js` — OnlyOffice: `/edit`, signed `/files` links, `/callback`
   - `db.js`/`users.js`/`shares.js` (SQLite), `manage.js` (CLI),
@@ -33,7 +33,7 @@ through and passes things on — documents between family members.
   subfolder per user (`documents/<username>/`) with arbitrary nested folders
   inside. Everyone sees only their own files and the ones shared with them;
   files placed directly in `documents/` are invisible.
-- **state/** — database (`users.db`: hashed passwords, API tokens, shares).
+- **state/** — database (`users.db`: hashed passwords, sessions, shares).
 
 ## First start
 
@@ -78,8 +78,8 @@ optionally with admin rights right away, grant or revoke admin rights for
 other users, **lock/unlock** users, and **delete** users including all their
 data (files, shares in both directions, avatar, profile — irreversible;
 admins must have their rights revoked first, you cannot delete yourself). Locked means: no login, running
-browser sessions end immediately, and the API token (sync/Voltage) is
-blocked; the user's files and shares remain untouched.
+browser sessions end immediately, and with them the file API (Voltage); the
+user's files and shares remain untouched.
 You cannot revoke your own admin rights and you cannot lock yourself —
 this prevents locking yourself out; the CLI is the fallback.
 Admin and lock are mutually exclusive: admins cannot be locked (revoke the
@@ -103,7 +103,6 @@ CLI commands (inside the running container):
 docker compose exec backend node manage.js add <name> "<display name>"
 docker compose exec backend node manage.js list                # [admin] marks admins
 docker compose exec backend node manage.js passwd <name>
-docker compose exec backend node manage.js token <name>    # API token (for sync)
 docker compose exec backend node manage.js admin <name> on|off
 docker compose exec backend node manage.js lock <name> on|off
 docker compose exec backend node manage.js del <name>
@@ -126,6 +125,48 @@ The editor loads the images via **HMAC-signed URLs** (like the `/files`
 links), because the editor iframe may run on a different origin where
 session cookies are not sent; the other users' avatars are answered from
 the embedded user list via the `onRequestUsers` API event.
+
+## Editing documents (a window, not a page change)
+
+Clicking a document name opens OnlyOffice **inside Relay**, in a window of the
+desktop — draggable, minimizable, resizable, and switchable to full screen. Before this, it was a full-page
+navigation: the desktop, note icons, open windows and — since it exists — the
+chat event stream were all gone for the duration of the edit. Now the page
+never unloads, so chat messages and the bell keep arriving while you work, and
+closing the document puts you back exactly where you were.
+
+The window's content is an **iframe on the very same `/edit/...` page** that
+existed before. That is deliberate: the whole OnlyOffice side (the JWT-signed
+config, the load-hang watchdog, the editor theme, co-editing avatars) stays in
+one place — `views/edit.ejs` + `public/js/edit.js`. Only the frame around it is
+new (`views/partials/editor-window.ejs`, `public/js/files/editor-view.js`).
+
+It follows the same window pattern as the file list, the note board and the
+chat, so **resizing lives in `core/window.js` and every window got it at once**
+— grab the corner at the bottom right. Position *and* size are remembered per
+user (`desktop_layout.x/y/w/h`). One thing is different here: this window has
+no permanent content, so without an open document it stays collapsed and its
+topbar switch is hidden — there would be nothing to bring back. Minimizing
+keeps the document open (the DocumentServer session lives on); closing saves
+and ends it.
+
+Two consequences worth knowing:
+
+- **Relay now allows itself to be embedded by itself**: the CSP says
+  `frame-ancestors 'self'` instead of `'none'`, and `X-Frame-Options` is
+  `SAMEORIGIN`. A *foreign* origin still cannot embed Relay, which is what the
+  clickjacking protection is actually about.
+- **Closing forces a save.** Tearing the iframe out would end the
+  DocumentServer session abruptly, and it keeps its save window open for a few
+  seconds — the last edits could be lost. So closing first posts to
+  `/forcesave/<owner>/<path>` (session-authenticated, permission checked) and
+  only then drops the frame. It gives up after 5 seconds: an editor that refuses
+  to close would be the worse failure, and the DocumentServer's own grace
+  period still catches the changes.
+
+The full-page route `/edit/...` stays: Voltage opens it that way, direct links
+keep working, and the window's title bar has an "open in its own tab" button.
+Ctrl/Cmd-click on a document name still opens a new tab as usual.
 
 ## Document language for new files
 
@@ -197,7 +238,7 @@ owner's folder, there is no copy.
 - Revoke shares: same share icon → "entziehen" (revoke).
 - **Only the owner may delete**; deleting a file removes all of its shares.
 - If a user is deleted (`manage.js del`), their shares disappear as well.
-- The **file API stays owner-scoped** — via `/api/files`, a token sees only
+- The **file API stays owner-scoped** — via `/api/files`, a session sees only
   its own files, never shared ones.
 
 This is enforced server-side in `accessFor()` (access.js) on all browser
@@ -398,24 +439,34 @@ are not Relay's own and may contain umlauts, spaces and brackets. Instead
 (`realpath`), verifying it stays below the resolved library root — so a symlink
 inside the library cannot lead out of it.
 
-## File API (token auth)
+## File API (session auth)
 
-For sync/automation (Voltage, rclone, scripts). Authentication via the user's
-API token, either as `Authorization: Bearer <token>` or `?token=<token>`.
-Each token only sees its own user folder.
+For the Voltage desktop client. Authentication is the **login session** — the
+same cookie the web UI uses; there is no separate credential. Each session only
+sees its own user folder. Admin accounts are excluded: a management account
+gets no sync interface.
 
-The database stores only the token's **SHA-256 checksum**, never the token
-itself — `users.db` is mirrored to the backup target, and a token grants full
-account access. Consequence: a token is shown **once**, right after it is
-created (menu → "Mein Konto" → "neu erzeugen"); whoever loses it creates a new
-one. `manage.js token <name>` likewise creates a new token and prints it once.
+There used to be a per-user **API token** here. It is gone, deliberately. A
+token was an unlimited full-account credential (via `/edit/<file>` it could
+even be turned into a session), it had to sit in plaintext on every client that
+used it, and it could only be revoked for *all* clients at once — so in
+practice it never was. A session does all of that better: it expires, it is
+stored individually (`sessionstore.js`) and it can be ended per device
+("überall abmelden").
 
-Existing installations keep working: on first start the stored plaintext
-tokens are replaced by their checksum in place, so clients that already hold a
-token (Voltage, rclone) continue unchanged.
+Existing databases are migrated on first start: the `api_token` column is
+dropped (the table is rebuilt — SQLite cannot drop a `UNIQUE` column). Any
+client still holding a token stops working and needs to log in instead.
+
+Because the API is now cookie-authenticated, it is **no longer exempt from the
+CSRF check**. Changing calls (`PUT`, `POST`, `DELETE`) must carry the proof as
+an `X-CSRF-Token` header; `GET` is unaffected. Clients fetch the value once via
+`GET /api/session`, which answers `{ user, csrf }` — a foreign page cannot read
+that response (no CORS, and the cookie is `SameSite=Lax`).
 
 | Method   | Path                       | Purpose                                       |
 |----------|----------------------------|-----------------------------------------------|
+| `GET`    | `/api/session`             | Who am I + CSRF proof (JSON)                  |
 | `GET`    | `/api/files`               | File list, top level (JSON, flat names)       |
 | `GET`    | `/api/files?recursive=1`   | File list, recursive (relative paths)         |
 | `PUT`    | `/api/files/<path>`        | Upload/overwrite (raw body)                   |
@@ -424,16 +475,23 @@ token (Voltage, rclone) continue unchanged.
 
 `<path>` may contain subfolders (`taxes/2026.xlsx`); `PUT` creates missing
 folders automatically. Without `?recursive=1` the list behaves as it did
-before folder support (top level only) — existing sync clients stay
-compatible. Empty folders do not appear in the API.
+before folder support (top level only) — Voltage relies on that. Empty folders
+do not appear in the API.
+
+Trying it with `curl` means carrying the session cookie — log in once into a
+cookie jar, read the CSRF proof from `/api/session`, then use both:
 
 ```bash
-TOKEN=$(docker compose exec -T backend node manage.js token thomas)
-BASE=http://localhost:5001/api/files
-curl -H "Authorization: Bearer $TOKEN" $BASE                      # list
-curl -T letter.docx -H "Authorization: Bearer $TOKEN" $BASE/letter.docx   # upload
-curl -H "Authorization: Bearer $TOKEN" -o letter.docx $BASE/letter.docx   # download
-curl -X DELETE -H "Authorization: Bearer $TOKEN" $BASE/letter.docx        # delete
+ROOT=http://localhost:5001
+CSRF=$(curl -s -c jar -b jar $ROOT/login | grep -o 'name="_csrf" value="[^"]*"' | cut -d'"' -f4)
+curl -s -c jar -b jar -d "username=thomas&password=***&_csrf=$CSRF" $ROOT/login
+
+CSRF=$(curl -s -b jar -c jar $ROOT/api/session | grep -o '"csrf":"[^"]*"' | cut -d'"' -f4)
+BASE=$ROOT/api/files
+curl -b jar -c jar $BASE                                              # list
+curl -b jar -c jar -T letter.docx -H "X-CSRF-Token: $CSRF" $BASE/letter.docx   # upload
+curl -b jar -c jar -o letter.docx $BASE/letter.docx                   # download
+curl -b jar -c jar -X DELETE -H "X-CSRF-Token: $CSRF" $BASE/letter.docx        # delete
 ```
 
 ## Operations
@@ -499,8 +557,11 @@ CI runs the same suite on every push (`.github/workflows/e2e.yml`).
   can only fetch files via URLs issued by the backend. That's why `/files` and
   `/callback` need **no** login cookie. The owner is part of the signature —
   a link never opens another user's files.
-- Every user has an **API token** (`manage.js token`) for the file API,
-  intended for sync (rclone, Voltage desktop).
+- The **file API runs on the login session**, not on a separate token — no
+  long-lived credential has to live on a client. It is therefore covered by the
+  CSRF check like every form.
+- **`frame-ancestors 'self'`** (not `'none'`): Relay embeds its own editor page
+  in a dialog. Foreign origins still cannot embed Relay.
 - **Chat messages are end-to-end encrypted** — the server stores ciphertext
   only and cannot read them (see "Chat" above). Requires HTTPS/localhost.
 - Secrets in `.env` are sensitive — don't share them, don't commit them.
@@ -527,10 +588,10 @@ CI runs the same suite on every push (`.github/workflows/e2e.yml`).
   skeleton must stay in `local.json` (`json` creates no missing objects).
 - The `document.key` is based on the file's mtime: multiple open tabs share
   the same editor session; after a save, a new version begins.
-- `/edit/<file>` (without owner) is a compatibility route for Voltage:
-  authenticates via **API token** (`?token=`, Voltage knows no user), builds
-  the login session from it, redirects to `/edit/<user>/<path>`, and if
-  needed finds the file by name search in the user's own folder tree.
+- `/edit/<file>` (without owner) is a compatibility route for Voltage, which
+  knows the file name but no user name: `loginRequired` supplies the user,
+  it redirects to `/edit/<user>/<path>`, and if needed finds the file by name
+  search in the user's own folder tree.
 
 ## License
 

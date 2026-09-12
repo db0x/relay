@@ -12,7 +12,7 @@ const crypto = require("crypto");
 const { test, expect } = require("@playwright/test");
 const {
   loginAsAdmin, login, createUser, uniqueName, uploadFile, waitAppReady,
-  csrfToken, postForm, apiToken, logout, expectFlash,
+  csrfToken, postForm, logout,
 } = require("./helpers/relay");
 const { BASE_URL } = require("./test-env");
 
@@ -47,8 +47,14 @@ test.describe("Sicherheits-Zusicherungen", () => {
       const h = res.headers();
       expect(h["content-security-policy"]).toContain("default-src 'self'");
       expect(h["content-security-policy"]).toContain("object-src 'none'");
-      expect(h["content-security-policy"]).toContain("frame-ancestors 'none'");
-      expect(h["x-frame-options"]).toBe("DENY");
+      // 'self', nicht 'none': der Editor-Dialog haengt die Seite /edit/... in
+      // einen iframe, damit das Oeffnen eines Dokuments Relay nicht mehr
+      // verlaesst (js/files/editor-view.js). Der Clickjacking-Schutz bleibt
+      // wirksam — entscheidend ist, dass eine FREMDE Herkunft Relay nicht
+      // einbetten kann, und genau das deckt der Test darunter ab.
+      expect(h["content-security-policy"]).toContain("frame-ancestors 'self'");
+      expect(h["content-security-policy"]).not.toContain("frame-ancestors *");
+      expect(h["x-frame-options"]).toBe("SAMEORIGIN");
       expect(h["x-content-type-options"]).toBe("nosniff");
       expect(h["referrer-policy"]).toBe("no-referrer");
       expect(h["x-powered-by"]).toBeUndefined();
@@ -277,17 +283,17 @@ test.describe("Admin-Zugaenge nur aus dem Heimnetz", () => {
     await expect(page.locator(".err")).toContainText("nur aus dem Heimnetz");
   });
 
-  test("das Token eines normalen Nutzers gilt auch von aussen", async ({ page }) => {
+  test("die Datei-API eines normalen Nutzers gilt auch von aussen", async ({ page }) => {
     // Die Zonenregel betrifft nur Admins — ein Sync-Client unterwegs (Voltage)
-    // muss weiter arbeiten koennen.
+    // muss weiter arbeiten koennen. Die API haengt an derselben Sitzung wie die
+    // Oberflaeche, also traegt page.request das Cookie von selbst mit.
     await loginAsAdmin(page);
     const u = await createUser(page);
     await logout(page);
     await login(page, u.username, u.password);
-    const token = await apiToken(page);
 
-    expect((await page.request.get(`${BASE_URL}/api/files?token=${token}`)).status()).toBe(200);
-    expect((await page.request.get(`${BASE_URL}/api/files?token=${token}`,
+    expect((await page.request.get(`${BASE_URL}/api/files`)).status()).toBe(200);
+    expect((await page.request.get(`${BASE_URL}/api/files`,
       { headers: VON_AUSSEN })).status()).toBe(200);
   });
 
@@ -496,7 +502,8 @@ test.describe("Zweite Stufe für Admins (TOTP)", () => {
         : await page.request.post(URL + pfad, { form: { _csrf: nachweis }, maxRedirects: 0 });
       expect(r.headers()["location"], `${meth} ${pfad}`).toBe("/zwei-faktor");
     }
-    // auch das API-Token traegt die halbe Sitzung nicht
+    // auch die Datei-API traegt die halbe Sitzung nicht (apiAuth prueft
+    // pending2fa selbst — sonst waere sie der Weg an der Codeabfrage vorbei)
     expect((await page.request.get(`${URL}/api/files`)).status()).toBe(401);
   });
 
@@ -627,7 +634,7 @@ test.describe("Etappe 3: Nachweis, Sitzungen, Protokoll", () => {
     expect(mit.status()).toBe(302);
   });
 
-  test("der Nachweis geht auch als Kopfzeile — und die Datei-API braucht keinen",
+  test("der Nachweis geht auch als Kopfzeile — und die Datei-API braucht ihn ebenfalls",
     async ({ page }) => {
       await loginAsAdmin(page);
       const token = await csrfToken(page);
@@ -638,15 +645,26 @@ test.describe("Etappe 3: Nachweis, Sitzungen, Protokoll", () => {
       // 400 = der Nachweis stimmte, nur der Rumpf war unvollstaendig
       expect(mitKopf.status()).toBe(400);
 
-      // Die API meldet sich per Token an, nicht per Cookie — dort gibt es
-      // nichts zu faelschen, also ist sie ausgenommen (siehe csrf.js).
-      // Ein NORMALER Nutzer: Verwaltungszugaenge haben kein Token.
+      // Die Datei-API meldet sich seit dem Wegfall des API-Tokens ueber die
+      // SITZUNG an — damit ist sie faelschbar wie jedes Formular und deshalb
+      // NICHT mehr von der Pruefung ausgenommen (siehe csrf.js). Ein NORMALER
+      // Nutzer: Verwaltungszugaenge erreichen die Datei-API gar nicht erst.
       const u = await createUser(page);
       await logout(page);
       await login(page, u.username, u.password);
-      const tok = await apiToken(page);
-      const api = await page.request.put(`${BASE_URL}/api/files/csrf-probe.txt?token=${tok}`, {
+
+      // ohne Nachweis: abgewiesen, obwohl das Cookie stimmt
+      const ohne = await page.request.put(`${BASE_URL}/api/files/csrf-probe.txt`, {
         data: "inhalt",
+      });
+      expect(ohne.status(), "PUT ohne CSRF-Nachweis").toBe(403);
+
+      // mit Nachweis in der Kopfzeile: geht durch. Die Kopfzeile ist der Weg
+      // fuer Voltage — der PUT-Rumpf ist rohes Binaer und wird erst NACH der
+      // Pruefung gelesen, ein Feld "_csrf" darin gaebe es also nicht.
+      const api = await page.request.put(`${BASE_URL}/api/files/csrf-probe.txt`, {
+        data: "inhalt",
+        headers: { "X-CSRF-Token": await csrfToken(page) },
       });
       expect([200, 201]).toContain(api.status());
     });
@@ -738,79 +756,97 @@ test.describe("Sitzungen überleben einen Neustart", () => {
   });
 });
 
-test.describe("API-Token liegt nur als Prüfsumme in der Datenbank", () => {
+test.describe("Die Datei-API haengt an der Sitzung, nicht an einem Geheimnis", () => {
   const { execFileSync } = require("child_process");
-  const { EXTERNAL, IMAGE, CONTAINER } = require("./test-env");
+  const { EXTERNAL, CONTAINER } = require("./test-env");
 
-  test("das Token ist in der Datenbank nicht auffindbar", async ({ page }) => {
-    test.skip(EXTERNAL, "liest die Datenbank im Container");
+  test("ohne Anmeldung gibt es nichts", async ({ page }) => {
+    // Kein Token mehr, das man mitschicken koennte — wer nicht angemeldet ist,
+    // bekommt 401 statt einer Umleitung (der Client soll das unterscheiden
+    // koennen und den Nutzer auf /login schicken).
+    const res = await page.request.get(`${BASE_URL}/api/files`, { maxRedirects: 0 });
+    expect(res.status()).toBe(401);
+    expect((await res.json()).error).toBe("unauthorized");
+  });
+
+  test("angemeldet liefert /api/session Nutzer und CSRF-Nachweis", async ({ page }) => {
+    // Der Bootstrap fuer Voltage: es haengt beim Start auf einer eigenen
+    // Ladeseite und kann das <meta name="csrf-token"> nicht aus einer HTML-Seite
+    // fischen.
     await loginAsAdmin(page);
     const u = await createUser(page);
     await logout(page);
     await login(page, u.username, u.password);
-    const token = await apiToken(page);
-    expect(token.length).toBeGreaterThan(20);
-    // es funktioniert …
-    expect((await page.request.get(`${BASE_URL}/api/files?token=${token}`)).status()).toBe(200);
 
-    // … steht aber nirgends in der Datei. Genau das ist der Punkt: users.db
-    // wird vom Backup aufs NAS gespiegelt.
-    const roh = execFileSync("docker",
-      ["exec", CONTAINER, "sh", "-c", "cat /data/state/users.db | tr -c '[:print:]' '\\n'"],
-      { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-    expect(roh, "das Token darf im Klartext nirgends stehen").not.toContain(token);
-    // die Pruefsumme dagegen schon
-    const summe = crypto.createHash("sha256").update(token).digest("hex");
-    expect(roh).toContain(summe);
+    const info = await (await page.request.get(`${BASE_URL}/api/session`)).json();
+    expect(info.user).toBe(u.username);
+    expect(info.csrf, "ohne Nachweis kaeme kein PUT durch").toBeTruthy();
+
+    // und er trägt: damit laesst sich schreiben
+    const put = await page.request.put(`${BASE_URL}/api/files/session-probe.txt`, {
+      data: "inhalt",
+      headers: { "X-CSRF-Token": info.csrf },
+    });
+    expect([200, 201]).toContain(put.status());
   });
 
-  test("ein Token gilt weiter, wenn es neu erzeugt wird — das alte nicht mehr",
-    async ({ page }) => {
-      await loginAsAdmin(page);
-      const u = await createUser(page);
-      await logout(page);
-      await login(page, u.username, u.password);
-      const alt = await apiToken(page);
-      const neu = await apiToken(page);
-      expect(neu).not.toBe(alt);
-      expect((await page.request.get(`${BASE_URL}/api/files?token=${neu}`)).status()).toBe(200);
-      expect((await page.request.get(`${BASE_URL}/api/files?token=${alt}`)).status()).toBe(401);
-    });
+  test("in der Datenbank steht kein Kontogeheimnis mehr", async ({ page }) => {
+    test.skip(EXTERNAL, "liest die Datenbank im Container");
+    await loginAsAdmin(page);
+    await createUser(page);
+
+    // Frueher trug jede Nutzerzeile ein API-Token (als Pruefsumme). Die Spalte
+    // ist entfallen — users.db wird vom Backup aufs NAS gespiegelt, und was
+    // dort nicht steht, kann von dort auch nicht abhandenkommen.
+    const spalten = execFileSync("docker",
+      ["exec", CONTAINER, "node", "-e",
+        "const D=require('better-sqlite3');"
+        + "console.log(new D('/data/state/users.db')"
+        + ".prepare('PRAGMA table_info(users)').all().map(c=>c.name).join(','))"],
+      { encoding: "utf8" });
+    expect(spalten).not.toContain("api_token");
+    expect(spalten, "die uebrigen Spalten stehen noch").toContain("pw_hash");
+  });
 });
 
 
-test.describe("Verwaltungszugänge haben kein API-Token", () => {
-  test("der Abschnitt fehlt im Konto — und die Route lehnt es auch selbst ab",
-    async ({ page }) => {
-      await loginAsAdmin(page);
-      await waitAppReady(page);
-      // gezielt der Abschnitt im Konto-Dialog — der Text "API-Token" kommt
-      // auch im Sperren-Hinweis der Nutzerverwaltung vor
-      await expect(page.locator("#dlg-account summary").filter({ hasText: "API-Token" }))
-        .toHaveCount(0);
-      await expect(page.locator("#dlg-account #tok")).toHaveCount(0);
+test.describe("Verwaltungszugänge erreichen die Datei-API nicht", () => {
+  test("kein Token-Abschnitt mehr im Konto", async ({ page }) => {
+    await loginAsAdmin(page);
+    await waitAppReady(page);
+    // gezielt der Abschnitt im Konto-Dialog — der Text "API-Token" kam frueher
+    // auch im Sperren-Hinweis der Nutzerverwaltung vor
+    await expect(page.locator("#dlg-account summary").filter({ hasText: "API-Token" }))
+      .toHaveCount(0);
+    await expect(page.locator("#dlg-account #tok")).toHaveCount(0);
+  });
 
-      // nicht nur ausgeblendet: der Server sagt ebenfalls nein
-      await postForm(page, `${BASE_URL}/token/reset`, {});
-      await page.goto("/");
-      await expectFlash(page, "Verwaltungszugänge haben kein API-Token");
+  test("ein Admin bekommt die Datei-API nicht, auch angemeldet nicht",
+    async ({ page }) => {
+      // Die Regel stammt aus der Token-Zeit (Admins bekamen keines) und bleibt
+      // bewusst bestehen: ein Verwaltungszugang soll keine Sync-Schnittstelle
+      // haben. Mit Sitzungs-Anmeldung muss sie aktiv durchgesetzt werden —
+      // vorher ergab sie sich daraus, dass es kein Token gab.
+      await loginAsAdmin(page);
+      expect((await page.request.get(`${BASE_URL}/api/files`)).status()).toBe(401);
     });
 
-  test("wer zum Admin wird, verliert sein bestehendes Token", async ({ page }) => {
+  test("wer zum Admin wird, verliert den Zugang zur Datei-API", async ({ page }) => {
     await loginAsAdmin(page);
     const u = await createUser(page);
     await logout(page);
 
     await login(page, u.username, u.password);
-    const token = await apiToken(page);
-    expect((await page.request.get(`${BASE_URL}/api/files?token=${token}`)).status()).toBe(200);
+    expect((await page.request.get(`${BASE_URL}/api/files`)).status()).toBe(200);
     await logout(page);
 
     // Der Admin macht ihn zum Admin …
     await loginAsAdmin(page);
     await postForm(page, `${BASE_URL}/users/admin`, { target: u.username, value: "1" });
+    await logout(page);
 
-    // … und das Token ist damit erledigt, ohne dass jemand es widerrufen musste
-    expect((await page.request.get(`${BASE_URL}/api/files?token=${token}`)).status()).toBe(401);
+    // … und die Datei-API ist fuer ihn zu, ohne dass jemand etwas widerrufen musste
+    await login(page, u.username, u.password);
+    expect((await page.request.get(`${BASE_URL}/api/files`)).status()).toBe(401);
   });
 });

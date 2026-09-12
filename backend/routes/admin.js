@@ -166,7 +166,7 @@ router.post("/users/lock", adminRequired, (req, res) => {
     if (lock) beendeSitzungenVon(target);
     protokoll.notiere("admin.sperre", req, req.session.user, `${target} -> ${lock ? "gesperrt" : "entsperrt"}`);
     req.flash("ok", lock
-      ? `${row.display_name} ist gesperrt — Login, Sitzungen und API-Token sind blockiert.`
+      ? `${row.display_name} ist gesperrt — Login und laufende Sitzungen sind blockiert.`
       : `${row.display_name} ist wieder entsperrt.`);
   }
   res.redirect(`${BASE}/`);

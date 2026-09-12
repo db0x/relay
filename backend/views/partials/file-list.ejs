@@ -5,7 +5,7 @@
     ausserhalb von #page nach (js/folder-nav.js: syncDirFields).
     data-fp: Fingerabdruck dieses Standes. js/folder-nav.js fragt im Takt
     GET /changed und laedt die Liste nur nach, wenn der Wert abweicht. %>
-<div class="page<%= pageLayout && pageLayout.minimized ? " page-min" : "" %>" id="page" data-dir="<%= curDir %>" data-fp="<%= listFp %>"<% if (pageLayout) { %> data-x="<%= pageLayout.x %>" data-y="<%= pageLayout.y %>"<% } %>>
+<div class="page<%= pageLayout && pageLayout.minimized ? " page-min" : "" %>" id="page" data-dir="<%= curDir %>" data-fp="<%= listFp %>"<% if (pageLayout) { %> data-x="<%= pageLayout.x %>" data-y="<%= pageLayout.y %>"<% if (pageLayout.w) { %> data-w="<%= pageLayout.w %>" data-h="<%= pageLayout.h %>"<% } %><% } %>>
   <%# Titelleiste: zugleich Greif-Flaeche zum Verschieben (der Minimieren-Knopf
       ist ein <button> und damit von der Zieh-Logik ausgenommen, siehe
       pageDragSkip in js/desktop-layout.js) %>

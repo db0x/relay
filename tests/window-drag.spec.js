@@ -111,6 +111,46 @@ test.describe("Fenster verschieben", () => {
     expect(await lage(page, "#board")).not.toEqual(vorher);
   });
 
+  test("der Griff unten rechts aendert die Groesse — und sie wird gemerkt",
+    async ({ page }) => {
+      // Den Griff erzeugt createWindow selbst, damit ihn JEDES Fenster
+      // bekommt. Er darf das Fenster NICHT verschieben (er liegt ausserhalb
+      // der Titelleiste, die Zieh-Logik startet nur dort).
+      const fenster = page.locator("#page");
+      const griff = fenster.locator(".win-resize");
+      await expect(griff).toHaveCount(1);
+
+      const vorher = await fenster.boundingBox();
+      const gb = await griff.boundingBox();
+      await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(gb.x + gb.width / 2 + 90, gb.y + gb.height / 2 + 70, { steps: 12 });
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+
+      const nachher = await fenster.boundingBox();
+      expect(nachher.width).toBeGreaterThan(vorher.width + 50);
+      expect(nachher.height).toBeGreaterThan(vorher.height + 40);
+      // Die Ecke oben links bleibt, wo sie war — der Griff zieht nur auf
+      expect(Math.round(nachher.x)).toBe(Math.round(vorher.x));
+      expect(Math.round(nachher.y)).toBe(Math.round(vorher.y));
+
+      // ... und ueberlebt das Neuladen
+      await page.reload();
+      await waitAppReady(page);
+      const spaeter = await fenster.boundingBox();
+      expect(Math.abs(spaeter.width - nachher.width)).toBeLessThan(3);
+      expect(Math.abs(spaeter.height - nachher.height)).toBeLessThan(3);
+    });
+
+  test("jedes Fenster bekommt den Griff", async ({ page }) => {
+    // Die Mechanik steht EINMAL in core/window.js — waere sie in die Vorlagen
+    // gewandert, fehlte sie beim naechsten neuen Fenster.
+    for (const id of ["page", "board", "chat", "editor-win"]) {
+      await expect(page.locator(`#${id} .win-resize`)).toHaveCount(1);
+    }
+  });
+
   test("die verschobene Lage wird gemerkt", async ({ page }) => {
     await ziehen(page, await page.locator("#page .page-title").boundingBox(), 80, 60);
     const nachZug = await lage(page, "#page");

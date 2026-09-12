@@ -184,7 +184,7 @@
                 <%# Admins koennen nicht gesperrt werden — Eintrag entfaellt %>
                 <% if (u.locked || !u.is_admin) { %>
                 <form class="del-form" action="<%= base %>/users/lock" method="post"
-                      <% if (!u.locked) { %>data-confirm="<%= u.display_name %> sperren? Login, Sitzungen und API-Token sind dann blockiert."<% } %>>
+                      <% if (!u.locked) { %>data-confirm="<%= u.display_name %> sperren? Login und laufende Sitzungen sind dann blockiert."<% } %>>
                   <input type="hidden" name="_csrf" value="<%= csrf %>">
                   <input type="hidden" name="target" value="<%= u.username %>">
                   <input type="hidden" name="value" value="<%= u.locked ? 0 : 1 %>">

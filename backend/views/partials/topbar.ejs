@@ -107,6 +107,16 @@
               aria-pressed="<%= boardLayout && !boardLayout.minimized ? "true" : "false" %>">
         <img src="<%= base %>/static/img/board.svg" alt="" width="26" height="26">
       </button>
+      <%# Umschalter fuer das Editor-Fenster. Anders als die anderen ist er
+          NICHT immer da: ohne geoeffnetes Dokument gaebe es nichts
+          zurueckzuholen. js/files/editor-view.js blendet ihn ein und aus.
+          Beim Seitenaufbau ist nie ein Dokument offen (der iframe wird erst
+          im Browser befuellt), darum startet er verborgen. %>
+      <button type="button" class="view-btn" id="editor-toggle" hidden
+              data-tip="Dokument" aria-label="Editor anzeigen oder ausblenden"
+              aria-pressed="false">
+        <img src="<%= base %>/static/img/onlyoffice.svg" alt="" width="26" height="26">
+      </button>
       <%# Umschalter fuer den Chat — dritte Ansicht, dieselbe Mechanik %>
       <button type="button" class="view-btn" id="chat-toggle"
               data-tip="Chat" aria-label="Chat anzeigen oder ausblenden"
