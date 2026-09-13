@@ -28,6 +28,112 @@ async function oeffneDokument(page) {
   return name;
 }
 
+// Die Voltage-Bruecke nachstellen, BEVOR ein Skript der Seite laeuft — genau so
+// steht sie in der echten App bereit (additionalArguments erreichen den Preload
+// vor dem ersten Skript). `antwort` ist, was die Runtime melden wuerde.
+async function stelleVoltageNach(page, antwort) {
+  await page.addInitScript((ok) => {
+    window.__voltageAufrufe = [];
+    window.voltage = {
+      runtime: "relay",
+      openDocumentWindow: function (url) {
+        window.__voltageAufrufe.push(url);
+        return Promise.resolve(ok);
+      },
+    };
+  }, antwort);
+}
+
+test.describe("PDFs in der Voltage-Runtime", () => {
+  // In der App gibt es einen echten Fenstermanager. Ein PDF gehoert dann in ein
+  // echtes Fenster (eine zweite Instanz des AppImage), nicht in das gezeichnete
+  // Pseudo-Fenster des Relay-Desktops. Im Browser aendert sich nichts.
+  test("ein PDF geht an die Runtime statt ins Desktop-Fenster", async ({ page }) => {
+    await stelleVoltageNach(page, true);
+    await loginAsAdmin(page);
+    const name = `${uniqueName("schau")}.pdf`;
+    await uploadFile(page, name);
+    await waitAppReady(page);
+
+    await fileRow(page, name).locator("a.fname").click();
+
+    // Die Runtime hat die Adresse bekommen ...
+    await expect.poll(() => page.evaluate(() => window.__voltageAufrufe)).toEqual([
+      `${BASE_URL}/edit/${ADMIN.username}/${name}`,
+    ]);
+    // ... und das gezeichnete Fenster ist NICHT aufgegangen
+    await expect(page.locator("#editor-win")).toBeHidden();
+    await expect(page.locator("#editor-toggle")).toBeHidden();
+    expect(page.url()).not.toContain("/edit/");
+  });
+
+  test("auch ein bearbeitbares Dokument wird der Runtime angeboten", async ({ page }) => {
+    // Nicht nur PDFs: welche Dateiarten ein eigenes Fenster bekommen, steht in
+    // der Runtime (dort ist je Art eine Anwendung hinterlegt), nicht hier. Relay
+    // bietet alles an, was der DocumentServer oeffnet, und richtet sich nach der
+    // Antwort. Es bleibt dabei bei EINEM offenen Dokument — entweder dort oder
+    // hier, nie beides.
+    await stelleVoltageNach(page, true);
+    await loginAsAdmin(page);
+    const name = `${uniqueName("brief")}.docx`;
+    await uploadFile(page, name);
+    await waitAppReady(page);
+
+    await fileRow(page, name).locator("a.fname").click();
+
+    await expect.poll(() => page.evaluate(() => window.__voltageAufrufe)).toEqual([
+      `${BASE_URL}/edit/${ADMIN.username}/${name}`,
+    ]);
+    await expect(page.locator("#editor-win")).toBeHidden();
+  });
+
+  test("ohne Zuordnung fuer diese Dateiart bleibt es im Desktop-Fenster",
+    async ({ page }) => {
+      // Der Normalfall einer unkonfigurierten App: die Runtime kennt fuer diese
+      // Art keine Anwendung und antwortet "nein". Dann verhaelt sich relay wie
+      // im Browser — Dokumente herausreichen ist eine bewusste Einstellung.
+      await stelleVoltageNach(page, false);
+      await loginAsAdmin(page);
+      const name = `${uniqueName("tabelle")}.xlsx`;
+      await uploadFile(page, name);
+      await waitAppReady(page);
+
+      await fileRow(page, name).locator("a.fname").click();
+
+      await expect(page.locator("#editor-win")).toBeVisible();
+      expect((await page.evaluate(() => window.__voltageAufrufe)).length).toBe(1);
+    });
+
+  test("meldet die Runtime, dass sie nichts starten konnte, oeffnet es doch im Desktop",
+    async ({ page }) => {
+      // Entwicklungsstart ohne AppImage: openDocumentWindow antwortet false. Ein
+      // Klick darf dann nicht ins Leere laufen.
+      await stelleVoltageNach(page, false);
+      await loginAsAdmin(page);
+      const name = `${uniqueName("fallback")}.pdf`;
+      await uploadFile(page, name);
+      await waitAppReady(page);
+
+      await fileRow(page, name).locator("a.fname").click();
+
+      await expect(page.locator("#editor-win")).toBeVisible();
+      expect((await page.evaluate(() => window.__voltageAufrufe)).length).toBe(1);
+    });
+
+  test("ohne Runtime bleibt alles beim Alten", async ({ page }) => {
+    // Derselbe Klick im normalen Browser: kein window.voltage, gezeichnetes
+    // Fenster wie immer.
+    await loginAsAdmin(page);
+    const name = `${uniqueName("browser")}.pdf`;
+    await uploadFile(page, name);
+    await waitAppReady(page);
+
+    expect(await page.evaluate(() => typeof window.voltage)).toBe("undefined");
+    await fileRow(page, name).locator("a.fname").click();
+    await expect(page.locator("#editor-win")).toBeVisible();
+  });
+});
+
 test.describe("Editor-Fenster", () => {
   test("ein Klick auf das Dokument oeffnet das Fenster statt die Seite zu wechseln",
     async ({ page }) => {
@@ -178,6 +284,92 @@ test.describe("Editor-Fenster", () => {
     // Die Marke darf nicht in der Adresse haengenbleiben, sonst ginge der
     // Editor bei jedem Zurueck erneut auf
     expect(page.url()).not.toContain("open=");
+  });
+
+  test("?neu= oeffnet den Anlegen-Dialog und legt ganzseitig los", async ({ page }) => {
+    // Der Einstieg fuer eine Voltage-App, die genau einen Dateityp betreut und
+    // OHNE Datei gestartet wurde: dort ist "neue Datei dieser Art" die einzige
+    // sinnvolle Absicht. Sie landet danach NICHT in der Dateiliste mit einem
+    // gezeichneten Fenster darin — das waere wieder der zweite Desktop —,
+    // sondern ganzseitig im Editor.
+    await loginAsAdmin(page);
+    await page.goto("/?neu=xlsx");
+    await waitAppReady(page);
+
+    await expect(page.locator("#dlg-create")).toBeVisible();
+    await expect(page.locator("#dlg-create-ext")).toHaveValue("xlsx");
+    await expect(page.locator("#dlg-create-title")).toHaveText("Neue Tabelle");
+    // Die Marke ist aus der Adresse genommen — ein Neuladen darf den Dialog
+    // nicht erneut aufreissen.
+    expect(page.url()).not.toContain("neu=");
+
+    const name = uniqueName("frisch");
+    await page.fill("#dlg-create input[name=name]", name);
+    await Promise.all([page.waitForNavigation(), page.click("#dlg-create .dialog-submit")]);
+    expect(page.url()).toMatch(new RegExp(`/edit/${ADMIN.username}/${name}\\.xlsx$`));
+  });
+
+  test("eine frisch angelegte Datei geht an dieselbe Stelle wie eine angeklickte",
+    async ({ page }) => {
+      // Nach dem Anlegen kommt ?open= zurueck. Das lief frueher an der Runtime
+      // vorbei direkt ins gezeichnete Fenster — die neue Datei landete also
+      // woanders als dieselbe Datei einen Klick spaeter. Eine Schleife kann
+      // daraus nicht werden: ?open= entsteht nur im Redirect von /create, und
+      // die Anwendung, die daraufhin startet, bekommt /edit/... ohne die Marke.
+      await stelleVoltageNach(page, true);
+      await loginAsAdmin(page);
+      await waitAppReady(page);
+
+      const name = uniqueName("frischdoc");
+      await page.click("#app-menu-btn");
+      await page.click('#app-panel [data-create="docx"]');
+      await page.fill("#dlg-create input[name=name]", name);
+      await Promise.all([page.waitForNavigation(), page.click("#dlg-create .dialog-submit")]);
+      await waitAppReady(page);
+
+      // ABSOLUT, nicht nur "enthaelt /edit/...": die Runtime prueft die Adresse gegen
+      // die Basis ihrer App und weist einen blossen Pfad ab. Genau daran scheiterte
+      // die frisch angelegte Datei, waehrend ein Klick funktionierte — der eine
+      // Aufrufer liefert a.href, der andere baute aus BASE_URL, und das ist ein Pfad.
+      await expect.poll(() => page.evaluate(() => window.__voltageAufrufe)).toEqual([
+        `${BASE_URL}/edit/${ADMIN.username}/${name}.docx`,
+      ]);
+      await expect(page.locator("#editor-win")).toBeHidden();
+      expect(page.url()).not.toContain("open=");
+    });
+
+  test("ohne ?neu= bleibt es beim bisherigen Weg in die Liste", async ({ page }) => {
+    // Im Browser aendert sich nichts: der Knopf in der Titelleiste legt an und
+    // oeffnet im gezeichneten Fenster, wie bisher.
+    await loginAsAdmin(page);
+    await waitAppReady(page);
+    const name = uniqueName("normal");
+    await page.click("#app-menu-btn");
+    await page.click('#app-panel [data-create="docx"]');
+    await expect(page.locator("#dlg-create-ganzseitig")).toHaveValue("");
+    await page.fill("#dlg-create input[name=name]", name);
+    await Promise.all([page.waitForNavigation(), page.click("#dlg-create .dialog-submit")]);
+    expect(page.url()).not.toContain("/edit/");
+  });
+
+  test("ein unbekanntes ?neu= tut gar nichts", async ({ page }) => {
+    // Relay kann nur anlegen, wofuer es eine Vorlage hat (backend/blank/).
+    // Ein PDF gehoert nicht dazu — der Dialog bleibt zu statt leer aufzugehen.
+    await loginAsAdmin(page);
+    await page.goto("/?neu=pdf");
+    await waitAppReady(page);
+    await expect(page.locator("#dlg-create")).toBeHidden();
+  });
+
+  test("ein Deep-Link ueberlebt die Anmeldung", async ({ page, browser }) => {
+    // Beim ERSTEN Start steht die Anmeldung noch aus. Ging die Query dabei
+    // verloren, landete man auf der Dateiliste statt im Anlegen-Dialog.
+    const ctx = await browser.newContext();
+    const frisch = await ctx.newPage();
+    await frisch.goto("/?neu=docx");
+    expect(frisch.url()).toContain("/login");
+    expect(decodeURIComponent(frisch.url())).toContain("neu=docx");
+    await ctx.close();
   });
 
   test("forcesave gilt nur fuer wen, der die Datei bearbeiten darf", async ({ page, browser }) => {

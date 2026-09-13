@@ -39,8 +39,11 @@ function brauchtEinrichtung(row) {
 // gesperrt oder geloescht wurde, fliegt sofort raus — auch mit gueltigem Cookie.
 // (req.path ist im gemounteten Router OHNE das BASE-Praefix, daher selbst praefixen.)
 function loginRequired(req, res, next) {
+  // originalUrl statt BASE+req.path: die Query gehoert zum Ziel. Ohne sie geht ein
+  // Deep-Link beim ERSTEN Aufruf verloren — genau dann, wenn die Anmeldung noch
+  // aussteht. internesZiel() nimmt Pfad UND Query ohnehin an (siehe dort).
   if (!req.session.user)
-    return res.redirect(`${BASE}/login?next=` + encodeURIComponent(BASE + req.path));
+    return res.redirect(`${BASE}/login?next=` + encodeURIComponent(req.originalUrl));
   const row = users.get(req.session.user);
   if (!row || row.locked) return req.session.destroy(() => res.redirect(`${BASE}/login`));
   // Admin unterwegs: die Sitzung endet an der Haustuer. Ohne diese Pruefung

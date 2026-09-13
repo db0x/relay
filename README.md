@@ -168,6 +168,40 @@ The full-page route `/edit/...` stays: Voltage opens it that way, direct links
 keep working, and the window's title bar has an "open in its own tab" button.
 Ctrl/Cmd-click on a document name still opens a new tab as usual.
 
+### `?neu=<ext>` — straight into the create dialog
+
+The index page opens the create dialog for that file type when the address carries
+`?neu=docx|xlsx|pptx`, then removes the marker again. It exists for a Voltage app that owns exactly
+one file type and was started without a document: there, "a new one of these" is the only sensible
+reading, and sending the user through a file list first would be a detour. A file created that way
+opens **full-page** in the editor rather than in the desktop's drawn window (the hidden `ganzseitig`
+field decides). An extension Relay has no blank for — `pdf` — opens nothing.
+
+Because such a launch is also the first one, `loginRequired` passes the whole `originalUrl` as
+`?next=`: without the query the deep link would be lost exactly when the login is still pending.
+
+### Inside the Voltage runtime, a document can get a real window
+
+Relay's window manager is drawn inside the page. In a browser tab that is the
+right answer — there is nothing else. Inside the Voltage desktop app it
+simulates something the machine already has, so there a document can open as
+**its own application window** — pointed at `/edit/<owner>/<path>` and already
+signed in through the shared app profile.
+
+Relay notices the runtime through `window.voltage`, which Voltage's preload
+exposes only for apps that load its relay plugin — see
+[`public/js/core/voltage.js`](backend/public/js/core/voltage.js). Deliberately
+not via the User-Agent: that string ends up in logs and third-party analytics,
+and a marker there would be a statement about the user. In every ordinary
+browser the property is absent and nothing changes.
+
+Relay offers every document address to the runtime and follows its answer;
+WHICH kinds actually leave is configured over there, per document family
+(PDF / text / spreadsheet / presentation), not here. Either way exactly one
+window holds a document — there or here, never both. If the runtime reports
+that it opened nothing, the click falls back to the in-page window, which is
+also what happens when nothing is configured.
+
 ## Document language for new files
 
 The "New file" dialog offers a language picker (default: German) that sets

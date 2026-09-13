@@ -9,6 +9,10 @@
   <form class="stack-form" action="<%= base %>/create" method="post">
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <input type="hidden" name="ext" id="dlg-create-ext" value="docx">
+    <%# Gesetzt, wenn der Dialog ueber ?neu= kam (eine Anwendung fuer genau einen
+        Dateityp, ohne Datei gestartet): die neue Datei geht dann ganzseitig im
+        Editor auf statt in der Liste. Siehe routes/browse.js, /create. %>
+    <input type="hidden" name="ganzseitig" id="dlg-create-ganzseitig" value="">
     <label class="dialog-label" for="dlg-create-name" id="dlg-create-name-label">Name der Datei</label>
     <input class="field" name="name" id="dlg-create-name"
            placeholder="Name der neuen Datei" required autocomplete="off">

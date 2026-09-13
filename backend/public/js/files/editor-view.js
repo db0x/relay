@@ -18,6 +18,7 @@
 // `offen`; alles andere kennt nur `win` und die DOM-Knoten. Fuer mehrere
 // Fenster wuerde aus beidem eine Liste — die Trennung ist schon so gezogen.
 import { BASE_URL, schreibKopf } from "../core/base.js";
+import { imVoltage, oeffneEigenesFenster } from "../core/voltage.js";
 
 var win = null;        // Fenster-Objekt aus core/window.js
 var el = {};
@@ -46,6 +47,22 @@ function zerlege(href) {
     rel: m[2].split("/").map(decodeURIComponent).join("/"),
     lib: false,
   };
+}
+
+// Ist das eine Adresse, die die Runtime uebernehmen koennte? Die Endung steht im
+// letzten Pfadstueck — fuer eigene Dateien wie fuer die Bibliothek, deshalb aus
+// dem Pfad und nicht aus dem Ergebnis von zerlege().
+//
+// Es sind genau die Endungen aus DOCTYPE (config.js), also alles, was der
+// DocumentServer oeffnet. WELCHE davon tatsaechlich ein eigenes Fenster
+// bekommen, entscheidet die Runtime — sie kennt die Zuordnung Dateiart -> App.
+// Hier steht nur, was ueberhaupt zur Auswahl steht; fuer alles andere (Bilder,
+// Notizen, Videos) wird gar nicht erst gefragt.
+var DOKUMENT_ENDUNGEN = /\.(pdf|docx?|odt|rtf|txt|xlsx?|ods|csv|pptx?|odp)$/i;
+function istDokument(href) {
+  var pfad;
+  try { pfad = new URL(href, location.href).pathname; } catch (e) { return false; }
+  return DOKUMENT_ENDUNGEN.test(decodeURIComponent(pfad.split("/").pop() || ""));
 }
 
 // Icon zur Endung — dieselbe Zuordnung wie ueberall sonst (mimeicons.js)
@@ -154,6 +171,23 @@ async function schliesse(danach) {
   if (typeof danach === "function") danach();
 }
 
+// Ein Dokument oeffnen — die EINE Stelle, an der entschieden wird, wo es aufgeht.
+//
+// In der Voltage-Runtime kann es ein echtes Fenster bekommen (dort ist je Dateiart eine Anwendung
+// hinterlegt); antwortet sie "nein", oder laufen wir im Browser, geht es hier im gezeichneten
+// Fenster auf. Beide Einstiege — der Klick auf einen Dateinamen und die Marke ?open= nach dem
+// Anlegen — muessen dieselbe Antwort bekommen, sonst landet eine frisch angelegte Datei woanders
+// als dieselbe Datei einen Klick spaeter.
+function oeffneDokument(url, name) {
+  if (imVoltage() && istDokument(url)) {
+    oeffneEigenesFenster(url).then(function (gestartet) {
+      if (!gestartet) oeffne(url, name);
+    });
+    return;
+  }
+  oeffne(url, name);
+}
+
 // ?open=<owner>/<relpath> aus der Adresse auswerten und wieder entfernen.
 // /create leitet so zurueck, damit auch ein frisch angelegtes Dokument im
 // Fenster landet statt auf der Vollseite (dasselbe Muster wie ?hl= in
@@ -164,7 +198,11 @@ function oeffneAusUrl() {
   var i = wert.indexOf("/");
   if (i > 0) {
     var owner = wert.slice(0, i), rel = wert.slice(i + 1);
-    oeffne(BASE_URL + "/edit/" + encodeURIComponent(owner) + "/"
+    // Ueber oeffneDokument, nicht direkt: eine gerade angelegte Datei gehoert in dieselbe
+    // Anwendung wie eine angeklickte. Eine Schleife kann daraus nicht werden — ?open= entsteht
+    // ausschliesslich im Redirect von /create, und die Anwendung, die daraufhin startet, bekommt
+    // die Editor-Adresse /edit/... ohne diese Marke.
+    oeffneDokument(BASE_URL + "/edit/" + encodeURIComponent(owner) + "/"
       + rel.split("/").map(encodeURIComponent).join("/"),
       rel.split("/").pop());
   }
@@ -202,7 +240,10 @@ export function initEditorView(config) {
     if (!a || a.target === "_blank") return;
     if (!zerlege(a.getAttribute("href"))) return;
     e.preventDefault();
-    oeffne(a.href, (a.textContent || "").trim());
+    var name = (a.textContent || "").trim();
+    var ziel = a.href;
+
+    oeffneDokument(ziel, name);
   });
 
   document.getElementById("editor-win-close")

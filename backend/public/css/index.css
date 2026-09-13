@@ -111,6 +111,17 @@ body:not(.desk-ready) .note-desktop{opacity:0}
 /* Die Bahn endet jetzt zwischen Kopf und Fuss, nicht mehr an den runden
    Kartenecken — der grosse Endabstand von .page waere hier verschenkter Weg. */
 .page-body .os-scrollbar{--os-padding-axis:4px}
+/* OverlayScrollbars gibt seinem Viewport `position:relative;z-index:0` — und das
+   ist ein STAPELKONTEXT. Alles darin wird damit als eine Schicht gemalt, auch
+   die Menues, die per position:fixed daraus ausbrechen (Zeilenkebab z-index:35,
+   Notiz-Status z-index:46): ihre Zahlen zaehlen nur noch INNERHALB des Viewports.
+   Gegen die Fusszeile "Nur eigene Dateien" verloren sie deshalb — sie ist ein
+   Geschwister von .page-body, steht im DOM danach, und ihr Schalter ist
+   position:relative. Sichtbar wurde es als Schalter MITTEN im offenen Kebab-Menue.
+   z-index:auto nimmt dem Viewport den Stapelkontext; die Menues konkurrieren
+   wieder direkt in .page. Die Rollbalken selbst bleiben oben: sie sind
+   Geschwister des Viewports und stehen im DOM nach ihm. */
+.page-body [data-overlayscrollbars-viewport]{z-index:auto}
 .page{transition:opacity .3s ease,box-shadow .22s ease}
 /* Vorderstes Fenster: kraeftigerer Schatten (js/core/window.js vergibt die
    Klasse beim Stapeln neu). Der weiche Uebergang macht den Wechsel beim

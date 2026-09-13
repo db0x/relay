@@ -733,6 +733,13 @@ router.post("/create", loginRequired, (req, res) => {
   // Marke aus und nimmt sie danach aus der Adresse.
   // Ohne JavaScript landet man in der Liste statt im Editor — die Datei ist
   // angelegt, ein Klick darauf fuehrt weiter.
+  // Wer den Dialog ueber ?neu= erreicht hat, kommt aus einer Anwendung, die GENAU
+  // ein Dokument zeigt (eine Voltage-App fuer diesen Dateityp, ohne Datei gestartet).
+  // Dort waere die Dateiliste mit einem gezeichneten Fenster darin der falsche Ort:
+  // es geht ganzseitig in den Editor. Im Browser bleibt es beim bisherigen Weg.
+  if (req.body.ganzseitig === "1") {
+    return res.redirect(`${BASE}/edit/${encodeURIComponent(req.session.user)}/${encPath(fid)}`);
+  }
   const ziel = cur ? `${BASE}/?p=${encodeURIComponent(cur)}&` : `${BASE}/?`;
   res.redirect(`${ziel}open=${encodeURIComponent(`${req.session.user}/${fid}`)}`);
 });
