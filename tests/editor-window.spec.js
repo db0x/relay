@@ -408,14 +408,18 @@ test.describe("Editor-Fenster", () => {
       fileRow(page, name).locator("a.fname").click({ modifiers: ["ControlOrMeta"] }),
     ]);
     // Ein frischer Tab meldet sich als "about:blank" und bekommt seine Adresse
-    // erst, wenn die Navigation angekommen ist — ohne dieses Warten liest der
-    // Test auf einer langsamen Maschine den Zwischenstand.
-    // waitUntil "commit": die Adresse steht, sobald die Antwort da ist. Auf
-    // "load" zu warten hiesse, auf den DocumentServer zu warten — und den
-    // gibt es in dieser Suite bewusst nicht.
-    await neu.waitForURL(new RegExp(`/edit/${ADMIN.username}/${name}$`),
-      { waitUntil: "commit" });
-    expect(neu.url()).toContain(`/edit/${ADMIN.username}/${name}`);
+    // erst, wenn die Navigation angekommen ist — ohne Warten liest der Test auf
+    // einer langsamen Maschine den Zwischenstand.
+    //
+    // Gewartet wird durch WIEDERHOLTES NACHSEHEN, nicht mit waitForURL: das
+    // lauscht auf eine kuenftige Navigation und prueft die aktuelle Adresse nur
+    // EINMAL vorher. Faellt der Commit genau in die Luecke dazwischen, wartet
+    // es bis zum Timeout auf etwas, das laengst passiert ist — derselbe
+    // Wettlauf wie ohne Warten, nur andersherum. (Auf "load" zu warten waere
+    // ohnehin falsch: das hiesse, auf den DocumentServer zu warten, und den
+    // gibt es in dieser Suite bewusst nicht.)
+    await expect.poll(() => neu.url(), { timeout: 15000 })
+      .toContain(`/edit/${ADMIN.username}/${name}`);
     // ... und das Fenster ist dabei NICHT aufgegangen
     await expect(page.locator("#editor-win")).toBeHidden();
     await neu.close();
