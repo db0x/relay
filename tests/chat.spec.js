@@ -316,8 +316,13 @@ test.describe("Chat", () => {
     // Jetzt MUSS es auffallen: Glocke, Eintrag und Zaehler an der Kontaktzeile
     await expect(p.locator("#notif-badge")).toBeVisible({ timeout: 15000 });
     await expect(p.locator('.notif-item[data-kind="chat"]')).toHaveCount(1);
-    await expect(p.locator(`.chat-peer[data-user="${ADMIN.username}"] .chat-peer-unread`))
-      .toBeVisible();
+    // Der Zaehler sitzt an der Kontaktzeile IM Chat-Fenster — und das ist
+    // gerade zugeklappt, sichtbar kann er also gar nicht sein. Geprueft wird
+    // deshalb, dass er GESETZT ist (ohne Nachricht traegt er `hidden`);
+    // sichtbar zu sein hat er erst nach dem Aufklappen weiter unten.
+    const zaehler = p.locator(`.chat-peer[data-user="${ADMIN.username}"] .chat-peer-unread`);
+    await expect(zaehler).toHaveText("1");
+    await expect(zaehler).not.toHaveAttribute("hidden");
     // ... und serverseitig darf sie NICHT als gelesen gelten
     const offen = await p.evaluate(async (u) => {
       const r = await fetch("/chat/peers", { credentials: "same-origin" });

@@ -407,6 +407,14 @@ test.describe("Editor-Fenster", () => {
       context.waitForEvent("page"),
       fileRow(page, name).locator("a.fname").click({ modifiers: ["ControlOrMeta"] }),
     ]);
+    // Ein frischer Tab meldet sich als "about:blank" und bekommt seine Adresse
+    // erst, wenn die Navigation angekommen ist — ohne dieses Warten liest der
+    // Test auf einer langsamen Maschine den Zwischenstand.
+    // waitUntil "commit": die Adresse steht, sobald die Antwort da ist. Auf
+    // "load" zu warten hiesse, auf den DocumentServer zu warten — und den
+    // gibt es in dieser Suite bewusst nicht.
+    await neu.waitForURL(new RegExp(`/edit/${ADMIN.username}/${name}$`),
+      { waitUntil: "commit" });
     expect(neu.url()).toContain(`/edit/${ADMIN.username}/${name}`);
     // ... und das Fenster ist dabei NICHT aufgegangen
     await expect(page.locator("#editor-win")).toBeHidden();

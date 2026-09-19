@@ -495,6 +495,10 @@ router.get("/", loginRequired, (req, res) => {
   }
 
   res.render("index", {
+    // Statusmeldungen erst HIER abholen, nicht schon in der Middleware: nur
+    // diese Seite zeigt sie (partials/flash-tray.ejs). Holte jede Anfrage
+    // sie ab, verschluckte sie der naechste Hintergrund-Aufruf (app.js).
+    flashes: res.holeMeldungen(),
     // Reihenfolge: eigene Ordner, Bibliotheksordner, dann alle Dateien
     files: folders.concat(libFolders).concat(files),
     // Fingerabdruck DIESES Standes — die Oberflaeche vergleicht ihn im Takt

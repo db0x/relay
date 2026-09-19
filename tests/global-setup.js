@@ -77,6 +77,12 @@ module.exports = async () => {
     // X-Relay-Zone: lan (playwright.config.js), einzelne Tests ueberschreiben
     // das gezielt mit "wan".
     "-e", "ADMIN_LAN_ONLY=1",
+    // Kleine Obergrenze fuer Uploads. folder-actions.spec.js prueft, dass zu
+    // grosse Dateien aussortiert werden, und muss dafuer eine Datei ueber der
+    // Grenze bauen. Mit der Vorgabe (128 MB) waere das ein 129-MB-Puffer --
+    // den nimmt Playwright gar nicht erst an ("Cannot set buffer larger than
+    // 50Mb"). Der Test liest die Grenze aus dem Formular, hier steht sie.
+    "-e", "MAX_UPLOAD_MB=2",
     IMAGE,
   ]);
 

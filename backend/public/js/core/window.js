@@ -104,6 +104,13 @@ export function createWindow(config) {
       // exakt uebereinander und wirkten wie EIN Fenster.
       var step = (config.cascade || 0) * 36;
       left = Math.round((vw - w) / 2) + step; top = minY + 10 + step;
+      // Ohne gemerkte Lage gehoert das Fenster GANZ ins Bild. Die Klemme
+      // weiter unten laesst bewusst Ueberstand zu (wer sein Fenster an den
+      // Rand zieht, darf das) — beim ersten Oeffnen ist das aber kein Wunsch,
+      // sondern ein Fehler: das Editor-Fenster ist min(1180px,92vw) breit, mit
+      // dem Versatz der Kaskade landete auf einem 1280er Bildschirm seine
+      // rechte Ecke ausserhalb — und dort sitzen Minimieren und Schliessen.
+      left = Math.min(left, Math.max(8, vw - w - 8));
     }
     left = Math.max(KEEP - w, Math.min(left, vw - KEEP));
     top = Math.max(minY, Math.min(top, vh - 160));

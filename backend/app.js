@@ -160,10 +160,28 @@ app.use(session({
 }));
 
 // minimale Flash-Nachrichten ueber die Session (ok/err), einmalig angezeigt
+//
+// Abgeholt werden sie NUR von der Seite, die sie auch zeigt (views/index.ejs
+// ueber res.holeMeldungen()). Frueher raeumte diese Stelle sie bei JEDER
+// Anfrage ab — und damit schluckte sie der erstbeste Hintergrund-Aufruf, der
+// zufaellig zwischen der aendernden Anfrage und dem Neuladen lag: der
+// Ordner-Takt alle 10 s (js/folder-nav.js), der Chat-Strom, die Glocke. Die
+// Meldung "… freigegeben" war dann einfach weg, ohne dass jemand sie gesehen
+// haette. Das war kein Testproblem, sondern eines fuer jeden Nutzer.
 app.use((req, res, next) => {
-  res.locals.flashes = req.session.flashes || [];
-  req.session.flashes = [];
+  res.locals.flashes = [];
   req.flash = (cat, msg) => { (req.session.flashes ||= []).push([cat, msg]); };
+  res.holeMeldungen = () => {
+    // Nur ein echter Seitenaufruf im Browser zeigt den Meldungsstreifen.
+    // Der Ordnerwechsel holt dieselbe Seite per fetch, uebernimmt daraus aber
+    // nur die Liste (js/folder-nav.js: swapFolder) — er darf die Meldungen
+    // also nicht abraeumen, sie kaemen sonst nie an.
+    if (req.get("X-Requested-With") === "fetch") return [];
+    if (!(req.get("accept") || "").includes("text/html")) return [];
+    const offen = req.session.flashes || [];
+    if (offen.length) req.session.flashes = [];
+    return offen;
+  };
   next();
 });
 

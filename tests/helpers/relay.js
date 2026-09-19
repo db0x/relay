@@ -38,6 +38,33 @@ async function login(page, username, password) {
 async function loginAsAdmin(page) {
   await login(page, ADMIN.username, ADMIN.password);
   await expect(page.locator(".uname")).toBeVisible();
+  await desktopAufraeumen(page);
+}
+
+// Der Desktop merkt sich JE NUTZER, welches Fenster offen ist und wo es liegt
+// (Tabelle desktop_layout, core/window.js). Den Bootstrap-Admin teilen sich
+// aber ALLE Tests: was chat.spec.js aufklappt, steht in editor-window.spec.js
+// noch offen -- und das Chat-Fenster liegt dann ueber der Dateiliste und
+// schluckt die Klicks auf die Dateinamen. In CI ist das genau passiert, lokal
+// nicht (andere Schriften -> andere Textbreiten -> mal trifft der Klick das
+// Fenster, mal nicht). Darum nach jedem Admin-Login auf einen definierten
+// Stand: Dateiliste offen, alles andere zu.
+//
+// Ueber die Knoepfe statt ueber die Datenbank, damit dabei genau die Lage
+// gespeichert wird, die das Fenster ohne gemerkte Position ohnehin haette.
+async function desktopAufraeumen(page) {
+  await waitAppReady(page);
+  const fenster = [
+    ["#chat", "#chat-minimize"],
+    ["#board", "#board-minimize"],
+    ["#editor-win", "#editor-win-minimize"],
+  ];
+  for (const [id, knopf] of fenster) {
+    if (await page.locator(`${id}:not(.page-min)`).count()) {
+      await page.click(knopf);
+      await expect(page.locator(id)).toBeHidden();
+    }
+  }
 }
 
 async function logout(page) {
@@ -127,10 +154,30 @@ async function openNote(page, title) {
 }
 
 // Zeilen-Kontextmenue oeffnen und einen Eintrag anklicken.
+//
+// Das Panel haengt frei im Fenster (position:fixed) und geht bei JEDEM Rollen
+// wieder zu (core/dialogs.js) -- sonst stuende es neben seiner Zeile. Genau
+// das macht es hier heikel: Playwright rollt eine Zeile erst BEIM Klicken ins
+// Bild, und das scroll-Ereignis kommt einen Frame spaeter -- also erst,
+// nachdem das Menue aufgegangen ist. Es ging damit sofort wieder zu, und der
+// naechste Klick wartete auf einen unsichtbaren Menuepunkt (in CI ab der
+// zehnten Zeile, die nicht mehr ins Fenster passt: notifications.spec.js).
+// Darum ERST rollen, dann klicken -- und nachsehen, ob es offen blieb.
 async function openRowMenu(page, filename) {
   await waitAppReady(page);
   const row = fileRow(page, filename);
-  await row.locator(".row-menu-btn").click();
+  const knopf = row.locator(".row-menu-btn");
+  const panel = row.locator(".row-menu-panel");
+  await knopf.scrollIntoViewIfNeeded();
+  await expect(async () => {
+    if (!(await panel.isVisible())) await knopf.click();
+    // zwei Frames warten: ein nachlaufendes scroll-Ereignis wuerde das Menue
+    // sonst erst NACH dieser Pruefung schliessen
+    await page.evaluate(() => new Promise((fertig) => {
+      requestAnimationFrame(() => requestAnimationFrame(fertig));
+    }));
+    await expect(panel).toBeVisible({ timeout: 250 });
+  }).toPass({ timeout: 10000 });
   return row;
 }
 
@@ -224,6 +271,7 @@ module.exports = {
   uniqueName,
   login,
   loginAsAdmin,
+  desktopAufraeumen,
   logout,
   openMenuDialog,
   openApp,

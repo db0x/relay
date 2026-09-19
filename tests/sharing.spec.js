@@ -235,9 +235,17 @@ test.describe("Verwaltungszugänge sind keine Empfänger", () => {
 
     await login(page, normal.username, normal.password);
     await waitAppReady(page);
-    // Die Vorschlagsliste steht als Datenliste im Markup (browse.js: knownUsers)
-    const seite = await page.content();
-    expect(seite, "Anzeigename des Admins darf nirgends stehen").not.toContain(admin.display);
-    expect(seite).toContain(normal.display);
+    // Die Vorschlagsliste steht als Datenliste im Markup (browse.js: knownUsers).
+    //
+    // Geprueft wird genau SIE und nicht mehr die ganze Seite: seit es den Chat
+    // gibt, steht jeder Nutzer auch in dessen Kontaktliste — Admins
+    // eingeschlossen, und das mit Absicht. Ein Gespraech ist keine Freigabe;
+    // die Regel von oben gilt fuer das, was jemand BEKOMMT (Dateien, Notizen),
+    // nicht fuer das Schreiben.
+    const bekannt = JSON.parse(await page.getAttribute("#note-people-field", "data-known"));
+    const namen = bekannt.map((u) => u.display_name);
+    expect(namen, "Verwaltungszugang gehoert nicht in die Personen-Auswahl")
+      .not.toContain(admin.display);
+    expect(namen).toContain(normal.display);
   });
 });
