@@ -21,7 +21,7 @@
      return boardNotes[c.key].some(function(n){ return !n.isOwner; });
    }); %>
 <div class="page board<%= !boardLayout || boardLayout.minimized ? " page-min" : "" %>" id="board"
-     <% if (boardLayout) { %>data-x="<%= boardLayout.x %>" data-y="<%= boardLayout.y %>"<% } %>>
+     <% if (boardLayout) { %>data-x="<%= boardLayout.x %>" data-y="<%= boardLayout.y %>"<% if (boardLayout.w) { %> data-w="<%= boardLayout.w %>" data-h="<%= boardLayout.h %>"<% } %><% } %>>
   <header class="page-head">
     <img src="<%= base %>/static/img/board.svg" alt="" width="22" height="22">
     <h2 class="page-title">Notiz-Board</h2>

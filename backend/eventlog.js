@@ -14,7 +14,7 @@
 //     jemand auf den Server muss.
 //
 // WICHTIG: Hier landen NIEMALS Geheimnisse. Keine Passwoerter, keine
-// API-Token, keine TOTP-Codes, keine Query-Strings. Wer das Protokoll
+// Zugangsdaten, keine TOTP-Codes, keine Query-Strings. Wer das Protokoll
 // erweitert, prueft das mit.
 const { db } = require("./db");
 const { zoneVon } = require("./zone");

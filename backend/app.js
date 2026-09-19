@@ -7,6 +7,7 @@
 //   routes/api.js    — Token-Datei-API fuer Sync/Voltage inkl. Forcesave
 //   routes/browse.js — Startseite, Datei-/Ordner-Aktionen, Freigaben
 //   routes/media.js  — Videos (eigene/freigegebene) und die geteilte Bibliothek
+//   routes/chat.js   — Chat: Schluesseltausch, Nachrichten, Live-Strom (SSE)
 //   routes/editor.js — OnlyOffice: /edit, signierte /files-Links, /callback
 const crypto = require("crypto");
 const path = require("path");
@@ -62,7 +63,7 @@ const dsQuelle = dsOrigin ? [dsOrigin] : [];
 app.use(helmet({
   // deckungsgleich mit frameAncestors unten; die alte Kopfzeile ist fuer
   // Browser gedacht, die noch kein CSP frame-ancestors auswerten
-  xFrameOptions: { action: "deny" },
+  xFrameOptions: { action: "sameorigin" },
   // HSTS gehoert dorthin, wo TLS endet — in den nginx. Von hier gesendet
   // wuerde es auch fuer reine LAN-Installationen ohne TLS gelten.
   strictTransportSecurity: false,
@@ -88,10 +89,15 @@ app.use(helmet({
       objectSrc: ["'none'"],
       baseUri: ["'none'"],
       formAction: ["'self'"],
-      // Relay selbst darf nirgends eingebettet werden (Clickjacking).
+      // Relay darf nur von RELAY SELBST eingebettet werden: der Editor-Dialog
+      // haengt die Seite /edit/... in einen iframe, damit das Bearbeiten eines
+      // Dokuments die Anwendung nicht mehr verlaesst (js/files/editor-view.js).
+      // Gegen Clickjacking schuetzt das unveraendert — eine FREMDE Seite kann
+      // Relay weiterhin nicht einbetten, und genau darum ging es. Vorher stand
+      // hier 'none', was auch das Einbetten durch uns selbst verbot.
       // ACHTUNG: bettet ein Wrapper (Voltage) Relay in einen iframe, muss das
       // hier auf die Herkunft des Wrappers erweitert werden.
-      frameAncestors: ["'none'"],
+      frameAncestors: ["'self'"],
     },
   },
 }));
@@ -136,6 +142,14 @@ app.use(session({
   store: new SqliteStore(),
   secret: SESSION_SECRET,
   resave: false,
+  // rolling: jede Anfrage schiebt das Cookie wieder um die volle Laufzeit vor.
+  // Ohne das schickt express-session bei einer unveraenderten Sitzung KEIN
+  // Set-Cookie nach (shouldSetCookie), und der Browser behaelt das Ablaufdatum
+  // vom Login-Tag — ein taeglich genutztes Voltage-Profil floege nach 90 Tagen
+  // trotzdem raus. Seit die Datei-API an der Sitzung haengt, ist das der
+  // Unterschied zwischen "einmal anmelden" und "viermal im Jahr mitten im
+  // Dokumentstart ein Login-Formular".
+  rolling: true,
   saveUninitialized: false,
   cookie: {
     maxAge: 90 * 24 * 3600 * 1000,
@@ -146,10 +160,28 @@ app.use(session({
 }));
 
 // minimale Flash-Nachrichten ueber die Session (ok/err), einmalig angezeigt
+//
+// Abgeholt werden sie NUR von der Seite, die sie auch zeigt (views/index.ejs
+// ueber res.holeMeldungen()). Frueher raeumte diese Stelle sie bei JEDER
+// Anfrage ab — und damit schluckte sie der erstbeste Hintergrund-Aufruf, der
+// zufaellig zwischen der aendernden Anfrage und dem Neuladen lag: der
+// Ordner-Takt alle 10 s (js/folder-nav.js), der Chat-Strom, die Glocke. Die
+// Meldung "… freigegeben" war dann einfach weg, ohne dass jemand sie gesehen
+// haette. Das war kein Testproblem, sondern eines fuer jeden Nutzer.
 app.use((req, res, next) => {
-  res.locals.flashes = req.session.flashes || [];
-  req.session.flashes = [];
+  res.locals.flashes = [];
   req.flash = (cat, msg) => { (req.session.flashes ||= []).push([cat, msg]); };
+  res.holeMeldungen = () => {
+    // Nur ein echter Seitenaufruf im Browser zeigt den Meldungsstreifen.
+    // Der Ordnerwechsel holt dieselbe Seite per fetch, uebernimmt daraus aber
+    // nur die Liste (js/folder-nav.js: swapFolder) — er darf die Meldungen
+    // also nicht abraeumen, sie kaemen sonst nie an.
+    if (req.get("X-Requested-With") === "fetch") return [];
+    if (!(req.get("accept") || "").includes("text/html")) return [];
+    const offen = req.session.flashes || [];
+    if (offen.length) req.session.flashes = [];
+    return offen;
+  };
   next();
 });
 
@@ -170,6 +202,7 @@ app.use(mount, require("./routes/browse").router);
 app.use(mount, require("./routes/images").router);
 app.use(mount, require("./routes/media").router);
 app.use(mount, require("./routes/notes").router);
+app.use(mount, require("./routes/chat").router);
 app.use(mount, require("./routes/editor").router);
 
 // Komfort: wer die Wurzel trifft, obwohl Relay unter BASE laeuft, wird hingefuehrt

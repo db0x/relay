@@ -1,4 +1,4 @@
-// Anmeldung: Login/Logout, eigenes Passwort, eigenes API-Token.
+// Anmeldung: Login/Logout, eigenes Passwort.
 // Exportiert loginRequired fuer alle anderen Browser-Router.
 const express = require("express");
 
@@ -6,6 +6,7 @@ const users = require("../users");
 const guard = require("../loginguard");
 const zwei = require("../twofactor");
 const protokoll = require("../eventlog");
+const chat = require("../chat");
 const { darfVonHier } = require("../zone");
 const { BASE, ADMIN_2FA } = require("../config");
 
@@ -38,8 +39,11 @@ function brauchtEinrichtung(row) {
 // gesperrt oder geloescht wurde, fliegt sofort raus — auch mit gueltigem Cookie.
 // (req.path ist im gemounteten Router OHNE das BASE-Praefix, daher selbst praefixen.)
 function loginRequired(req, res, next) {
+  // originalUrl statt BASE+req.path: die Query gehoert zum Ziel. Ohne sie geht ein
+  // Deep-Link beim ERSTEN Aufruf verloren — genau dann, wenn die Anmeldung noch
+  // aussteht. internesZiel() nimmt Pfad UND Query ohnehin an (siehe dort).
   if (!req.session.user)
-    return res.redirect(`${BASE}/login?next=` + encodeURIComponent(BASE + req.path));
+    return res.redirect(`${BASE}/login?next=` + encodeURIComponent(req.originalUrl));
   const row = users.get(req.session.user);
   if (!row || row.locked) return req.session.destroy(() => res.redirect(`${BASE}/login`));
   // Admin unterwegs: die Sitzung endet an der Haustuer. Ohne diese Pruefung
@@ -157,18 +161,41 @@ router.post("/login", async (req, res) => {
   setTimeout(() => zeigeFehler("Name oder Passwort falsch."), 400); // bremst zusaetzlich
 });
 
+// Chat-Schluessel beim Passwortwechsel MITNEHMEN.
+//
+// Der private Chat-Schluessel liegt umhuellt in der Datenbank; die Huelle
+// haengt am Passwort (chat.js). Aendert sich das Passwort, muss die Huelle
+// erneuert werden — sonst waere der gesamte bisherige Verlauf verloren.
+// Aufmachen und neu zumachen kann das nur der Browser (er allein kennt beide
+// Passwoerter), darum schickt er die fertige neue Huelle als verstecktes Feld
+// mit dem Formular mit (public/js/chat/password-hook.js).
+//
+// Wird ANGEWENDET, nachdem das Passwort tatsaechlich geaendert wurde — bei
+// einem abgelehnten Wechsel bleibt die alte Huelle stehen und passt weiter.
+// Fehlt das Feld (kein Chat eingerichtet, JS aus), passiert schlicht nichts.
+function chatSchluesselMitnehmen(req) {
+  const b = req.body || {};
+  const iv = b.chat_priv_iv, ct = b.chat_priv_ct;
+  if (!chat.gueltigesChiffrat(iv, ct)) return;
+  let kdf;
+  try { kdf = JSON.parse(b.chat_kdf || ""); } catch (e) { return; }
+  if (!kdf || typeof kdf !== "object") return;
+  chat.rewrap(req.session.user, iv, ct, JSON.stringify(kdf));
+}
+
 // --- Erstpasswort setzen (must_change) ----------------------------------
 router.get(PW_SETZEN, loginRequired, (req, res) => {
-  res.render("password-change", { error: null, user: req.session.name || req.session.user });
+  res.render("password-change", { error: null, me: req.session.user, user: req.session.name || req.session.user });
 });
 
 router.post(PW_SETZEN, loginRequired, async (req, res) => {
   const { new1, new2 } = req.body;
   const fehler = (msg) =>
-    res.render("password-change", { error: msg, user: req.session.name || req.session.user });
+    res.render("password-change", { error: msg, me: req.session.user, user: req.session.name || req.session.user });
   if (new1 !== new2) return fehler("Die Passwörter stimmen nicht überein.");
   if ((new1 || "").length < 12) return fehler("Das Passwort braucht mindestens 12 Zeichen.");
   await users.setPassword(req.session.user, new1); // loescht must_change mit
+  chatSchluesselMitnehmen(req);
   req.flash("ok", "Passwort gesetzt. Willkommen!");
   res.redirect(`${BASE}/`);
 });
@@ -198,6 +225,7 @@ router.post("/password", loginRequired, async (req, res) => {
   if (new1 !== new2) return fail("new", "Die neuen Passwörter stimmen nicht überein.");
   if ((new1 || "").length < 8) return fail("new", "Das neue Passwort braucht mindestens 8 Zeichen.");
   await users.setPassword(req.session.user, new1);
+  chatSchluesselMitnehmen(req);
   protokoll.notiere("passwort.geaendert", req, req.session.user);
   req.flash("ok", "Passwort geändert.");
   res.redirect(`${BASE}/`);
@@ -227,22 +255,6 @@ router.post("/profile", loginRequired, (req, res) => {
   // ist er aus. Er steht im selben Formular, also EIN Speichern fuer alles.
   users.setDeskNotes(req.session.user, req.body.deskNotes === "1");
   req.flash("ok", "Profil gespeichert.");
-  res.redirect(`${BASE}/`);
-});
-
-router.post("/token/reset", loginRequired, (req, res) => {
-  // Der Abschnitt ist fuer Admins ausgeblendet — die Route lehnt es trotzdem
-  // selbst ab, sonst waere die Ausblendung nur eine versteckte Schaltflaeche.
-  if (users.get(req.session.user).is_admin) {
-    req.flash("err", "Verwaltungszugänge haben kein API-Token.");
-    return res.redirect(`${BASE}/`);
-  }
-  // Das Token wird EINMAL angezeigt und danach nur noch als Pruefsumme
-  // gehalten. Es wandert deshalb ueber die Sitzung an die naechste Seite —
-  // dasselbe Einweg-Muster wie pwError/emailError.
-  req.session.freshToken = users.resetToken(req.session.user);
-  protokoll.notiere("token.neu", req, req.session.user);
-  req.flash("ok", "Neues API-Token erzeugt — es wird nur jetzt angezeigt. Das alte gilt nicht mehr.");
   res.redirect(`${BASE}/`);
 });
 

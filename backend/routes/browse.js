@@ -14,7 +14,9 @@ const notemeta = require("../notemeta");
 const twofactor = require("../twofactor");
 const protokoll = require("../eventlog");
 const notifications = require("../notifications");
+const chat = require("../chat");
 const noteicon = require("../noteicon");
+const mimeicons = require("../mimeicons");
 const library = require("../library");
 const foldersort = require("../foldersort");
 const { accessFor } = require("../access");
@@ -25,9 +27,16 @@ const { loginRequired } = require("./auth");
 
 const router = express.Router();
 
+// Obergrenze fuer die Anzahl Dateien je Upload-Vorgang. multer haelt sie im
+// ARBEITSSPEICHER (memoryStorage) — das ist darum keine Bequemlichkeits-,
+// sondern eine echte Grenze: 50 x MAX_UPLOAD_MB waeren im schlimmsten Fall
+// mehrere Gigabyte. Wer mehr auf einmal braucht, laedt zweimal. Die
+// Oberflaeche kennt den Wert ueber data-max-files und prueft schon vorab.
+const MAX_UPLOAD_FILES = 50;
+
 // Fenster des "Desktops", deren Lage/Zustand je Nutzer gemerkt wird
 // (desktop_layout). Neue Ansicht -> hier eintragen.
-const WINDOW_KEYS = ["page", "board"];
+const WINDOW_KEYS = ["page", "board", "chat", "editor"];
 
 // Marke am ?p=-Parameter, die einen Pfad IN DER BIBLIOTHEK kennzeichnet
 // ("?p=lib:Filme/2024"). Eigene Ordner und Bibliotheksordner teilen sich
@@ -37,13 +46,24 @@ const WINDOW_KEYS = ["page", "board"];
 // (secureFilename laesst ihn nicht durch), die Marke ist also eindeutig.
 const LIB_P = "lib:";
 
-// Dateiendung -> Typ-Icon in /static/img/ (verwandte Formate teilen sich eins).
-// Die Bueroformate kommen aus DOCTYPE statt aus eigenen Listen — so bleibt die
-// Zuordnung automatisch synchron, wenn dort eine Endung dazukommt.
-// Alles Unbekannte (.iso, .zip, .bin …) bekommt das neutrale Fragezeichen;
-// frueher stand dort das Textdokument-Icon und behauptete einen Typ, der nicht
-// stimmte. ACHTUNG: Zwilling im Browser — iconFuer() in js/notes/doclinks.js
-// faerbt die Verweise im Notiztext nach derselben Regel.
+// Dateiendung -> Typ-Icon, als Pfad unterhalb von /static/img/ und OHNE die
+// Endung ".svg" (die haengen alle Aufrufstellen selbst an).
+//
+// Zwei Stufen, in dieser Reihenfolge:
+//  1. Die Typen, die Relay selbst fuehrt, behalten ihr EIGENES Icon — die
+//     Bueroformate, PDF, Bild, Video, Notiz. Die sind bewusst ausgesucht und
+//     sollen nicht gegen ein Fremdsymbol getauscht werden. Sie kommen aus
+//     DOCTYPE/IMAGE_TYPES/VIDEO_TYPES statt aus eigenen Listen — so bleibt
+//     die Zuordnung automatisch synchron, wenn dort eine Endung dazukommt.
+//  2. Alles Uebrige holt sich sein Icon aus dem mitgelieferten Symbolsatz
+//     (mimeicons.js: Endung -> MIME-Typ -> public/img/mimetypes/…). Frueher
+//     bekam das ausnahmslos das neutrale Fragezeichen — ein .zip sah aus wie
+//     ein .mp3. Das Fragezeichen bleibt der letzte Rueckfall: was wir nicht
+//     kennen, gibt sich auch weiterhin nicht als etwas anderes aus.
+//
+// ACHTUNG: Zwilling im Browser — iconFuer() in js/notes/doclinks.js faerbt die
+// Verweise im Notiztext. Der kennt die MIME-Zuordnung nicht und fragt dafuer
+// die Route /fileicon/:ext (weiter unten).
 function iconFor(name) {
   const ext = (name.split(".").pop() || "").toLowerCase();
   if (ext === "md") return "note";
@@ -54,7 +74,7 @@ function iconFor(name) {
   if (typ === "slide") return "pptx";
   if (typ === "pdf") return "pdf";
   if (typ === "word") return "docx";
-  return "unknown";
+  return mimeicons.iconFor(name) || "unknown";
 }
 
 // Bilder bekommen in der Liste ein echtes Vorschaubild und oeffnen einen
@@ -203,19 +223,54 @@ function boardNotesFor(me) {
 // auch dann sauber, wenn eine Aufraeum-Stelle einmal vergessen wird.
 function notificationsFor(me) {
   return notifications.listFor(me).map((n) => {
+    const u = users.get(n.owner);
+    // Chat: zeigt auf keine Datei, sondern auf einen Absender. Die
+    // Selbstheilung unten (accessFor) waere hier falsch — sie wuerde jede
+    // Chat-Zeile sofort wegraeumen. Stattdessen faellt sie weg, wenn es den
+    // Absender nicht mehr gibt.
+    if (n.kind === "chat") {
+      if (!u) { notifications.markRead(me, n.id); return null; }
+      return {
+        id: n.id, kind: "chat", owner: n.owner, relpath: "",
+        ownerName: u.display_name, label: "", perm: "",
+        when: formatDate(n.created),
+      };
+    }
     if (!accessFor(me, n.owner, n.filename)) {
       notifications.markRead(me, n.id);
       return null;
     }
-    const u = users.get(n.owner);
     return {
-      id: n.id, owner: n.owner, relpath: n.filename,
+      id: n.id, kind: "share", owner: n.owner, relpath: n.filename,
       ownerName: u ? u.display_name : n.owner,
       label: labelFor(n.filename, n.owner),
       perm: n.perm,
       when: formatDate(n.created),
     };
   }).filter(Boolean);
+}
+
+// Gespraechspartner fuer das Chat-Fenster — serverseitig gerendert, damit die
+// Liste beim Laden schon steht (dieselbe Regel wie bei den anderen Fenstern:
+// nichts blitzt auf und springt dann). js/chat/chat.js frischt sie danach
+// ueber GET /chat/peers auf. hasKeys: wer noch nie angemeldet war, seit es
+// den Chat gibt, hat noch keinen oeffentlichen Schluessel — ihm kann man
+// noch nicht schreiben, und die Liste sagt das auch.
+function chatPeersFor(me) {
+  const unread = chat.unreadBySender(me);
+  const last = chat.lastActivity(me);
+  return users.listUsers()
+    .filter((u) => u.username !== me && !u.locked)
+    .map((u) => ({
+      username: u.username,
+      name: u.display_name,
+      hasAvatar: avatars.has(u.username),
+      hasKeys: !!chat.publicKeyFor(u.username),
+      unread: unread[u.username] || 0,
+      last: last[u.username] || 0,
+    }))
+    .sort((a, b) => (b.last - a.last)
+      || a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
 }
 
 // zurueck in den Ordner, aus dem eine Aktion kam (Formulare schicken `dir` mit)
@@ -440,6 +495,10 @@ router.get("/", loginRequired, (req, res) => {
   }
 
   res.render("index", {
+    // Statusmeldungen erst HIER abholen, nicht schon in der Middleware: nur
+    // diese Seite zeigt sie (partials/flash-tray.ejs). Holte jede Anfrage
+    // sie ab, verschluckte sie der naechste Hintergrund-Aufruf (app.js).
+    flashes: res.holeMeldungen(),
     // Reihenfolge: eigene Ordner, Bibliotheksordner, dann alle Dateien
     files: folders.concat(libFolders).concat(files),
     // Fingerabdruck DIESES Standes — die Oberflaeche vergleicht ihn im Takt
@@ -463,6 +522,14 @@ router.get("/", loginRequired, (req, res) => {
     // plus die gemerkte Fensterlage (Default: eingeklappt, siehe board.ejs)
     boardNotes: boardNotesFor(me),
     boardLayout: notemeta.getLayout(me, "board"),
+    // Chat: Gespraechspartner und gemerkte Fensterlage (Default eingeklappt,
+    // siehe partials/chat.ejs — wie das Board draengt es sich nicht auf)
+    chatPeers: chatPeersFor(me),
+    chatLayout: notemeta.getLayout(me, "chat"),
+    // Editor-Fenster: nur Lage und Groesse werden gemerkt. WELCHES Dokument
+    // offen war, bewusst nicht — nach einem Neuladen faengt man mit leerem
+    // Fenster an (der iframe wird erst im Browser befuellt).
+    editorLayout: notemeta.getLayout(me, "editor"),
     // offene Benachrichtigungen (Glocke am Avatar + Uebersicht)
     notifications: notificationsFor(me),
     allDirs: walkDirs(userDir).sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" })),
@@ -480,6 +547,8 @@ router.get("/", loginRequired, (req, res) => {
     uploadAccept: [...Object.keys(DOCTYPE), ...Object.keys(IMAGE_TYPES)]
       .map((e) => "." + e).join(","),
     maxUploadMb: MAX_UPLOAD_MB,
+    // Obergrenze der Anzahl je Vorgang; die Oberflaeche prueft damit vorab
+    maxUploadFiles: MAX_UPLOAD_FILES,
     // Sprachauswahl im "Neue Datei"-Dialog: Woerterbuch-Sprachen des DS,
     // minus die vom Admin ausgeblendeten (Einstellungen-Dialog)
     docLangs: doclang.LANGS.filter((l) => !hiddenLangs.includes(l.code)),
@@ -533,13 +602,20 @@ router.get("/", loginRequired, (req, res) => {
     // aber leer" — sonst raetselt der Admin an einer leeren Liste.
     libAll: row.is_admin ? library.folderTree() : [],
     libConfigured: library.configured(),
-    // Das Token selbst liegt nur noch als Pruefsumme in der DB und kann
-    // deshalb nicht mehr angezeigt werden. Direkt nach dem Erzeugen steht es
-    // einmalig in der Sitzung — danach nie wieder (users.js: hashToken).
-    freshToken: (() => {
-      const t = req.session.freshToken || null; delete req.session.freshToken; return t;
-    })(),
   });
+});
+
+// --- Icon zu einer Dateiendung ----------------------------------------
+// Fuer die Stellen, die erst im BROWSER entstehen und die MIME-Zuordnung
+// nicht kennen koennen: Verweise im Notiztext (js/notes/doclinks.js) und der
+// Upload-Dialog. Die Antwort haengt allein an der Endung und ist darum gut
+// cachebar. Weitergeleitet statt ausgeliefert: die Datei kommt weiterhin aus
+// /static — ein Ort, eine Cache-Regel.
+router.get("/fileicon/:ext", loginRequired, (req, res) => {
+  // Nur Buchstaben und Ziffern durchlassen: der Wert landet in einem Pfad.
+  const ext = String(req.params.ext || "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16);
+  res.set("Cache-Control", "public, max-age=86400");
+  res.redirect(`${BASE}/static/img/${iconFor(`x.${ext}`)}.svg`);
 });
 
 // Position eines frei verschiebbaren UI-Elements merken (aktuell nur die
@@ -554,7 +630,12 @@ router.post("/desktop/layout", loginRequired, express.json(), (req, res) => {
   // festen Namen (js/core/window.js). Weitere Ansichten hier ergaenzen.
   if (!WINDOW_KEYS.includes(key) || !Number.isFinite(x) || !Number.isFinite(y))
     return res.sendStatus(400);
-  notemeta.setLayout(req.session.user, key, x, y, b.minimized === true);
+  // Groesse ist optional (nur wer gezogen hat, schickt sie) und wird auf
+  // brauchbare Masse geklemmt: der Wert kommt aus dem Browser.
+  const masse = (v) => (Number.isFinite(Number(v)) && Number(v) > 0
+    ? Math.min(Math.round(Number(v)), 10000) : null);
+  notemeta.setLayout(req.session.user, key, x, y, b.minimized === true,
+    masse(b.w), masse(b.h));
   res.sendStatus(204);
 });
 
@@ -648,7 +729,23 @@ router.post("/create", loginRequired, (req, res) => {
   // Vom Admin ausgeblendete Sprachen zaehlen serverseitig ebenfalls nicht.
   const lang = req.body.lang || "";
   doclang.apply(p, ext, settings.get("hidden_langs", []).includes(lang) ? "" : lang);
-  res.redirect(`${BASE}/edit/${encodeURIComponent(req.session.user)}/${encPath(fid)}`);
+  // Zurueck in die Liste — mit einer Marke, welche Datei sofort aufgehen soll.
+  // Frueher ging es von hier direkt auf die Editor-VOLLSEITE; seit der Editor
+  // in einem Dialog laeuft (js/files/editor-view.js), waere das genau der
+  // Sprung aus der Anwendung heraus, den wir loswerden wollten. Dasselbe
+  // Muster wie ?hl= bei den Benachrichtigungen: die Oberflaeche liest die
+  // Marke aus und nimmt sie danach aus der Adresse.
+  // Ohne JavaScript landet man in der Liste statt im Editor — die Datei ist
+  // angelegt, ein Klick darauf fuehrt weiter.
+  // Wer den Dialog ueber ?neu= erreicht hat, kommt aus einer Anwendung, die GENAU
+  // ein Dokument zeigt (eine Voltage-App fuer diesen Dateityp, ohne Datei gestartet).
+  // Dort waere die Dateiliste mit einem gezeichneten Fenster darin der falsche Ort:
+  // es geht ganzseitig in den Editor. Im Browser bleibt es beim bisherigen Weg.
+  if (req.body.ganzseitig === "1") {
+    return res.redirect(`${BASE}/edit/${encodeURIComponent(req.session.user)}/${encPath(fid)}`);
+  }
+  const ziel = cur ? `${BASE}/?p=${encodeURIComponent(cur)}&` : `${BASE}/?`;
+  res.redirect(`${ziel}open=${encodeURIComponent(`${req.session.user}/${fid}`)}`);
 });
 
 // --- Angezeigter Ordner + sein Fingerabdruck ---------------------------
@@ -953,22 +1050,37 @@ router.post("/move/*", loginRequired, (req, res) => {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
+  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024, files: MAX_UPLOAD_FILES },
 });
 router.post("/upload", loginRequired, (req, res) => {
-  // multer manuell aufrufen: eine zu grosse Datei (am Client vorbeigemogelt)
-  // soll ein sauberer Flash sein, kein nackter 500er
-  upload.single("file")(req, res, (err) => {
+  // multer manuell aufrufen: eine zu grosse Datei bzw. zu viele auf einmal
+  // (am Client vorbeigemogelt) sollen ein sauberer Flash sein, kein 500er
+  upload.array("file", MAX_UPLOAD_FILES)(req, res, (err) => {
     if (err) {
-      req.flash("err", `Die Datei ist zu groß — erlaubt sind maximal ${MAX_UPLOAD_MB} MB.`);
+      req.flash("err", err.code === "LIMIT_FILE_COUNT"
+        ? `Zu viele Dateien auf einmal — höchstens ${MAX_UPLOAD_FILES}.`
+        : `Die Datei ist zu groß — erlaubt sind maximal ${MAX_UPLOAD_MB} MB.`);
       return redirectDir(req, res);
     }
     const cur = securePath(req.body.dir || "");
-    if (cur !== null && req.file && req.file.originalname) {
-      const base = secureFilename(req.file.originalname);
-      if (base) fs.writeFileSync(pathFor(req.session.user, cur ? `${cur}/${base}` : base),
-        req.file.buffer);
+    const dateien = req.files || [];
+    let geschrieben = 0;
+    if (cur !== null) {
+      for (const f of dateien) {
+        if (!f.originalname) continue;
+        // secureFilename kann leer zurueckgeben (Name besteht nur aus
+        // unzulaessigen Zeichen) — solche werden still uebersprungen, wie
+        // vorher auch bei der einzelnen Datei.
+        const base = secureFilename(f.originalname);
+        if (!base) continue;
+        fs.writeFileSync(pathFor(req.session.user, cur ? `${cur}/${base}` : base), f.buffer);
+        geschrieben += 1;
+      }
     }
+    // Rueckmeldung nur bei mehreren: bei einer einzelnen sieht man das
+    // Ergebnis unmittelbar in der Liste, ein Flash waere dort nur Laerm.
+    if (geschrieben > 1) req.flash("ok", `${geschrieben} Dateien hochgeladen.`);
+    else if (!geschrieben && dateien.length) req.flash("err", "Nichts hochgeladen.");
     redirectDir(req, res);
   });
 });

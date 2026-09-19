@@ -1,0 +1,74 @@
+<%# OnlyOffice als echtes Fenster des Desktops — dasselbe Muster wie
+    Dateiliste, Board und Chat: verschiebbar an der Titelleiste, minimierbar,
+    in der Groesse zu ziehen, Lage UND Groesse je Nutzer gemerkt. Die Mechanik
+    steckt vollstaendig in js/core/window.js.
+
+    Der Inhalt ist ein IFRAME auf dieselbe Seite /edit/..., die es vorher schon
+    gab. Das ist Absicht: die gesamte OnlyOffice-Logik (JWT-signierte Config,
+    Watchdog gegen Ladehaenger, Theme im Speicher des DocumentServers,
+    Co-Editing-Avatare) bleibt an EINER Stelle in views/edit.ejs + js/edit.js.
+
+    Damit das geht, erlaubt Relay sich selbst das Einbetten —
+    frame-ancestors 'self' statt 'none' in app.js. Fremde Seiten koennen Relay
+    weiterhin nicht einbetten.
+
+    UNTERSCHIED zu den anderen Fenstern: dieses hat keinen Dauerinhalt. Ohne
+    geoeffnetes Dokument ist es eingeklappt UND sein Umschalter in der Topbar
+    ausgeblendet — es gibt dann nichts zurueckzuholen. js/files/editor-view.js
+    schaltet beides.
+
+    Die Vollseite /edit/... bleibt bestehen: Voltage oeffnet sie so, und ein
+    direkter Link bzw. "In eigenem Tab" soll weiter funktionieren. %>
+<div class="page editor-win page-min" id="editor-win"
+     <% if (editorLayout) { %>data-x="<%= editorLayout.x %>" data-y="<%= editorLayout.y %>"<% if (editorLayout.w) { %> data-w="<%= editorLayout.w %>" data-h="<%= editorLayout.h %>"<% } %><% } %>>
+  <header class="page-head">
+    <img id="editor-win-icon" src="<%= base %>/static/img/unknown.svg" alt="" width="22" height="22">
+    <h2 class="page-title" id="editor-win-title">Dokument</h2>
+
+    <div class="page-actions page-head-end">
+      <%# "Auf Fenstergroesse" — createWindow uebernimmt das Umschalten,
+          hier steht nur der Knopf. aria-pressed spiegelt den Zustand. %>
+      <button type="button" class="iconbtn" id="editor-win-max" aria-pressed="false"
+              data-tip="Auf Fenstergröße vergrößern" aria-label="Auf Fenstergröße vergrößern">
+        <img src="<%= base %>/static/img/window-maximize.svg" alt="" width="16" height="16">
+      </button>
+      <%# Notausgang: der alte Weg als eigene Seite. Bleibt erreichbar, falls im
+          Fenster etwas klemmt — und fuer alle, die lieber einen eigenen Tab
+          haben. target=_blank haelt der Klick-Handler bewusst aus. %>
+      <a class="iconbtn" id="editor-win-newtab" href="#" target="_blank" rel="noopener"
+         data-tip="In eigenem Tab öffnen" aria-label="In eigenem Tab öffnen">
+        <img src="<%= base %>/static/img/new-tab.svg" alt="" width="16" height="16">
+      </a>
+      <button type="button" class="iconbtn page-min-btn" id="editor-win-minimize"
+              data-tip="Minimieren" aria-label="Editor minimieren">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+          <rect x="2" y="6.2" width="10" height="1.6" rx=".8" fill="currentColor"/>
+        </svg>
+      </button>
+      <%# Schliessen ist mehr als Minimieren: es speichert erzwungen und kappt
+          die Sitzung zum DocumentServer (js/files/editor-view.js). %>
+      <button type="button" class="iconbtn editor-win-close" id="editor-win-close"
+              data-tip="Dokument schließen" aria-label="Dokument schließen">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+          <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.6"
+                stroke-linecap="round" fill="none"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <%# Kein .page-body: dessen Bildlaufleiste (createWindow) waere um etwas
+      herum, das selbst rollt. Das Fenster wird darum mit scroll:false erzeugt. %>
+  <div class="editor-win-body">
+    <%# src wird erst beim Oeffnen gesetzt und beim Schliessen wieder entfernt —
+        sonst laedt die Startseite einen Editor mit, und nach dem Schliessen
+        liefe die Sitzung zum DocumentServer weiter. %>
+    <iframe id="editor-win-frame" title="Dokument bearbeiten"></iframe>
+    <%# Liegt beim Schliessen ueber dem Editor, solange der DocumentServer
+        speichert. Ohne diesen Moment koennte man zumachen, bevor die letzten
+        Aenderungen geschrieben sind. %>
+    <div class="editor-busy" id="editor-win-busy" hidden>
+      <span class="editor-busy-text">Wird gespeichert …</span>
+    </div>
+  </div>
+</div>

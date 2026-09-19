@@ -54,6 +54,8 @@ var AREAS = [
   ".backup-log",   // rsync-Ausgabe im Backup-Dialog (Text im <code> darin)
   ".lang-scroll",  // Sprachauswahl in den Einstellungen (Liste liegt darin)
   ".lib-picker",   // Bibliotheksordner in der Nutzerverwaltung (.lib-list darin)
+  ".chat-peers",   // Gespraechspartner im Chat (die <ul> darin wird befuellt)
+  ".chat-log",     // Verlauf eines Gespraechs (Inhalt in .chat-log-body)
 ].join(",");
 
 function lib() {
@@ -67,6 +69,25 @@ export function scrollbarOf(el) {
   var OS = lib();
   if (!OS || !el) return null;
   return OS(el) || null;
+}
+
+// Das Element, das TATSAECHLICH rollt.
+//
+// Haengt an einem Behaelter eine eigene Leiste, ist er selbst NICHT mehr der
+// Scroller: OverlayScrollbars baut einen Viewport hinein und laesst den
+// rollen. Wer danach `scrollTop` am Behaelter setzt, bewegt nichts — dessen
+// scrollHeight ist gleich seiner clientHeight. Genau so blieb der Chat-Verlauf
+// stumm am Anfang stehen.
+//
+// FALLE: die Klasse `.os-viewport` ist Version 1. Die hier vendored Version 2
+// markiert den Viewport mit dem Attribut `data-overlayscrollbars-viewport`.
+// Beides selbst zu suchen ist darum unnoetig fehleranfaellig — die Instanz
+// weiss es. Ohne Leiste (Bibliothek fehlt, Flaeche nicht in AREAS) kommt das
+// Element selbst zurueck, dann stimmt es ohnehin.
+export function scrollElement(el) {
+  var inst = scrollbarOf(el);
+  var vp = inst && inst.elements ? inst.elements().viewport : null;
+  return vp || el;
 }
 
 // Letzte bekannte Zeigerposition. Gebraucht fuer den Fall direkt darunter —

@@ -22,25 +22,19 @@ import { fileTip } from "../files/file-tip.js";
 
 var PREFIX = "relay/";
 
-// Dateiendung -> Typ-Icon; dieselbe Zuordnung wie iconFor() in routes/browse.js
-// (dort fuer Dateiliste und Suche, hier fuer den Verweis im Fliesstext).
 var BILD_TYPEN = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
 function endung(name) { return (name.split(".").pop() || "").toLowerCase(); }
 export function istBild(name) { return BILD_TYPEN.indexOf(endung(name)) !== -1; }
-var VIDEO_TYPEN = ["mp4", "m4v", "webm", "ogv", "mov", "mkv", "avi"];
-var TEXT_TYPEN = ["docx", "doc", "odt", "rtf", "txt"];
-function iconFuer(name) {
-  var ext = endung(name);
-  if (["xlsx", "xls", "ods", "csv"].indexOf(ext) !== -1) return "xlsx";
-  if (["pptx", "ppt", "odp"].indexOf(ext) !== -1) return "pptx";
-  if (VIDEO_TYPEN.indexOf(ext) !== -1) return "video";
-  if (ext === "pdf") return "pdf";
-  if (ext === "md") return "note";
-  if (istBild(name)) return "image";
-  if (TEXT_TYPEN.indexOf(ext) !== -1) return "docx";
-  // wie im Backend: was wir nicht kennen, gibt sich auch nicht als
-  // Textdokument aus
-  return "unknown";
+
+// Typ-Icon zum Dateinamen. Hier stand frueher ein ZWILLING der Zuordnung aus
+// routes/browse.js — zwei Listen, die auseinanderlaufen konnten und es auch
+// taten. Seit die Zuordnung ueber MIME-Typen laeuft (mimeicons.js), waere sie
+// im Browser ohnehin nicht nachzubauen: sie braucht die Typdatenbank UND das
+// Verzeichnis der vorhandenen Symbole. Also fragt der Verweis danach —
+// /fileicon/<endung> leitet auf das richtige SVG weiter und ist einen Tag
+// lang cachebar, es kostet also je Endung hoechstens eine Anfrage.
+function iconUrl(baseUrl, name) {
+  return baseUrl + "/fileicon/" + encodeURIComponent(endung(name) || "bin");
 }
 
 // Pfadteile einzeln kodieren: Leerzeichen und Klammern wuerden die
@@ -108,7 +102,7 @@ export function bindDocLinks(root, config) {
     a.classList.add("doc-link");
     var icon = document.createElement("img");
     icon.className = "doc-link-icon";
-    icon.src = baseUrl + "/static/img/" + iconFuer(name) + ".svg";
+    icon.src = iconUrl(baseUrl, name);
     icon.alt = ""; icon.width = 14; icon.height = 14;
     a.insertBefore(icon, a.firstChild);
 

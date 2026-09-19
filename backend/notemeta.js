@@ -139,16 +139,19 @@ function setDesktopPos(username, owner, filename, x, y) {
 // wo es zuletzt lag.
 function getLayout(username, key) {
   const r = db().prepare(
-    "SELECT x, y, minimized FROM desktop_layout WHERE username=? AND key=?"
+    "SELECT x, y, minimized, w, h FROM desktop_layout WHERE username=? AND key=?"
   ).get(username, key);
-  return r ? { x: r.x, y: r.y, minimized: !!r.minimized } : null;
+  // w/h sind NULL, solange niemand an der Ecke gezogen hat — dann gilt das
+  // Mass aus dem CSS, und die Vorlage schreibt kein data-w/data-h.
+  return r ? { x: r.x, y: r.y, minimized: !!r.minimized, w: r.w, h: r.h } : null;
 }
-function setLayout(username, key, x, y, minimized = false) {
+function setLayout(username, key, x, y, minimized = false, w = null, h = null) {
   db().prepare(
-    `INSERT INTO desktop_layout (username, key, x, y, minimized) VALUES (?,?,?,?,?)
+    `INSERT INTO desktop_layout (username, key, x, y, minimized, w, h) VALUES (?,?,?,?,?,?,?)
      ON CONFLICT(username, key) DO UPDATE SET
-       x=excluded.x, y=excluded.y, minimized=excluded.minimized`
-  ).run(username, key, x, y, minimized ? 1 : 0);
+       x=excluded.x, y=excluded.y, minimized=excluded.minimized,
+       w=excluded.w, h=excluded.h`
+  ).run(username, key, x, y, minimized ? 1 : 0, w, h);
 }
 
 module.exports = {
