@@ -403,26 +403,36 @@ test.describe("Editor-Fenster", () => {
     await uploadFile(page, name);
     await waitAppReady(page);
 
-    const [neu] = await Promise.all([
-      context.waitForEvent("page"),
-      fileRow(page, name).locator("a.fname").click({ modifiers: ["ControlOrMeta"] }),
-    ]);
-    // Ein frischer Tab meldet sich als "about:blank" und bekommt seine Adresse
-    // erst, wenn die Navigation angekommen ist — ohne Warten liest der Test auf
-    // einer langsamen Maschine den Zwischenstand.
-    //
-    // Gewartet wird durch WIEDERHOLTES NACHSEHEN, nicht mit waitForURL: das
-    // lauscht auf eine kuenftige Navigation und prueft die aktuelle Adresse nur
-    // EINMAL vorher. Faellt der Commit genau in die Luecke dazwischen, wartet
-    // es bis zum Timeout auf etwas, das laengst passiert ist — derselbe
-    // Wettlauf wie ohne Warten, nur andersherum. (Auf "load" zu warten waere
-    // ohnehin falsch: das hiesse, auf den DocumentServer zu warten, und den
-    // gibt es in dieser Suite bewusst nicht.)
-    await expect.poll(() => neu.url(), { timeout: 15000 })
-      .toContain(`/edit/${ADMIN.username}/${name}`);
-    // ... und das Fenster ist dabei NICHT aufgegangen
+    // Beobachter GANZ am Ende der Kette: der Handler von relay haengt am
+    // document, ein Lauscher am window laeuft danach und sieht deshalb, ob
+    // jemand den Klick an sich genommen hat (preventDefault).
+    await page.evaluate(() => {
+      window.__strgKlick = null;
+      window.addEventListener("click", (e) => {
+        const a = e.target.closest && e.target.closest("a.fname");
+        if (a) window.__strgKlick = { verhindert: e.defaultPrevented, ziel: a.href };
+      });
+    });
+
+    await fileRow(page, name).locator("a.fname").click({ modifiers: ["ControlOrMeta"] });
+
+    // Geprueft wird zuerst, was UNS gehoert: der Klick ist ungehindert beim
+    // Browser angekommen, und zwar mit der Editor-Adresse als Ziel.
+    const klick = await page.evaluate(() => window.__strgKlick);
+    expect(klick, "der Klick hat den Beobachter erreicht").not.toBeNull();
+    expect(klick.verhindert, "relay darf den Strg-Klick nicht abfangen").toBe(false);
+    expect(klick.ziel).toContain(`/edit/${ADMIN.username}/${name}`);
+    // ... und das gezeichnete Fenster ist NICHT aufgegangen
     await expect(page.locator("#editor-win")).toBeHidden();
-    await neu.close();
+
+    // Der Browser hat daraus einen eigenen Tab gemacht. Dessen ADRESSE wird
+    // bewusst nicht abgewartet: auf dem CI-Runner bleibt dieser
+    // Hintergrund-Tab auf "about:blank" stehen und navigiert auch nach 15 s
+    // nicht, waehrend er das hier — selbst auf einem einzelnen Kern — immer
+    // binnen Sekunden tut. Was der Browser mit einem freigegebenen Klick
+    // anstellt, ist seine Sache; unsere ist die Zusage darueber.
+    await expect.poll(() => context.pages().length, { timeout: 10000 }).toBe(2);
+    for (const p of context.pages()) if (p !== page) await p.close();
   });
 
   test("Relay laesst sich nur von Relay selbst einbetten", async ({ page }) => {
