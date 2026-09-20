@@ -1,0 +1,75 @@
+<%# Ton-Wiedergabe. Eigener Dialog aus demselben Grund wie beim Video:
+    OnlyOffice kann mit einer MP3 nichts anfangen, und ohne diesen Dialog fiel
+    sie durch bis zum Herunterladen.
+
+    Anders als beim Video steht hier eine WIEDERGABELISTE daneben. Der Anlass
+    ist Lehrmaterial: ein Hoerbuch liegt als Dutzende Einzelkapitel vor, und
+    jedes davon einzeln aus der Dateiliste zu suchen waere unbenutzbar. Die
+    Liste entsteht ohne Server-Abruf aus den uebrigen Tondateien DERSELBEN
+    Dateiliste, in genau deren Reihenfolge — sortiert der Nutzer die Liste um,
+    aendert sich damit auch die Reihenfolge der Stuecke.
+
+    Die Quelle setzt js/files/audio-view.js erst beim Oeffnen und nimmt sie
+    beim Schliessen wieder weg; sonst laedt die Startseite jede Datei mit bzw.
+    der Ton liefe nach dem Schliessen weiter. %>
+<dialog id="dlg-audio" class="dialog dialog-audio">
+  <header class="dialog-head">
+    <img src="<%= base %>/static/img/mimetypes/audio-mp3.svg" alt="" width="22" height="22">
+    <h2 id="dlg-audio-title">Ton</h2>
+    <a class="iconbtn" id="dlg-audio-download" href="#" download
+       data-tip="Herunterladen" aria-label="Tondatei herunterladen">
+      <img src="<%= base %>/static/img/download.svg" alt="" width="16" height="16">
+    </a>
+    <form method="dialog">
+      <button class="dialog-x" aria-label="Schließen">×</button>
+    </form>
+  </header>
+
+  <div class="audio-view">
+    <%# preload="metadata" ist der Zustand VOR dem Oeffnen — ohne src laedt
+        ohnehin nichts. Gestartet wird per play() in der JS-Datei, nicht ueber
+        autoplay: nur so laesst sich eine Ablehnung abfangen. %>
+    <audio id="dlg-audio-player" controls preload="metadata"></audio>
+
+    <p class="audio-err" id="dlg-audio-err" hidden>
+      Diese Tondatei kann der Browser nicht abspielen. Über das
+      Herunterladen-Symbol oben lässt sie sich mit einem Abspielprogramm öffnen.
+    </p>
+
+    <%# Steuerung der Liste. Steht UNTER dem Player, weil der Player die
+        Hauptsache ist; "Stück 3 von 41" beantwortet dabei die Frage, die man
+        bei einem Hörbuch tatsächlich hat. %>
+    <div class="audio-steuer" id="dlg-audio-steuer" hidden>
+      <%# Pfeile als Inline-SVG wie der Aufklapp-Pfeil der Ordnerauswahl —
+          fuer "zurueck/vor" gibt es kein Symbol in img/, und zwei Dateien
+          dafuer anzulegen lohnt bei zwei Pfaden nicht. %>
+      <button type="button" class="iconbtn" id="dlg-audio-prev"
+              data-tip="Vorheriges Stück" aria-label="Vorheriges Stück">
+        <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
+          <path d="M7 1.5 L3 5 L7 8.5" fill="none" stroke="currentColor"
+                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <span class="audio-stand" id="dlg-audio-stand"></span>
+      <button type="button" class="iconbtn" id="dlg-audio-next"
+              data-tip="Nächstes Stück" aria-label="Nächstes Stück">
+        <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
+          <path d="M3 1.5 L7 5 L3 8.5" fill="none" stroke="currentColor"
+                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <%# Ohne Weiterlaufen bliebe die Liste eine reine Sprungtafel. MIT ist
+          sie das, was ein Hörbuch braucht — abschaltbar, weil bei
+          Übungsmaterial genau das stört. %>
+      <label class="check audio-weiter">
+        <input type="checkbox" id="dlg-audio-auto" checked> Automatisch weiter
+      </label>
+    </div>
+
+    <%# Bildlaufleiste am BEHAELTER, Inhalt in der <ul> darin — Grundregel aus
+        js/core/scrollbars.js: beides darf nie dasselbe Element sein. %>
+    <div class="audio-playlist" id="dlg-audio-playlist" hidden>
+      <ul class="audio-liste" id="dlg-audio-liste"></ul>
+    </div>
+  </div>
+</dialog>

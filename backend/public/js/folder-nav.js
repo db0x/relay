@@ -12,6 +12,7 @@ import { bindUpload } from "./files/upload.js";
 import { bindCreateButtons } from "./files/create-file.js";
 import { bindImageOpen, bindImageThumbs } from "./files/image-view.js";
 import { bindVideoOpen } from "./files/video-view.js";
+import { bindAudioOpen } from "./files/audio-view.js";
 import { detachScrollbars, bindScrollbars, scrollbarOf } from "./core/scrollbars.js";
 
 // config: { bindNoteOpen } — bindNoteOpen(root) aus dem Notiz-Modul, oder
@@ -48,6 +49,7 @@ export function initFolderNav(config) {
     bindImageOpen(pageEl);     // Bildnamen oeffnen die Vorschau
     bindImageThumbs(pageEl);   // Rueckfall-Icon fuer kaputte Vorschaubilder
     bindVideoOpen(pageEl);     // Videonamen oeffnen den Abspiel-Dialog
+    bindAudioOpen(pageEl);     // Tondateien ebenso (mit Wiedergabeliste)
     if (bindNoteOpen) bindNoteOpen(pageEl);
     bindConfirmForms(pageEl);
     // Bildlaufleisten im neuen Inhalt aufbauen (ihre Huelle ist beim

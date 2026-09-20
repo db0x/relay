@@ -21,7 +21,7 @@ const library = require("../library");
 const foldersort = require("../foldersort");
 const { accessFor } = require("../access");
 const { secureFilename, securePath, encPath, dirFor, pathFor, walkDirs, walkFiles } = require("../storage");
-const { BLANKS, BASE, DOCTYPE, IMAGE_TYPES, VIDEO_TYPES, MAX_UPLOAD_MB } = require("../config");
+const { BLANKS, BASE, DOCTYPE, IMAGE_TYPES, VIDEO_TYPES, AUDIO_TYPES, MAX_UPLOAD_MB } = require("../config");
 const { formatDate, formatDuration, NOTE_RE, labelFromName } = require("../format");
 const { loginRequired } = require("./auth");
 
@@ -87,6 +87,13 @@ function isImageName(name) {
 // (js/files/video-view.js) — OnlyOffice kann damit nichts anfangen.
 function isVideoName(name) {
   return !!VIDEO_TYPES[(name.split(".").pop() || "").toLowerCase()];
+}
+
+// Tondateien oeffnen einen eigenen Dialog mit dem <audio> des Browsers
+// (js/files/audio-view.js). Ohne diese Kategorie fiel eine MP3 durch bis zum
+// Herunterladen — obwohl der Browser sie ohne Weiteres abspielt.
+function isAudioName(name) {
+  return !!AUDIO_TYPES[(name.split(".").pop() || "").toLowerCase()];
 }
 
 // Formate, die OnlyOffice oeffnet (Dokumente, Tabellen, Praesentationen, PDF).
@@ -312,7 +319,7 @@ router.get("/", loginRequired, (req, res) => {
     const st = fs.statSync(p);
     return {
       name, label: labelFor(relpath, owner), isNote: /\.md$/i.test(name),
-      isImage: isImageName(name), isVideo: isVideoName(name),
+      isImage: isImageName(name), isVideo: isVideoName(name), isAudio: isAudioName(name),
       icon: iconFor(name), sizeBytes: st.size, mtime: st.mtimeMs,
       size: formatSize(st.size), modified: formatDate(st.mtimeMs),
     };
@@ -380,6 +387,7 @@ router.get("/", loginRequired, (req, res) => {
     isNote: false,
     isImage: !isDir && isImageName(name),
     isVideo: !isDir && isVideoName(name),
+    isAudio: !isDir && isAudioName(name),
     // Dokumente/Tabellen/PDF gehen in die OnlyOffice-ANSICHT, nicht in den
     // Download — genau wie eigene Dateien, nur ohne Bearbeiten
     isDoc: !isDir && isDocName(name),
@@ -876,6 +884,7 @@ router.get("/search", loginRequired, (req, res) => {
       isNote: /\.md$/i.test(name),
       isImage: isImageName(name),
       isVideo: isVideoName(name),
+      isAudio: isAudioName(name),
       icon: iconFor(name),
       canedit,
       // Woher stammt der Treffer? Bei eigenen der Ordner, bei fremden der
@@ -904,6 +913,7 @@ router.get("/search", loginRequired, (req, res) => {
       isNote: false,
       isImage: isImageName(name),
       isVideo: isVideoName(name),
+      isAudio: isAudioName(name),
       isDoc: isDocName(name),
       icon: iconFor(name),
       canedit: false,
@@ -945,6 +955,8 @@ router.get("/search", loginRequired, (req, res) => {
     // Videos oeffnen denselben Abspiel-Dialog wie in der Liste — ein
     // /edit-Link liefe in einen OnlyOffice-Editor, der damit nichts anfangen kann
     if (h.isVideo) return { ...h, src: `${BASE}/video/${p}`, download: `${BASE}/download/${p}` };
+    // Ton ebenso — eigene Route, damit der Content-Type aus AUDIO_TYPES kommt
+    if (h.isAudio) return { ...h, src: `${BASE}/audio/${p}`, download: `${BASE}/download/${p}` };
     return h.isNote ? h : { ...h, href: `${BASE}/edit/${p}` };
   }));
 });

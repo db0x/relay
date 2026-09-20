@@ -126,6 +126,21 @@ module.exports = {
     avi: "video/x-msvideo",
   },
 
+  // Tondateien: Endung -> MIME-Typ. Wieder eine WHITELIST aus denselben
+  // Gruenden wie oben — der Content-Type kommt nie aus der Datei.
+  // Anders als bei Video ist hier kaum mit Fehlschlaegen zu rechnen: MP3,
+  // AAC/M4A, Ogg/Opus, FLAC und WAV spielt praktisch jeder Browser von sich
+  // aus. Ton braucht darum KEINE Umwandlung, es fehlte nur die Kategorie.
+  // ogg gilt als TON: die Videovariante heisst .ogv und steht oben.
+  AUDIO_TYPES: {
+    mp3: "audio/mpeg",
+    m4a: "audio/mp4",
+    aac: "audio/aac",
+    ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/ogg",
+    flac: "audio/flac",
+    wav: "audio/wav",
+  },
+
   // leere Vorlagen (im Image mitgeliefert) fuer "Neue Datei"
   BLANKS: {
     docx: "/app/blank/blank.docx",

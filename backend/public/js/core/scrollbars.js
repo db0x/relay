@@ -54,6 +54,7 @@ var AREAS = [
   ".backup-log",   // rsync-Ausgabe im Backup-Dialog (Text im <code> darin)
   ".lang-scroll",  // Sprachauswahl in den Einstellungen (Liste liegt darin)
   ".lib-picker",   // Bibliotheksordner in der Nutzerverwaltung (.lib-list darin)
+  ".audio-playlist", // Wiedergabeliste im Ton-Dialog (die <ul> darin wird befuellt)
   ".chat-peers",   // Gespraechspartner im Chat (die <ul> darin wird befuellt)
   ".chat-log",     // Verlauf eines Gespraechs (Inhalt in .chat-log-body)
 ].join(",");

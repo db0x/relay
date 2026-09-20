@@ -1,6 +1,6 @@
-// Videos ausliefern — aus dem eigenen Ablageordner (bzw. einer Freigabe) und
-// aus der geteilten Bibliothek. Abgespielt wird mit dem eingebauten <video>
-// des Browsers; das braucht nichts weiter als eine Quelle, die Bereichsabrufe
+// Videos UND Tondateien ausliefern — aus dem eigenen Ablageordner (bzw. einer
+// Freigabe) und aus der geteilten Bibliothek. Abgespielt wird mit dem
+// eingebauten <video>/<audio> des Browsers; das braucht nichts weiter als eine Quelle, die Bereichsabrufe
 // (Range) beherrscht, sonst kann man im Film nicht springen.
 //
 // Genau das erledigt res.sendFile: Express beantwortet Range-Anfragen von sich
@@ -8,7 +8,8 @@
 // Streaming-Bibliothek noch eigene Byte-Rechnerei.
 //
 // SICHERHEIT — dieselben drei Regeln wie bei den Bildern (routes/images.js):
-//   1. nur Endungen aus der Whitelist VIDEO_TYPES/IMAGE_TYPES (config.js),
+//   1. nur Endungen aus den Whitelists VIDEO_TYPES/AUDIO_TYPES/IMAGE_TYPES
+//      (config.js),
 //   2. Content-Type NUR aus dieser Whitelist, nie aus der Datei,
 //   3. X-Content-Type-Options: nosniff.
 // Dazu die Zugriffsregel: accessFor fuer eigene/freigegebene Dateien,
@@ -20,7 +21,7 @@ const express = require("express");
 const library = require("../library");
 const { accessFor } = require("../access");
 const { pathFor } = require("../storage");
-const { VIDEO_TYPES, IMAGE_TYPES } = require("../config");
+const { VIDEO_TYPES, AUDIO_TYPES, IMAGE_TYPES } = require("../config");
 const { loginRequired } = require("./auth");
 
 const router = express.Router();
@@ -34,11 +35,18 @@ function videoType(name) {
   return VIDEO_TYPES[extOf(name)] || null;
 }
 
-// Bibliotheksdateien duerfen auch Bilder sein (Cover, Fotoalben) — beide
-// Whitelists zusammen, sonst nichts.
+// Endung -> MIME, oder null wenn es keine zugelassene Tondatei ist
+function audioType(name) {
+  return AUDIO_TYPES[extOf(name)] || null;
+}
+
+// Bibliotheksdateien duerfen auch Ton und Bilder sein (Hoerbuecher, Uebungen,
+// Cover, Fotoalben) — die drei Whitelists zusammen, sonst nichts.
+// EINE Route fuer alles: /lib/media/* liefert Bild, Ton und Video, das
+// Abspielen entscheidet der Browser anhand des Elements davor.
 function mediaType(name) {
   const e = extOf(name);
-  return VIDEO_TYPES[e] || IMAGE_TYPES[e] || null;
+  return VIDEO_TYPES[e] || AUDIO_TYPES[e] || IMAGE_TYPES[e] || null;
 }
 
 // Im Browser eingebettet ausliefern. Bereichsabrufe erledigt sendFile selbst.
@@ -59,6 +67,18 @@ router.get("/video/:owner/*", loginRequired, (req, res) => {
   const owner = req.params.owner, fid = req.params[0];
   if (!accessFor(req.session.user, owner, fid)) return res.sendStatus(404);
   const mime = videoType(fid);
+  if (!mime) return res.sendStatus(404);
+  sendMedia(res, pathFor(owner, fid), mime);
+});
+
+// --- eigene und freigegebene Tondateien -------------------------------
+// Eigene Route statt /video: der Content-Type soll aus der TON-Whitelist
+// kommen. Sonst lieferte eine als .mp4 benannte Tondatei "video/mp4" und der
+// Browser bekaeme etwas anderes gesagt, als das <audio> davor erwartet.
+router.get("/audio/:owner/*", loginRequired, (req, res) => {
+  const owner = req.params.owner, fid = req.params[0];
+  if (!accessFor(req.session.user, owner, fid)) return res.sendStatus(404);
+  const mime = audioType(fid);
   if (!mime) return res.sendStatus(404);
   sendMedia(res, pathFor(owner, fid), mime);
 });
@@ -92,4 +112,4 @@ router.get("/lib/download/*", loginRequired, (req, res) => {
   res.download(abs, path.basename(req.params[0]));
 });
 
-module.exports = { router, videoType };
+module.exports = { router, videoType, audioType };

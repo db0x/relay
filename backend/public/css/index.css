@@ -2521,3 +2521,82 @@ a.crumb:hover{text-decoration:underline}
 .zwei-aktionen{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.4rem}
 .zwei-aktionen form{margin:0}
 
+
+/* --- Ton-Dialog (#dlg-audio) ----------------------------------------
+   Kleiner und schmaler als der Video-Dialog: es gibt kein Bild, nur den
+   Player und die Wiedergabeliste. Feste Hoehe statt mitwachsend, damit die
+   Liste eine Bildlaufleiste bekommt und der Dialog bei 88 Kapiteln nicht
+   ueber den Bildschirm hinauswaechst. */
+.dialog.dialog-audio{
+  /* Hoehe NACH INHALT, nur gedeckelt: bei drei Stuecken soll kein halber
+     Bildschirm leer bleiben, bei 88 uebernimmt die Bildlaufleiste der Liste.
+     Die Liste traegt dazu flex:1 1 auto und min-height:0. */
+  /* fit-content, NICHT auto: der Dialog steht auf position:fixed mit inset:0,
+     dort streckte "auto" ihn ueber die volle Hoehe (gemessen: 600 px fuer ein
+     einzelnes Stueck, davon 545 px leer). */
+  width:min(92vw,560px);height:fit-content;max-height:min(80vh,600px);
+  max-width:none;min-width:300px;padding-bottom:0;
+}
+/* [open]: display darf NIE ohne — sonst blendet der Browser den geschlossenen
+   Dialog nicht mehr aus (dieselbe Falle wie beim Video-Dialog) */
+.dialog.dialog-audio[open]{display:flex;flex-direction:column}
+.dialog.dialog-audio .dialog-head{flex:0 0 auto}
+#dlg-audio-download{width:28px;height:28px;flex:0 0 auto;margin-left:auto}
+.audio-view{
+  flex:1 1 auto;min-height:0;
+  display:flex;flex-direction:column;gap:.7rem;
+  padding:.2rem 1.1rem 1.1rem;
+}
+/* Der Player ueber die volle Breite: seine eingebauten Bedienelemente sind
+   das Wichtigste im Dialog, und eine breitere Leiste trifft sich genauer. */
+.audio-view audio{display:block;width:100%;flex:0 0 auto}
+
+/* Zeile mit Vor/Zurueck, Standanzeige und dem Schalter fuers Weiterlaufen */
+.audio-steuer{
+  display:flex;align-items:center;gap:.5rem;flex:0 0 auto;
+}
+.audio-steuer[hidden]{display:none}
+#dlg-audio-prev,#dlg-audio-next{width:26px;height:26px;flex:0 0 auto}
+#dlg-audio-prev:disabled,#dlg-audio-next:disabled{opacity:.3;cursor:default}
+#dlg-audio-prev:disabled:hover,#dlg-audio-next:disabled:hover{background:none}
+.audio-stand{font-size:.8rem;color:var(--muted);white-space:nowrap}
+/* Der Schalter rechts, abgesetzt von der Navigation links */
+.audio-weiter{margin-left:auto;font-size:.8rem;color:var(--muted)}
+
+/* Die Liste traegt die Bildlaufleiste, die <ul> darin den Inhalt —
+   Grundregel aus js/core/scrollbars.js: nie dasselbe Element. */
+.audio-playlist{
+  flex:1 1 auto;min-height:0;overflow-y:auto;
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:var(--bg);
+}
+.audio-playlist[hidden]{display:none}
+.audio-liste{list-style:none;margin:0;padding:.3rem}
+.audio-stueck-btn{
+  display:flex;align-items:center;gap:.55rem;width:100%;
+  border:0;background:none;padding:.3rem .45rem;border-radius:var(--radius-sm);
+  font:inherit;font-size:.85rem;color:inherit;text-align:left;cursor:pointer;
+}
+.audio-stueck-btn:hover{background:var(--line-soft)}
+/* Die Nummer in fester Breite, damit die Namen buendig untereinander stehen
+   (tabular-nums: sonst wandert die Spalte zwischen 9 und 10) */
+.audio-nr{
+  flex:0 0 2.1rem;text-align:right;color:var(--muted);
+  font-size:.75rem;font-variant-numeric:tabular-nums;
+}
+.audio-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* "bei 4:12" — wo man stehengeblieben ist. Leise, aber in der Liste sichtbar:
+   sonst muesste man jedes Stueck oeffnen, um es zu erfahren. */
+.audio-marke{
+  flex:0 0 auto;font-size:.7rem;color:var(--muted);
+  border:1px solid var(--line);border-radius:999px;padding:.05rem .4rem;
+}
+/* laufendes Stueck */
+.audio-laeuft .audio-stueck-btn{background:var(--line-soft);font-weight:600}
+.audio-laeuft .audio-nr{color:var(--brand)}
+/* Rueckfall, wenn der Browser das Format doch nicht kann — bei MP3 praktisch
+   nie, bei einer exotischen Endung aus der Whitelist schon moeglich */
+.audio-err{
+  margin:0;padding:1.2rem 0;color:var(--muted);
+  font-size:.85rem;line-height:1.5;text-align:center;
+}

@@ -9,6 +9,7 @@
 import { closeMenus } from "./core/dialogs.js";
 import { bindImageOpen } from "./files/image-view.js";
 import { bindVideoOpen } from "./files/video-view.js";
+import { bindAudioOpen } from "./files/audio-view.js";
 import { sucheDokumente, fuelleTreffer } from "./search-core.js";
 
 var DEBOUNCE = 160;
@@ -88,10 +89,14 @@ export function initSearch(config) {
         el.dataset.rel = h.relpath;
         el.dataset.label = h.label;
         el.dataset.canedit = h.canedit ? "1" : "0";
-      } else if (h.isImage || h.isVideo) {
+      } else if (h.isImage || h.isVideo || h.isAudio) {
         el = document.createElement("button");
         el.type = "button";
-        el.className = "app-hit " + (h.isVideo ? "video-open" : "image-open");
+        // Ton wie Bild und Video: eigener Dialog statt Herunterladen. Die
+        // Wiedergabeliste bilden dann die uebrigen Tontreffer der Suche —
+        // das ist selten ein ganzes Hoerbuch, aber immer noch besser als
+        // jeden Treffer einzeln neu zu suchen.
+        el.className = "app-hit " + (h.isVideo ? "video-open" : (h.isAudio ? "audio-open" : "image-open"));
         el.dataset.src = h.src;
         el.dataset.download = h.download;
         el.dataset.label = h.label;
@@ -111,6 +116,7 @@ export function initSearch(config) {
     if (bindNoteOpen) bindNoteOpen(list);
     bindImageOpen(list);
     bindVideoOpen(list);
+    bindAudioOpen(list);
 
     clearTimeout(clearTimer); // ein neues Ergebnis hebt ein laufendes Zufahren auf
     list.hidden = !hits.length;

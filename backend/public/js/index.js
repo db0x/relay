@@ -15,6 +15,7 @@ import { initUpload } from "./files/upload.js";
 import { initOwnFilter } from "./files/own-filter.js";
 import { initImageView } from "./files/image-view.js";
 import { initVideoView } from "./files/video-view.js";
+import { initAudioView } from "./files/audio-view.js";
 import { initEditorView } from "./files/editor-view.js";
 import { initNotes } from "./notes/notes.js";
 import { initBackupDialog } from "./backup.js";
@@ -54,6 +55,7 @@ initUpload();
 initOwnFilter();
 initImageView();
 initVideoView();
+  initAudioView();
 // Eigene Bildlaufleisten fuer Menues, Dialoge und Vorschauen. Die FENSTER
 // versorgt createWindow selbst — jede kuenftige Ansicht bekommt sie damit
 // automatisch, ohne hier etwas nachzutragen.
