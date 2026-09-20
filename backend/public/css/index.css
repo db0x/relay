@@ -914,6 +914,16 @@ body:not(.desk-ready) .note-desktop{opacity:0}
   flex:0 0 auto;width:11rem;padding:.2rem .45rem;font-size:.82rem;
 }
 .lib-alias:disabled{opacity:.45;cursor:not-allowed}
+/* Ordner, dessen Unterordner nicht mit in der Liste stehen (folderTree hat
+   an der Zeilen- oder Tiefengrenze abgeschnitten). Kein Fehler, nur eine
+   Auskunft — darum leise, aber vorhanden: unsichtbar abzuschneiden war genau
+   der Fehler, den diese Marke behebt. */
+.lib-gekuerzt{
+  flex:0 0 auto;font-size:.68rem;letter-spacing:.02em;text-transform:uppercase;
+  color:var(--muted);border:1px solid var(--line);border-radius:999px;
+  padding:.05rem .4rem;cursor:help;
+}
+.dialog-glass .lib-gekuerzt{color:var(--glass-ink-muted);border-color:var(--glass-line)}
 /* von einer Freigabe weiter oben abgedeckt: angehakt, aber nicht aenderbar
    (js/library-picker.js) — gedaempft, damit klar ist, dass es mitgilt */
 .lib-node-abgedeckt{opacity:.5}

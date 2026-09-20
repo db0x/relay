@@ -64,6 +64,14 @@
             <input type="checkbox" name="folder" value="<%= f.rel %>"
                    <%= libNamen.hasOwnProperty(f.rel) ? "checked" : "" %>> <%= f.name %>
           </label>
+          <%# Ordner, dessen Unterordner NICHT in der Liste stehen (Zeilen-
+              oder Tiefengrenze in library.folderTree). Frueher fehlten die
+              stillschweigend — man hielt den Ordner fuer leer. Der Ordner
+              selbst laesst sich normal freigeben, und ein Recht auf ihn gilt
+              ohnehin fuer alles darunter; nur die EINZELauswahl darin fehlt. %>
+          <% if (f.beschnitten) { %>
+          <span class="lib-gekuerzt" data-tip="Die Unterordner sind hier nicht aufgeführt. Eine Freigabe auf diesen Ordner gilt trotzdem für alles darunter.">gekürzt</span>
+          <% } %>
           <%# Eigenes name-Attribut je Zeile ("lbl:<pfad>"): ein gemeinsamer
               Name ginge nicht, weil nicht angehakte Kaestchen gar nicht erst
               mitgeschickt werden und die Reihenfolge dann nicht mehr passt.
@@ -76,6 +84,12 @@
         <% }); %>
       </div>
     </div>
+    <% if (libAll.some(function(f){ return f.beschnitten; })) { %>
+    <p class="muted dialog-hint">Sehr tief verschachtelte Ordner sind mit
+      <span class="lib-gekuerzt">gekürzt</span> markiert: ihre Unterordner stehen
+      nicht einzeln in der Liste. Die oberste Ebene und alles bereits
+      Freigegebene ist immer vollständig aufgeführt.</p>
+    <% } %>
     <p class="muted dialog-hint">Das Recht gilt für alles darunter — und nur zum
       Lesen: Bearbeiten, Verschieben oder Löschen gibt es in der Bibliothek nicht.
       Freigegebene Ordner sind zugleich der Einstieg: sie erscheinen bei

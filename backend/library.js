@@ -77,52 +77,124 @@ function absOf(rel) {
 
 // Alle Ordner der Bibliothek als BAUM — die Auswahl im Admin-Dialog.
 // Rueckgabe in Anzeigereihenfolge (Vorordnung): jeder Ordner steht direkt vor
-// seinen Kindern, `tiefe` traegt die Einrueckung und `kinder` sagt, ob sich
-// die Zeile aufklappen laesst (die Oberflaeche haengt daran ihren Pfeil).
+// seinen Kindern, `tiefe` traegt die Einrueckung, `kinder` sagt, ob sich die
+// Zeile aufklappen laesst (die Oberflaeche haengt daran ihren Pfeil), und
+// `beschnitten` markiert einen Ordner, dessen Unterordner NICHT in der Liste
+// stehen — siehe unten.
 //
 // Gemerkt wie der Suchindex: der Dialog wird bei JEDEM Seitenaufbau gerendert
-// (ein Baum je Nutzer), ein Durchlauf ueber eine Netzfreigabe kostet sonst
-// jedes Mal. TREE_MAX/TREE_DEPTH decken den Fall ab, dass jemand eine riesige
-// Sammlung einhaengt — die Auswahl bliebe sonst unbenutzbar und die Seite
-// riesig. TREE_DEPTH begrenzt zugleich einen Symlink, der innerhalb der
-// Bibliothek auf einen seiner Vorfahren zeigt.
+// (und der Baum je Nutzer einmal ins HTML geschrieben), ein Durchlauf ueber
+// eine Netzfreigabe kostet sonst jedes Mal.
+//
+// EINGESAMMELT WIRD BREITENWEISE, Ebene fuer Ebene — nicht tiefenzuerst.
+// Der Unterschied ist nicht kosmetisch, er war ein handfester Fehler: bei
+// einem tiefenzuersten Durchlauf frisst der erste grosse Zweig das ganze
+// Zeilenbudget, und alles, was im Alphabet dahinter kommt, verschwindet
+// SPURLOS aus der Auswahl — samt ganzer Ordner der obersten Ebene. Genau so
+// geschehen (2026-09-20): 378 Ordner unter "movies" verdraengten
+// "public/scan", "public/OS-ISOs", "relay", "TV series" und "tschwerdt" aus
+// dem Dialog. Kein Admin konnte sie noch freigeben, und nichts wies darauf
+// hin. Breitenweise trifft die Grenze immer nur die TIEFSTEN Ordner.
+//
+// Zwei Dinge stehen ausserdem UNANTASTBAR in der Liste, egal wie voll sie ist:
+//   - die gesamte oberste Ebene — das ist die uebliche Einheit einer Freigabe,
+//     sie darf nie an der Sammlung eines Nachbarordners scheitern,
+//   - jeder Ordner, der IRGENDJEMANDEM freigeschaltet ist (und seine
+//     Vorfahren, sonst haengt die Zeile im Baum in der Luft). Sonst faehrt
+//     der Fehler eine zweite, schlimmere Ernte ein: was das Formular nicht
+//     anzeigt, schickt es nicht mit, und setGrants ersetzt die Rechte
+//     KOMPLETT — ein unsichtbares Recht waere beim naechsten Speichern des
+//     Dialogs still geloescht worden.
+//
+// TREE_DEPTH begrenzt zugleich einen Symlink, der innerhalb der Bibliothek
+// auf einen seiner Vorfahren zeigt.
 const TREE_TTL = 60 * 1000;
-const TREE_MAX = 500;
+// Grosszuegig, aber begrenzt: der Baum landet je Nutzer einmal im HTML der
+// Seite, das Budget vervielfacht sich also mit der Zahl der Konten.
+const TREE_MAX = 1200;
 const TREE_DEPTH = 6;
 let treeCache = null;
+
+// Unterordner eines Ordners — sicher (nichts, was aus der Bibliothek
+// herausfuehrt) und in Anzeigereihenfolge.
+function unterordner(abs, r) {
+  let ents = [];
+  try { ents = fs.readdirSync(abs, { withFileTypes: true }); } catch (e) { return []; }
+  const out = [];
+  for (const e of ents) {
+    if (e.name.startsWith(".")) continue;
+    let real;
+    try { real = fs.realpathSync(path.join(abs, e.name)); } catch (err) { continue; }
+    if (real !== r && !real.startsWith(r + path.sep)) continue;   // fuehrt hinaus
+    if (isDir(real)) out.push({ name: e.name, abs: real });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
+  return out;
+}
+
+// Jeder freigeschaltete Ordner und alle seine Vorfahren: "a/b/c" liefert
+// "a", "a/b", "a/b/c".
+function pflichtOrdner() {
+  const pflicht = new Set();
+  let reihen = [];
+  try {
+    reihen = db().prepare("SELECT DISTINCT folder FROM library_access").all();
+  } catch (e) { return pflicht; }   // Tabelle gibt es noch nicht (Erstlauf)
+  for (const { folder } of reihen) {
+    const safe = safeRel(folder);
+    if (!safe) continue;
+    const teile = safe.split("/");
+    for (let i = 1; i <= teile.length; i++) pflicht.add(teile.slice(0, i).join("/"));
+  }
+  return pflicht;
+}
 
 function folderTree() {
   const jetzt = Date.now();
   if (treeCache && jetzt - treeCache.at < TREE_TTL) return treeCache.list;
   const r = root();
   const list = [];
-  const sammle = (abs, rel, tiefe) => {
-    if (tiefe >= TREE_DEPTH || list.length >= TREE_MAX) return;
-    let ents = [];
-    try { ents = fs.readdirSync(abs, { withFileTypes: true }); } catch (e) { return; }
-    const ordner = [];
-    for (const e of ents) {
-      if (e.name.startsWith(".")) continue;
-      let real;
-      try { real = fs.realpathSync(path.join(abs, e.name)); } catch (err) { continue; }
-      if (real !== r && !real.startsWith(r + path.sep)) continue;  // fuehrt hinaus
-      if (isDir(real)) ordner.push({ name: e.name, abs: real });
+  if (!r) { treeCache = { at: jetzt, list }; return list; }
+  const pflicht = pflichtOrdner();
+
+  // --- Ebene fuer Ebene einsammeln ------------------------------------
+  const knoten = (o, rel, tiefe) =>
+    ({ rel, name: o.name, abs: o.abs, tiefe, kinder: [], beschnitten: false });
+  const oben = unterordner(r, r).map((o) => knoten(o, o.name, 0));
+  // Die oberste Ebene zaehlt nicht gegen das Budget — sie ist gesetzt.
+  let budget = TREE_MAX;
+  let ebene = oben;
+  let tiefe = 1;
+  for (; tiefe < TREE_DEPTH && ebene.length; tiefe++) {
+    const naechste = [];
+    for (const eltern of ebene) {
+      for (const o of unterordner(eltern.abs, r)) {
+        const rel = `${eltern.rel}/${o.name}`;
+        const muss = pflicht.has(rel);
+        if (!muss) {
+          if (budget <= 0) { eltern.beschnitten = true; continue; }
+          budget--;
+        }
+        const k = knoten(o, rel, tiefe);
+        eltern.kinder.push(k);
+        naechste.push(k);
+      }
     }
-    ordner.sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
-    for (const o of ordner) {
-      if (list.length >= TREE_MAX) return;
-      const kind = rel ? `${rel}/${o.name}` : o.name;
-      list.push({ rel: kind, name: o.name, tiefe });
-      sammle(o.abs, kind, tiefe + 1);
-    }
+    ebene = naechste;
+  }
+  // Was allein an TREE_DEPTH gescheitert ist, ebenfalls ehrlich markieren:
+  // sonst sieht die unterste Ebene aus wie ein Blatt.
+  if (tiefe >= TREE_DEPTH) {
+    for (const k of ebene) if (unterordner(k.abs, r).length) k.beschnitten = true;
+  }
+
+  // --- flach in Vorordnung ausgeben -----------------------------------
+  const flach = (k) => {
+    list.push({ rel: k.rel, name: k.name, tiefe: k.tiefe,
+                kinder: k.kinder.length > 0, beschnitten: k.beschnitten });
+    for (const c of k.kinder) flach(c);
   };
-  if (r) sammle(r, "", 0);
-  // In der Vorordnung ist ein Ordner genau dann ein Elternteil, wenn die
-  // NAECHSTE Zeile tiefer steht — ein Blick nach vorn genuegt.
-  list.forEach((k, i) => {
-    const naechster = list[i + 1];
-    k.kinder = !!naechster && naechster.tiefe > k.tiefe;
-  });
+  for (const k of oben) flach(k);
   treeCache = { at: jetzt, list };
   return list;
 }
@@ -314,6 +386,11 @@ const setGrants = (() => {
     // nurWurzeln: ein Recht, das schon von einem darueberliegenden abgedeckt
     // ist, kommt gar nicht erst in die Datenbank
     fn(username, nurWurzeln(liste));
+    // Der gemerkte Ordnerbaum haelt die freigeschalteten Ordner fest in der
+    // Liste (folderTree/pflichtOrdner). Aendern sich die Rechte, ist er
+    // ueberholt — sonst zeigte der Dialog bis zu einer Minute lang einen
+    // Baum, der zu den gerade gespeicherten Rechten nicht mehr passt.
+    treeCache = null;
   };
 })();
 

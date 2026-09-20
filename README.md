@@ -454,18 +454,14 @@ mount preserves), the backup excludes it, and the log tells the admin it
 happened. What *does* get backed up is the grants table including display
 names — without it a restore would lose who may see what.
 
-**Repairing a library** (`deploy/`): browsers play neither Dolby Digital /
+**What a library file needs to stream**: browsers play neither Dolby Digital /
 DTS / TrueHD audio nor MPEG-2 video, and a DVD-era collection is full of both.
-Two scripts fix the source files rather than transcoding on every playback.
-`ton-nachruesten.sh` appends an AAC track (video copied, ~5 min per film);
-`bild-nachruesten.sh` re-encodes MPEG-2 to H.264 and fixes the audio in the
-same pass. Both write to a `.tmp` beside the file and only replace the original
-after every check passes — duration within 2 s, stream counts, aspect ratio
-(DVD is anamorphic: 720x576 shown as 16:9, losing that squashes the picture),
-and a full decode of the result. `--report` lists what would be touched,
-`--keep-original` leaves the source as `.orig`, and both are repeatable.
-Measured on a real 186-film library: 28 audio-only repairs in 3 h 12 min, 66
-video conversions in 13.5 h at SSIM 0.986 / PSNR 44.8 dB, files shrinking 70 %.
+Relay never transcodes on playback — a file streams only if its video is
+H.264, VP8, VP9, AV1 or Theora **and** at least one audio track is AAC, MP3,
+Opus, Vorbis, FLAC or PCM. The audio-only case has a button in the player
+(`transcode.js`, above); a wrong *video* codec cannot be fixed at playback
+time and has to be converted in the files themselves, which is a maintenance
+job on the collection and not part of Relay.
 
 Path safety here deliberately does **not** use `secureFilename`: library names
 are not Relay's own and may contain umlauts, spaces and brackets. Instead

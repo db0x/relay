@@ -11,6 +11,12 @@ docs/
 library/*
 !library/.gitkeep
 
+# Wartungsskripte fuer die Bibliothek: gehoeren dem Betrieb, nicht dem Repo
+# (sie beschreiben die private Sammlung und den Server dahinter). Liegen
+# weiterhin lokal in deploy/ und auf dem Server, nur eben nicht in git.
+deploy/bild-nachruesten.sh
+deploy/ton-nachruesten.sh
+
 # Node
 node_modules/
 npm-debug.log*
