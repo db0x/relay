@@ -125,6 +125,32 @@ function libFileToken(rel, expires) {
 // damit ohne Login-Cookie)
 const LINK_STUNDEN = 12;
 
+// Namen und Avatare, die der Editor braucht — als { avatarUrl, teilnehmer }.
+//
+// WOFUER GENAU: Der Editor fragt ueber onRequestUsers (js/edit.js) Name und
+// Bild zu NUTZER-IDs nach, die er im DOKUMENT findet. Das betrifft nicht nur
+// die, die gerade mitschreiben, sondern vor allem KOMMENTARE, nachverfolgte
+// Aenderungen und die Versionshistorie — die stehen in der Datei und stammen
+// aus der Vergangenheit. Bleibt die Liste leer, findet der Editor zu keiner
+// ID etwas und malt statt des Avatars den Anfangsbuchstaben in einen Kreis.
+//
+// Absolute, signierte Avatar-URLs: der Editor-iframe laeuft je nach Setup auf
+// fremder Origin (Port-Setup), dorthin schickt der Browser keine
+// Sitzungs-Cookies. Der Host kommt aus dem Request — darueber hat der Browser
+// uns ja erreicht.
+//
+// Ohne Admins: die bearbeiten keine Dokumente, sollen aber vor allem nicht in
+// einer Liste stehen, die im Quelltext JEDER Editor-Seite steht — sonst waeren
+// alle Verwaltungszugaenge fuer jeden Angemeldeten einsehbar.
+function editorNutzer(req, exp) {
+  const pub = `${req.protocol}://${req.get("host")}`;
+  const avatarUrl = (u) => (avatars.has(u) ? pub + avatars.signedUrl(u, exp) : undefined);
+  const teilnehmer = users.listUsers().filter((u) => !u.is_admin).map((u) => ({
+    id: u.username, name: u.display_name, image: avatarUrl(u.username),
+  }));
+  return { avatarUrl, teilnehmer };
+}
+
 router.get("/edit/:owner/*", loginRequired, async (req, res) => {
   const uid = req.params.owner, fid = req.params[0];
   const acc = accessFor(req.session.user, uid, fid);
@@ -154,11 +180,7 @@ router.get("/edit/:owner/*", loginRequired, async (req, res) => {
   // normalen mtime-Keys. Erst nach dem ~5s-Speicherfenster (Watchdog wartet
   // laenger) -> die Datei hat dann den aktuellen Stand, kein Datenverlust.
   const retrySuffix = req.query["relay-retry"] ? "-r" + crypto.randomBytes(4).toString("hex") : "";
-  // Avatare: absolute, signierte URLs — der Editor-iframe laeuft je nach Setup
-  // auf fremder Origin (Port-Setup) und der Browser schickt dorthin keine
-  // Session-Cookies. Host aus dem Request: darueber hat der Browser uns erreicht.
-  const pub = `${req.protocol}://${req.get("host")}`;
-  const avatarUrl = (u) => (avatars.has(u) ? pub + avatars.signedUrl(u, exp) : undefined);
+  const { avatarUrl, teilnehmer } = editorNutzer(req, exp);
   // --- Dokument-Key ----------------------------------------------------
   // Grundform: Nutzer + Datei + mtime. Gleichzeitige Editoren bekommen so
   // denselben Key und teilen die DS-Sitzung (Co-Editing); nach einem Speichern
@@ -219,22 +241,13 @@ router.get("/edit/:owner/*", loginRequired, async (req, res) => {
   config.token = jwt.sign(config, JWT_SECRET, { algorithm: "HS256", noTimestamp: true });
   // Session-Key merken, damit /forcesave ihn spaeter dem DocumentServer geben kann.
   activeEditorKey.set(`${uid}/${fid}`, config.document.key);
-  // alle Nutzer mit Avatar-URL: edit.js beantwortet damit onRequestUsers
-  // (Avatare der ANDEREN beim Co-Editing, in Kommentaren, Versionshistorie)
-  // Ohne Admins: sie bearbeiten keine Dokumente, sollen aber vor allem nicht
-  // in der Teilnehmerliste auftauchen, die auf JEDER Editor-Seite im Quelltext
-  // steht — sonst waere die Liste aller Verwaltungszugaenge fuer jeden
-  // angemeldeten Nutzer einsehbar.
-  const usersInfo = users.listUsers().filter((u) => !u.is_admin).map((u) => ({
-    id: u.username, name: u.display_name, image: avatarUrl(u.username),
-  }));
   // "<" escapen: die JSONs landen roh in <script>-Tags der Editor-Seite —
   // ein "</script>" in einem Anzeigenamen darf dort nicht ausbrechen
   const embed = (o) => JSON.stringify(o).replace(/</g, "\\u003c");
   res.render("edit", {
     ds_api: `${PUBLIC_DS}/web-apps/apps/api/documents/api.js`,
     config: embed(config),
-    usersJson: embed(usersInfo),
+    usersJson: embed(teilnehmer),
     // fuer edit.js: Editor-Einstellungen liegen im localStorage der DS-Origin —
     // nur wenn sie mit unserer identisch ist (nginx-Setup), kann er sie setzen
     dsOrigin: new URL(PUBLIC_DS).origin,
@@ -355,6 +368,7 @@ router.get("/scratch/edit/:kennung", loginRequired, async (req, res) => {
 
   const mtime = Math.floor(fs.statSync(a.datei).mtimeMs / 1000);
   const exp = Math.floor(Date.now() / 1000) + LINK_STUNDEN * 3600;
+  const { avatarUrl, teilnehmer } = editorNutzer(req, exp);
   const src = `${HOST_INTERNAL}${BASE}/scratch/files/${a.kennung}`
     + `?u=${encodeURIComponent(me)}&expires=${exp}&token=${scratchFileToken(me, a.kennung, exp)}`;
 
@@ -384,7 +398,7 @@ router.get("/scratch/edit/:kennung", loginRequired, async (req, res) => {
       lang: "de-DE",
       region: "de-DE",
       callbackUrl: `${HOST_INTERNAL}${BASE}/scratch/callback/${a.kennung}?u=${encodeURIComponent(me)}`,
-      user: { id: me, name: req.session.name, image: undefined },
+      user: { id: me, name: req.session.name, image: avatarUrl(me) },
       customization: {
         forcesave: true, autosave: true,
         uiTheme: EDITOR_THEME,
@@ -399,9 +413,16 @@ router.get("/scratch/edit/:kennung", loginRequired, async (req, res) => {
   res.render("edit", {
     ds_api: `${PUBLIC_DS}/web-apps/apps/api/documents/api.js`,
     config: embed(config),
-    // Leere Teilnehmerliste: an einer Arbeitskopie sitzt genau einer. Die
-    // Namensliste aller Nutzer hat hier nichts zu suchen.
-    usersJson: embed([]),
+    // Die Teilnehmerliste gehoert auch hierher — anfangs stand hier bewusst
+    // eine leere, mit der Begruendung "an einer Arbeitskopie sitzt ja nur
+    // einer". Das war ein Trugschluss: der Editor braucht die Liste nicht fuer
+    // das gleichzeitige Schreiben, sondern um die NAMEN IM DOKUMENT
+    // aufzuloesen — Kommentare, nachverfolgte Aenderungen, Versionshistorie.
+    // Die stammen aus der Vergangenheit und kennen die Arbeitsablage nicht.
+    // Mit der leeren Liste fand der Editor zu keiner ID etwas und zeichnete
+    // statt der Avatare Buchstabenkreise (beobachtet an einem Kommentar von
+    // Thomas mit Antwort von Maryna).
+    usersJson: embed(teilnehmer),
     dsOrigin: new URL(PUBLIC_DS).origin,
     theme: EDITOR_THEME,
   });
