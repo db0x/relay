@@ -24,8 +24,9 @@ const multer = require("multer");
 const users = require("../users");
 const { securePath, dirFor, pathFor, walkFiles } = require("../storage");
 const { darfVonHier } = require("../zone");
-const { MAX_FILE_MB } = require("../config");
-const { forcesave } = require("./editor");
+const { MAX_FILE_MB, BASE } = require("../config");
+const scratch = require("../scratch");
+const { forcesave, forcesaveScratch } = require("./editor");
 
 const router = express.Router();
 
@@ -120,6 +121,60 @@ router.delete("/api/files/*", apiAuth, (req, res) => {
     return res.status(404).json({ error: "not found" });
   fs.unlinkSync(p);
   res.json({ ok: true, deleted: req.fid });
+});
+
+// --- Arbeitsablage: Dateien, die Relay NICHT behaelt -------------------
+// Fuer Dokumente, die auf dem lokalen Rechner liegen und Relay nicht gehoeren.
+// Voltage reicht den Inhalt herauf, bearbeitet ihn im Editor, zieht ihn beim
+// Schliessen zurueck und loescht die Arbeitskopie. Warum das nicht ueber
+// /api/files laeuft — und damit im Nutzerordner landet —, steht ausfuehrlich
+// in scratch.js.
+//
+// Der Client entscheidet, welcher Weg der richtige ist: eine Datei, die es in
+// Relay schon GIBT, gehoert nach /api/files (sie bleibt ja), eine rein lokale
+// hierher. Diese Grenze kann der Server nicht ziehen, denn nur der Client
+// weiss, woher die Datei stammt.
+//
+// Die Kennung kommt vom Server und ist Zufall: zwei gleichzeitig geoeffnete
+// "brief.docx" aus verschiedenen Ordnern duerfen einander nicht ueberschreiben.
+const scratchRoh = express.raw({ type: () => true, limit: `${MAX_FILE_MB}mb` });
+router.post("/api/scratch", apiAuth, scratchRoh, (req, res) => {
+  const daten = Buffer.isBuffer(req.body) ? req.body : null;
+  if (!daten || daten.length === 0) return res.status(400).json({ error: "empty body" });
+  // Nur der letzte Pfadbestandteil: der Client schickt gern den ganzen lokalen
+  // Pfad mit, und der geht Relay nichts an. Er dient ausschliesslich als Titel
+  // im Editor und als Quelle der Endung.
+  const name = path.basename(String(req.query.name || "dokument")).slice(0, 255);
+  const kennung = scratch.anlegen(req.uid, name, daten);
+  if (!kennung) return res.status(500).json({ error: "scratch failed" });
+  res.status(201).json({
+    id: kennung,
+    name,
+    bytes: daten.length,
+    // fertiger Weg in den Editor — der Client muss nichts zusammensetzen
+    edit: `${BASE}/scratch/edit/${kennung}`,
+  });
+});
+
+// Aktuellen Stand zurueckholen (das ist der Sync auf die lokale Datei)
+router.get("/api/scratch/:id", apiAuth, (req, res) => {
+  const a = scratch.lies(req.uid, req.params.id);
+  if (!a) return res.status(404).json({ error: "not found" });
+  res.download(a.datei, a.name);
+});
+
+// Arbeitskopie wegwerfen. Wiederholbar: was schon weg ist, gilt als erledigt —
+// der Client darf das beim Schliessen gefahrlos ein zweites Mal schicken.
+router.delete("/api/scratch/:id", apiAuth, (req, res) => {
+  if (!scratch.KENNUNG_RE.test(String(req.params.id || "")))
+    return res.status(400).json({ error: "invalid id" });
+  scratch.entfernen(req.uid, req.params.id);
+  res.json({ ok: true, deleted: req.params.id });
+});
+
+// Forcesave fuer eine Arbeitskopie — gleiche Antworten wie bei /api/files
+router.post("/api/scratch/:id/forcesave", apiAuth, (req, res) => {
+  forcesaveScratch(req.uid, req.params.id).then((r) => res.json(r));
 });
 
 // Forcesave: bittet den DocumentServer, die offene Editor-Session SOFORT zu speichern, statt auf

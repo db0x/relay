@@ -103,6 +103,20 @@
       // erzwingen die modernen Themes (theme-white/night/system) wieder "line"
       setzeWennAnders("settings-tab-style", "fill");
       setzeWennAnders("settings-tab-style-newtheme", "1");
+      // DURCHSCHLAG BEIM SPEICHERN festnageln. Das Kaestchen "Speichern
+      // erzwingen" in den Datei-Einstellungen des Editors liegt ebenfalls hier
+      // im Speicher, und es SCHLAEGT unser customization.forcesave aus der
+      // Config — im DocumentServer steht woertlich:
+      //   appOptions.forcesave = getBool("de-settings-forcesave", <Vorgabe>)
+      // Wer das Kaestchen einmal abwaehlt, dessen Strg+S landet danach nur noch
+      // im Cache des DocumentServers; auf Platte kaeme die Aenderung erst beim
+      // Schliessen. Genau dieselbe Falle wie beim Theme, nur mit Datenverlust
+      // als moeglicher Folge statt falscher Farben.
+      // de=Text, sse=Tabellen, pe=Praesentationen (nur diese drei kennen den
+      // Schluessel — im PDF- und Visio-Editor gibt es nichts zu speichern).
+      ["de", "sse", "pe"].forEach(function (p) {
+        setzeWennAnders(p + "-settings-forcesave", "1");
+      });
     } catch (e) { /* Speicher blockiert (Privatmodus o.ae.) — dann eben nicht */ }
   }
 

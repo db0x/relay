@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 const users = require("../users");
 const avatars = require("../avatars");
 const library = require("../library");
+const scratch = require("../scratch");
 const { accessFor } = require("../access");
 const { secureFilename, encPath, securePath, dirFor, pathFor, walkFiles } = require("../storage");
 const { PUBLIC_DS, HOST_INTERNAL, DS_INTERNAL, JWT_SECRET, FILE_SECRET, DOCTYPE, BASE, EDITOR_THEME, dsFetchUrl } = require("../config");
@@ -39,32 +40,61 @@ const activeEditorKey = new Map();
 //                                    schreibt die Datei gleich
 //   { saved:false, no-changes }   -> nichts geaendert
 //   { saved:false, no-session }   -> kein Key bekannt (z.B. nach Neustart)
-function forcesave(uid, fid) {
+// Ein Kommando an den CommandService des DocumentServers. Antwort ist das
+// geparste JSON oder null (nicht erreichbar, Frist abgelaufen, kein JSON).
+// FRIST: der Aufrufer sitzt in einem Web-Request. Ein DocumentServer, der
+// nicht antwortet, darf weder das Oeffnen noch das Schliessen eines Dokuments
+// haengen lassen — beides hat einen Rueckfall, der ohne die Antwort auskommt.
+function dsKommando(cmd, frist = 5000) {
   return new Promise((fertig) => {
-    const key = activeEditorKey.get(`${uid}/${fid}`);
-    if (!key) return fertig({ saved: false, reason: "no-session" });
-    const cmd = { c: "forcesave", key };
     const body = JSON.stringify({ ...cmd, token: jwt.sign(cmd, JWT_SECRET) });
     const u = new URL(`${DS_INTERNAL}/coauthoring/CommandService.ashx`);
     const dreq = http.request(
       { hostname: u.hostname, port: u.port || 80, path: u.pathname, method: "POST",
+        timeout: frist,
         headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
       (dres) => {
         const chunks = [];
         dres.on("data", (c) => chunks.push(c));
         dres.on("end", () => {
-          let error = -1;
-          try { error = JSON.parse(Buffer.concat(chunks).toString()).error; } catch (e) { /* s.u. */ }
-          // 0 = forcesave gestartet; 4 = nichts zu speichern; sonst DS-Fehler.
-          if (error === 0) return fertig({ saved: true });
-          if (error === 4) return fertig({ saved: false, reason: "no-changes" });
-          fertig({ saved: false, reason: "ds-error", error });
+          try { fertig(JSON.parse(Buffer.concat(chunks).toString())); }
+          catch (e) { fertig(null); }
         });
       }
     );
-    dreq.on("error", () => fertig({ saved: false, reason: "unreachable" }));
+    dreq.on("timeout", () => { dreq.destroy(); fertig(null); });
+    dreq.on("error", () => fertig(null));
     dreq.write(body);
     dreq.end();
+  });
+}
+
+// Sitzt gerade JEMAND an diesem Key?
+//
+// Entscheidend ist die Nutzerliste, NICHT der Fehlercode. Nachgemessen gegen
+// DS 9.4.0.129:
+//   unbekannter Key      -> {"key":"…","error":1}
+//   offenes Dokument     -> {"key":"…","error":0,"users":["…"]}
+//   ALLE wieder raus     -> {"key":"…","error":0,"users":[]}
+// "error: 0" heisst also nur "der DocumentServer kennt dieses Dokument" — das
+// bleibt es auch nach dem letzten Teilnehmer, solange sein Cache den Eintrag
+// haelt. Wer darauf hin den alten Key wiederverwendete, bekaeme den CACHE des
+// DocumentServers statt der Datei auf Platte: ein zwischenzeitlicher Upload
+// oder eine Wiederherstellung aus dem Backup waere unsichtbar.
+async function sitzungLaeuft(key) {
+  const a = await dsKommando({ c: "info", key });
+  return !!a && a.error === 0 && Array.isArray(a.users) && a.users.length > 0;
+}
+
+function forcesave(uid, fid) {
+  const key = activeEditorKey.get(`${uid}/${fid}`);
+  if (!key) return Promise.resolve({ saved: false, reason: "no-session" });
+  return dsKommando({ c: "forcesave", key }).then((a) => {
+    if (!a) return { saved: false, reason: "unreachable" };
+    // 0 = forcesave gestartet; 4 = nichts zu speichern; sonst DS-Fehler.
+    if (a.error === 0) return { saved: true };
+    if (a.error === 4) return { saved: false, reason: "no-changes" };
+    return { saved: false, reason: "ds-error", error: a.error };
   });
 }
 
@@ -72,6 +102,15 @@ function forcesave(uid, fid) {
 function fileToken(uid, fid, expires) {
   return crypto.createHmac("sha256", FILE_SECRET)
     .update(`${uid}:${fid}:${expires}`).digest("base64url");
+}
+
+// Dasselbe fuer die Arbeitsablage. Wieder ein eigener Namensraum: eine
+// Kennung aus der Arbeitsablage darf nie als Nutzerdatei- oder
+// Bibliotheks-Link durchgehen. Der Besitzer steht mit in der Signatur, damit
+// ein Link fuer A nie eine Arbeitskopie von B oeffnet.
+function scratchFileToken(besitzer, kennung, expires) {
+  return crypto.createHmac("sha256", FILE_SECRET)
+    .update(`scratch:${besitzer}:${kennung}:${expires}`).digest("base64url");
 }
 
 // Dasselbe fuer die Bibliothek. Eigener Namensraum ("lib") in der Signatur:
@@ -86,7 +125,7 @@ function libFileToken(rel, expires) {
 // damit ohne Login-Cookie)
 const LINK_STUNDEN = 12;
 
-router.get("/edit/:owner/*", loginRequired, (req, res) => {
+router.get("/edit/:owner/*", loginRequired, async (req, res) => {
   const uid = req.params.owner, fid = req.params[0];
   const acc = accessFor(req.session.user, uid, fid);
   if (!acc) return res.sendStatus(404);
@@ -120,13 +159,39 @@ router.get("/edit/:owner/*", loginRequired, (req, res) => {
   // Session-Cookies. Host aus dem Request: darueber hat der Browser uns erreicht.
   const pub = `${req.protocol}://${req.get("host")}`;
   const avatarUrl = (u) => (avatars.has(u) ? pub + avatars.signedUrl(u, exp) : undefined);
+  // --- Dokument-Key ----------------------------------------------------
+  // Grundform: Nutzer + Datei + mtime. Gleichzeitige Editoren bekommen so
+  // denselben Key und teilen die DS-Sitzung (Co-Editing); nach einem Speichern
+  // aendert er sich, damit der DS die neue Fassung laedt statt seiner alten.
+  //
+  // ABER: seit der Editor bei Strg+S durchschlaegt (customization.forcesave,
+  // Callback-Status 6) und der DocumentServer zusaetzlich alle fuenf Minuten
+  // von sich aus speichert (autoAssembly in documentserver/local.json),
+  // aendert sich die mtime MITTEN IN EINER LAUFENDEN SITZUNG. Wer danach
+  // dieselbe Datei oeffnete, bekam einen anderen Key — also eine ZWEITE,
+  // unabhaengige Sitzung auf derselben Datei. Beide sahen einander nicht, und
+  // wer zuletzt speicherte, ueberschrieb den anderen. Genau das Gegenteil von
+  // Co-Editing.
+  //
+  // Darum: existiert zu dieser Datei noch eine LEBENDE Sitzung, wird deren Key
+  // uebernommen. Die Pruefung fragt den DS ("info"), statt activeEditorKey zu
+  // glauben — die Map merkt sich nur den zuletzt ausgegebenen Key und wird nie
+  // geleert. Blind wiederverwendet lieferte sie nach dem Ende einer Sitzung
+  // den DS-CACHE statt der Datei auf Platte, und ein zwischenzeitlicher Upload
+  // waere unsichtbar.
+  // Beim Retry (?relay-retry) bleibt es ausdruecklich beim frischen Key: dort
+  // ist die alte Sitzung ja gerade das Problem (siehe oben).
+  const mtimeKey = `${secureFilename(uid)}-${fidHash}-${mtime}${retrySuffix}`;
+  let key = mtimeKey;
+  if (!retrySuffix) {
+    const offen = activeEditorKey.get(`${uid}/${fid}`);
+    if (offen && offen !== mtimeKey && await sitzungLaeuft(offen)) key = offen;
+  }
+
   const config = {
     document: {
       fileType: ext,
-      // key stabil pro Inhalts-Version: gleichzeitige Editoren teilen die Session
-      // (Co-Editing), aendert sich nach Save. Nutzer im Key: gleiche Dateinamen
-      // verschiedener Nutzer duerfen sich im DS-Cache nicht vermischen.
-      key: `${secureFilename(uid)}-${fidHash}-${mtime}${retrySuffix}`,
+      key,
       title: path.basename(fid),
       url: src,
       // Nur-Lesen-Freigaben: der DocumentServer erzwingt das, weil die ganze
@@ -270,6 +335,153 @@ router.get("/lib/edit/*", loginRequired, (req, res) => {
   });
 });
 
+
+// --- Arbeitsablage: eine Datei bearbeiten, die Relay nicht gehoert ------
+// Voltage reicht eine Datei vom lokalen Rechner herauf (POST /api/scratch),
+// bearbeitet sie hier und zieht sie beim Schliessen zurueck; danach wird die
+// Arbeitskopie geloescht. Siehe scratch.js fuer das Warum.
+//
+// Eigener Pfad (/scratch/edit) statt /edit/...: die Arbeitsablage hat keinen
+// Besitzer-plus-Pfad, sondern eine Kennung — und ein Nutzer namens "scratch"
+// waere sonst nicht von ihr zu unterscheiden (dieselbe Ueberlegung wie bei
+// /lib/edit).
+router.get("/scratch/edit/:kennung", loginRequired, async (req, res) => {
+  const me = req.session.user;
+  const a = scratch.lies(me, req.params.kennung);
+  // Eine fremde oder abgelaufene Kennung ist schlicht nicht da. 404 statt 403:
+  // ob es sie gibt, geht niemanden etwas an.
+  if (!a) return res.sendStatus(404);
+  if (!DOCTYPE[a.ext]) return res.sendStatus(404);
+
+  const mtime = Math.floor(fs.statSync(a.datei).mtimeMs / 1000);
+  const exp = Math.floor(Date.now() / 1000) + LINK_STUNDEN * 3600;
+  const src = `${HOST_INTERNAL}${BASE}/scratch/files/${a.kennung}`
+    + `?u=${encodeURIComponent(me)}&expires=${exp}&token=${scratchFileToken(me, a.kennung, exp)}`;
+
+  // Key wie bei den Nutzerdateien, inklusive der Regel, dass eine LAUFENDE
+  // Sitzung ihren Key behaelt (sonst spaltete jedes Durchschlag-Speichern die
+  // Sitzung — ausfuehrlich begruendet bei /edit). Die Kennung ist bereits
+  // eindeutig, ein Hash ueber den Namen waere hier ueberfluessig.
+  const mtimeKey = `scratch-${a.kennung}-${mtime}`;
+  let key = mtimeKey;
+  const offen = activeEditorKey.get(`scratch:${me}/${a.kennung}`);
+  if (offen && offen !== mtimeKey && await sitzungLaeuft(offen)) key = offen;
+
+  const config = {
+    document: {
+      fileType: a.ext,
+      key,
+      // Der Name, unter dem die Datei beim Nutzer liegt — nicht die Kennung.
+      title: a.name,
+      url: src,
+      // Immer bearbeitbar: eine Arbeitskopie entsteht nur, WEIL jemand die
+      // Datei bearbeiten will. Ein Nur-Lesen-Fall kaeme hier nie an.
+      permissions: { edit: true, download: true, print: true, comment: true },
+    },
+    documentType: DOCTYPE[a.ext] || "word",
+    editorConfig: {
+      mode: "edit",
+      lang: "de-DE",
+      region: "de-DE",
+      callbackUrl: `${HOST_INTERNAL}${BASE}/scratch/callback/${a.kennung}?u=${encodeURIComponent(me)}`,
+      user: { id: me, name: req.session.name, image: undefined },
+      customization: {
+        forcesave: true, autosave: true,
+        uiTheme: EDITOR_THEME,
+        features: { tabStyle: "fill" },
+      },
+    },
+  };
+  config.token = jwt.sign(config, JWT_SECRET, { algorithm: "HS256", noTimestamp: true });
+  activeEditorKey.set(`scratch:${me}/${a.kennung}`, config.document.key);
+
+  const embed = (o) => JSON.stringify(o).replace(/</g, "\\u003c");
+  res.render("edit", {
+    ds_api: `${PUBLIC_DS}/web-apps/apps/api/documents/api.js`,
+    config: embed(config),
+    // Leere Teilnehmerliste: an einer Arbeitskopie sitzt genau einer. Die
+    // Namensliste aller Nutzer hat hier nichts zu suchen.
+    usersJson: embed([]),
+    dsOrigin: new URL(PUBLIC_DS).origin,
+    theme: EDITOR_THEME,
+  });
+});
+
+// Forcesave fuer eine Arbeitskopie (Voltage ruft das beim Schliessen).
+function forcesaveScratch(besitzer, kennung) {
+  const key = activeEditorKey.get(`scratch:${besitzer}/${kennung}`);
+  if (!key) return Promise.resolve({ saved: false, reason: "no-session" });
+  return dsKommando({ c: "forcesave", key }).then((a) => {
+    if (!a) return { saved: false, reason: "unreachable" };
+    if (a.error === 0) return { saved: true };
+    if (a.error === 4) return { saved: false, reason: "no-changes" };
+    return { saved: false, reason: "ds-error", error: a.error };
+  });
+}
+
+// Arbeitskopie fuer den DocumentServer. Wie /files und /lib/files: kein Login,
+// es zaehlt allein die Signatur — und immer als ANHANG mit nosniff.
+router.get("/scratch/files/:kennung", (req, res) => {
+  const kennung = req.params.kennung;
+  const besitzer = req.query.u || "";
+  const exp = parseInt(req.query.expires, 10) || 0;
+  const tok = req.query.token || "";
+  const good = scratchFileToken(besitzer, kennung, exp);
+  const ok = exp >= Math.floor(Date.now() / 1000)
+    && tok.length === good.length
+    && crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(good));
+  if (!ok) return res.sendStatus(403);
+  const a = scratch.lies(besitzer, kennung);
+  if (!a) return res.sendStatus(404);
+  res.set("X-Content-Type-Options", "nosniff");
+  res.download(a.datei, a.name);
+});
+
+// Speicher-Callback des DocumentServers fuer eine Arbeitskopie. Gleiche Regeln
+// wie beim Callback der Nutzerdateien: JWT pflicht, und geschrieben wird NUR
+// bei HTTP 200 — sonst landete eine Fehlerseite als Dateiinhalt.
+router.post("/scratch/callback/:kennung", express.json(), (req, res) => {
+  const kennung = req.params.kennung;
+  const besitzer = req.query.u || "";
+  let data = null;
+  const auth = req.get("Authorization") || "";
+  try {
+    if (auth.startsWith("Bearer ")) {
+      const dec = jwt.verify(auth.slice(7), JWT_SECRET);
+      data = dec.payload || dec;
+    } else if (req.body && req.body.token) {
+      data = jwt.verify(req.body.token, JWT_SECRET);
+    }
+  } catch (e) { return res.sendStatus(403); }
+  if (data === null) return res.sendStatus(403);
+  if (!scratch.lies(besitzer, kennung)) return res.sendStatus(404);
+
+  const status = data.status;
+  // 2 = alle raus, speichern;  6 = ForceSave/Autosave waehrend Bearbeitung
+  if (status === 2 || status === 6) {
+    const fetchUrl = dsFetchUrl(data.url);
+    http.get(fetchUrl, (r) => {
+      if (r.statusCode !== 200) {
+        r.resume();
+        console.error("scratch-callback: DS-Download HTTP", r.statusCode, "-", fetchUrl);
+        return res.json({ error: 1 });
+      }
+      const chunks = [];
+      r.on("data", (c) => chunks.push(c));
+      r.on("end", () => {
+        // Die Arbeitskopie kann inzwischen geloescht sein (Client war
+        // schneller, oder der Waechter hat geraeumt). Dann ist nichts mehr zu
+        // tun — error:0, sonst hielte der DocumentServer die Sitzung offen und
+        // versuchte es endlos weiter.
+        if (scratch.schreiben(besitzer, kennung, Buffer.concat(chunks))) res.json({ error: 0 });
+        else { console.warn("scratch-callback: Arbeitskopie ist weg —", kennung); res.json({ error: 0 }); }
+      });
+    }).on("error", (e) => { console.error("scratch-callback fetch error:", e.message); res.json({ error: 1 }); });
+    return;
+  }
+  res.json({ error: 0 });
+});
+
 // --- DocumentServer-Schnittstelle (kein Login-Cookie, daher signiert) ----
 
 // Bibliotheksdatei fuer den DocumentServer. Wie /files: kein Login, es zaehlt
@@ -363,4 +575,4 @@ router.post("/callback/:uid/*", express.json(), (req, res) => {
   res.json({ error: 0 });
 });
 
-module.exports = { router, activeEditorKey, forcesave };
+module.exports = { router, activeEditorKey, forcesave, forcesaveScratch };
