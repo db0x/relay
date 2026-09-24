@@ -508,6 +508,43 @@ folders automatically. Without `?recursive=1` the list behaves as it did
 before folder support (top level only) — Voltage relies on that. Empty folders
 do not appear in the API.
 
+### Scratch area: documents relay does not own
+
+Voltage can also open a document that lives on the **local disk** and has no
+place in relay at all. Editing it still requires an upload, because OnlyOffice
+opens a URL, not a file — but such a copy must not become a second document.
+It therefore goes to a **scratch area** with its own root (`SCRATCH_DIR`,
+default `/data/scratch`), next to `documents/` rather than inside it. That
+single decision is what keeps it out of everything: the file list, the search,
+the used-space figure and the backup all read `DOCS/` and `STATE_DIR/` and
+never see this path. Nothing here can be shared, moved or renamed either —
+there is no route for it.
+
+| Method   | Path                              | Purpose                                             |
+|----------|-----------------------------------|-----------------------------------------------------|
+| `POST`   | `/api/scratch?name=<basename>`    | Hand a local file up (raw body) → `{ id, name, bytes, edit }` |
+| `GET`    | `/api/scratch/<id>`               | Download the current state (the client's sync-back) |
+| `DELETE` | `/api/scratch/<id>`               | Drop the copy; idempotent                           |
+| `POST`   | `/api/scratch/<id>/forcesave`     | Save the open editor session now                    |
+| `GET`    | `/scratch/edit/<id>`              | The editor page for a scratch copy                  |
+
+The `id` is issued by the server and random: the name is only a title and the
+source of the extension, never the address — two `brief.docx` open at once from
+different folders would otherwise overwrite each other. A copy belongs to the
+user who created it; for anyone else it does not exist (404).
+
+**It is cleaned up twice.** The client deletes the copy once the last sync is
+through, and a janitor removes anything older than **12 hours** (hourly, plus
+once at startup — `scratch.js`). The second one is not optional: a crashed
+client, a dropped network or a machine that simply goes to sleep would
+otherwise leave the copy behind for good, which is the very thing the scratch
+area exists to prevent.
+
+Which route a document takes is the **client's** decision, and only the client
+can make it: only it knows whether the file came from relay or from the local
+disk. Voltage compares content by md5 first — a file already in relay keeps
+using `/api/files` and is never deleted.
+
 Trying it with `curl` means carrying the session cookie — log in once into a
 cookie jar, read the CSRF proof from `/api/session`, then use both:
 

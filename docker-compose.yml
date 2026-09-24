@@ -72,6 +72,12 @@ services:
       - ${DOCUMENTS_DIR:-./documents}:/data/documents
       - ${STATE_DIR:-./state}:/data/state               # Nutzerdatenbank (users.db)
       - ${BACKUP:-./backup}:/data/backup                # Ziel fuer "Backup ausfuehren" (Admin-Menue, rsync)
+      # Arbeitsablage (scratch.js): Dateien, die Voltage aus dem lokalen
+      # Dateisystem zum Bearbeiten heraufreicht. Sie gehoeren keinem Relay-
+      # Ordner an, werden nach dem letzten Sync geloescht und spaetestens nach
+      # zwoelf Stunden weggeraeumt. Eigene Wurzel NEBEN documents/ und state/ —
+      # genau deshalb fasst das Backup sie nicht an.
+      - ${SCRATCH_DIR:-./scratch}:/data/scratch
       # Geteilte Bibliothek (Videos): gehoert dem Server, nicht einem Nutzer.
       # :ro — Relay liest sie ausschliesslich; schon der Kernel laesst hier
       # keinen Schreibzugriff zu, unabhaengig davon, was der Code tut.

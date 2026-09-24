@@ -21,6 +21,7 @@ const maintenance = require("./maintenance");
 const users = require("./users");
 const { SqliteStore } = require("./sessionstore");
 const { csrfSchutz } = require("./csrf");
+const scratch = require("./scratch");
 
 const app = express();
 
@@ -228,5 +229,9 @@ app.use((err, req, res, next) => {
 // Erst lauschen, wenn der Bootstrap-Admin steht (bcrypt laeuft asynchron) —
 // sonst koennte die erste Anfrage auf eine leere Nutzertabelle treffen.
 users.ready.then(() => {
+  // Waechter der Arbeitsablage: raeumt Arbeitskopien weg, die der Client nicht
+  // mehr selbst loeschen konnte (Absturz, Netzabbruch, Rechner aus). Laeuft
+  // einmal beim Hochfahren und danach stuendlich — siehe scratch.js.
+  scratch.starteWaechter();
   app.listen(5000, "0.0.0.0", () => console.log(`backend listening on :5000 (base "${BASE || "/"}")`));
 });
