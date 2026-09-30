@@ -69,6 +69,11 @@ module.exports = {
   // Admin-Dialog ("ist ueberhaupt eine Bibliothek konfiguriert?").
   SHARED_LIB: process.env.SHARED_LIB || "",
   STATE_DIR: process.env.STATE_DIR || "/data/state", // Nutzerdatenbank + Avatare
+  // Arbeitsablage fuer Dateien, die Relay nur voruebergehend haelt (scratch.js).
+  // BEWUSST eine eigene Wurzel neben DOCS und STATE_DIR: was hier liegt, gehoert
+  // niemandem dauerhaft, darf nicht in der Dateiliste auftauchen und nicht ins
+  // Backup (das spiegelt DOCS/ und STATE_DIR/ — diesen Pfad sieht es nie).
+  SCRATCH_DIR: process.env.SCRATCH_DIR || "/data/scratch",
   BACKUP_DIR: "/data/backup",                     // Ziel fuer "Backup ausfuehren" (rsync)
   PUBLIC_DS: publicDs,
   dsFetchUrl,

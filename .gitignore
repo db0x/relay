@@ -5,6 +5,8 @@
 documents/
 state/
 docs/
+# Arbeitsablage (scratch.js): reine Durchlaufposten, gehoeren niemandem
+scratch/
 
 # Ersatz-Einhängepunkt der geteilten Bibliothek, wenn SHARED_LIB leer ist
 # (docker-compose braucht einen Pfad). Bleibt leer, der Ordner selbst nicht ins Repo.

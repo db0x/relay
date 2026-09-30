@@ -20,8 +20,13 @@ const KOPFZEILE = "x-csrf-token";
 // Anfragen ohne Nebenwirkung brauchen keinen Nachweis.
 const HARMLOS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-// Ausgenommen ist nur noch /callback/: das kommt vom DocumentServer (Maschine,
-// kein Browser) und ist per JWT signiert.
+// Ausgenommen sind nur die beiden Speicher-Rueckrufe des DocumentServers:
+// /callback/ fuer Nutzerdateien und /scratch/callback/ fuer die Arbeitsablage.
+// Beide kommen von einer Maschine, nicht aus einem Browser, tragen kein Cookie
+// und sind per JWT signiert — ein CSRF-Nachweis waere dort weder vorhanden
+// noch sinnvoll. (Vergessen kostet Zeit: ohne die zweite Zeile antwortete
+// Relay dem DocumentServer mit 403, und der Editor zeigte "Das Dokument
+// konnte nicht gespeichert werden".)
 //
 // /api/ stand hier frueher ebenfalls — aber nur, WEIL es sich per Token
 // anmeldete und eine fremde Seite keines mitschicken kann. Seit die Datei-API
@@ -30,7 +35,8 @@ const HARMLOS = new Set(["GET", "HEAD", "OPTIONS"]);
 // hier geht. Voltage schickt den Nachweis als Kopfzeile mit und holt ihn sich
 // ueber GET /api/session.
 function ausgenommen(pfad) {
-  return pfad.startsWith(`${BASE}/callback/`);
+  return pfad.startsWith(`${BASE}/callback/`)
+    || pfad.startsWith(`${BASE}/scratch/callback/`);
 }
 
 function tokenFuer(req) {
