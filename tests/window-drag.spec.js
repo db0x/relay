@@ -120,6 +120,47 @@ test.describe("Fenster verschieben", () => {
       const griff = fenster.locator(".win-resize");
       await expect(griff).toHaveCount(1);
 
+      // ERST eine eigene Ausgangslage herstellen — Lage UND Groesse —, statt
+      // die vorzufinden, die ein Nachbar-Test hinterlassen hat. Dieselbe
+      // Ueberlegung wie das Zuklappen des Boards in beforeEach: alle
+      // Spezifikationen teilen sich einen Container, und createWindow merkt
+      // beides serverseitig (desktop_layout).
+      //
+      // WARUM das noetig ist: das Aufziehen ist gedeckelt auf
+      // `window.innerHeight - Oberkante - 8` (core/window.js) — ein Fenster
+      // darf nicht unten herauswachsen. War es schon fast bildschirmhoch,
+      // blieben ein paar Pixel Luft statt der verlangten 40, und dieser Test
+      // mass nicht mehr das Ziehen, sondern die Deckelung.
+      //
+      // Beides einzeln beobachtet, im vollen Durchlauf und je in einer
+      // anderen Ausgangslage: 501 -> 509 (Fenster stand zu weit unten) und
+      // 641 -> 649 (Fenster war zu hoch). Allein ausgefuehrt war die Datei
+      // beide Male gruen — eine Abhaengigkeit von der Reihenfolge, kein
+      // Fehler an der Funktion. Die LAGE allein zu richten reichte deshalb
+      // nicht; die Groesse gehoert dazu.
+      //
+      // Beide Zuege nutzen bewusst die echten Bedienwege statt gesetzter
+      // Stile, denn beide sind an den Raendern geklemmt und damit
+      // deterministisch: der Zug nach oben landet auf deskMinY(), der Zug am
+      // Griff nach innen auf MIN_W/MIN_H (320x200). "Weit genug" genuegt
+      // also, exakte Werte braucht es nicht.
+      const minY = await page.evaluate(() => {
+        const tb = document.querySelector(".topbar");
+        return (tb ? tb.getBoundingClientRect().bottom : 0) + 6;
+      });
+      const start = await fenster.boundingBox();
+      if (start.y > minY + 1) {
+        await ziehen(page, await page.locator("#page .page-title").boundingBox(),
+          0, minY - start.y);
+      }
+      // auf die Mindestmasse zusammenziehen -> darunter ist garantiert Platz
+      const gb0 = await griff.boundingBox();
+      await page.mouse.move(gb0.x + gb0.width / 2, gb0.y + gb0.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(gb0.x + gb0.width / 2 - 900, gb0.y + gb0.height / 2 - 700, { steps: 12 });
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+
       const vorher = await fenster.boundingBox();
       const gb = await griff.boundingBox();
       await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);

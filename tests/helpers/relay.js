@@ -95,7 +95,7 @@ async function createUser(page, { username, display, password = "geheim123", adm
 }
 
 // Laedt eine Datei hoch. Inhalt ist beliebig -- die Suite prueft unsere
-// Datei-/Freigabe-Logik, nicht das Office-Format (das ist OnlyOffice-Sache).
+// Datei-/Freigabe-Logik, nicht das Office-Format (das ist Euro-Office-Sache).
 // Der Datei-Input ist versteckt (ein Knopf loest ihn aus); setInputFiles
 // kommt damit klar, und das change-Event schickt das Formular selbst ab.
 async function uploadFile(page, filename, content = "Relay E2E") {

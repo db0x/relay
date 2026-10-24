@@ -1,5 +1,5 @@
 // Bilder in "Meine Dateien": hochladen, als Vorschaubild in der Liste sehen,
-// im Vorschau-Dialog ansehen — und nichts davon an OnlyOffice geben.
+// im Vorschau-Dialog ansehen — und nichts davon an Euro-Office geben.
 const { test, expect } = require("@playwright/test");
 const {
   loginAsAdmin, login, logout, createUser, uniqueName, uploadFile,
@@ -52,7 +52,7 @@ test.describe("Bilder", () => {
     await expect(page.locator("#dlg-image-title")).toHaveText(name);
     await expect.poll(() =>
       page.locator("#dlg-image-img").evaluate((el) => el.complete && el.naturalWidth > 0)).toBe(true);
-    // kein Sprung in den OnlyOffice-Editor
+    // kein Sprung in den Euro-Office-Editor
     expect(page.url()).not.toContain("/edit/");
     // Herunterladen-Knopf zeigt auf die Datei
     await expect(page.locator("#dlg-image-download")).toHaveAttribute("href", /\/download\//);

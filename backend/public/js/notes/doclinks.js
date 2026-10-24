@@ -137,7 +137,7 @@ export function bindDocLinks(root, config) {
       a.dataset.label = label;
       hatBild = true;
     } else {
-      // Alles andere ist eine echte Seite (OnlyOffice) — ein normaler Link,
+      // Alles andere ist eine echte Seite (Euro-Office) — ein normaler Link,
       // damit Mittelklick und "in neuem Tab" wie ueberall funktionieren.
       a.href = baseUrl + "/edit/" + pfad;
     }

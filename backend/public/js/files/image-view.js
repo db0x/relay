@@ -1,5 +1,5 @@
 // Bild-Vorschau: Klick auf einen Bildnamen in der Dateiliste zeigt das Bild
-// gross im Dialog (#dlg-image) statt es an OnlyOffice zu geben — das kann mit
+// gross im Dialog (#dlg-image) statt es an Euro-Office zu geben — das kann mit
 // Bildern nichts anfangen.
 //
 // Beide Funktionen sind root-skopiert: Liste und Vorschaubilder werden beim

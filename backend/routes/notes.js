@@ -1,5 +1,5 @@
 // Notizen: Markdown-Dateien mit eigenem Editor (grosser modaler Dialog statt
-// OnlyOffice). Ablage immer als {uuid}-{Titel}.md — die UUID macht den Namen
+// Euro-Office). Ablage immer als {uuid}-{Titel}.md — die UUID macht den Namen
 // eindeutig, der Titel (erste Zeile der Notiz) macht ihn lesbar; die Liste
 // zeigt nur den Titel (labelFor in routes/browse.js).
 const fs = require("fs");
@@ -298,10 +298,10 @@ router.post("/notes/save/:owner/*", loginRequired, (req, res) => {
   res.redirect(dir ? `${BASE}/?p=${encodeURIComponent(dir)}` : `${BASE}/`);
 });
 
-// --- PDF-Export ueber die OnlyOffice-Konvertierung + -Viewer -----------
+// --- PDF-Export ueber die Euro-Office-Konvertierung + -Viewer -----------
 // Ablauf: Markdown -> HTML (marked) -> kurzlebig signiert bereitgestellt ->
 // DocumentServer konvertiert HTML->PDF -> wir puffern das PDF kurzlebig und
-// oeffnen es im OnlyOffice-PDF-Viewer (mode:view, ohne es zu speichern).
+// oeffnen es im Euro-Office-PDF-Viewer (mode:view, ohne es zu speichern).
 // "<" escapen: die JSONs landen roh in <script>-Tags der Editor-Seite
 const embedJson = (o) => JSON.stringify(o).replace(/</g, "\\u003c");
 
@@ -321,8 +321,8 @@ const STATUS_PILL = {
 
 // Metadaten-Badges fuers PDF als GRAFIK: dieselben Pillen wie in der UI
 // (ToDo farbig, Personen mit Avatar/Initialen, Ort) werden als SVG aufgebaut
-// und mit sharp zu PNG gerastert — OnlyOffice bettet das Bild sauber ein.
-// (Direkt als HTML-Pillen konvertiert OnlyOffice border-radius/Hintergruende
+// und mit sharp zu PNG gerastert — Euro-Office bettet das Bild sauber ein.
+// (Direkt als HTML-Pillen konvertiert Euro-Office border-radius/Hintergruende
 // nicht; darum der Umweg ueber ein Bild.) Rueckgabe {dataUri,width,height}
 // oder null, wenn nichts gesetzt ist.
 async function metaBadgeImage(meta) {
@@ -408,7 +408,7 @@ async function metaBadgeImage(meta) {
 }
 
 // Notiz-HTML rendern und in ein vollstaendiges Dokument mit dezentem Print-Stil
-// verpacken (OnlyOffice interpretiert semantisches HTML + einfache CSS-Regeln).
+// verpacken (Euro-Office interpretiert semantisches HTML + einfache CSS-Regeln).
 // badge (optional) haengt die Metadaten-Badges als Bild unten unter einer
 // Trennlinie an.
 // Verweise auf andere Dokumente (per @ gesetzt, siehe public/js/notes/doclinks.js)
@@ -491,7 +491,7 @@ a{color:#2563eb} img{max-width:100%}
 // kurzlebiger Speicher der Quell-HTML (nur waehrend der Konvertierung); der
 // DocumentServer holt sie ueber die signierte pdf-src-Route (kein Login-Cookie)
 const pdfSources = new Map(); // id -> { html, expires(ms) }
-// kurzlebiger Speicher der fertigen PDF-Bytes: der OnlyOffice-Viewer laedt sie
+// kurzlebiger Speicher der fertigen PDF-Bytes: der Euro-Office-Viewer laedt sie
 // (ueber die signierte pdf-file-Route) beim Oeffnen der Ansicht — daher etwas
 // laengere Haltbarkeit als bei der Quelle
 const pdfFiles = new Map(); // id -> { buf, name, expires(ms) }
@@ -515,7 +515,7 @@ router.get("/notes/pdf-src/:id", (req, res) => {
   res.type("text/html; charset=utf-8").send(entry.html);
 });
 
-// fertiges PDF fuer den OnlyOffice-Viewer (DocumentServer holt es hier ab)
+// fertiges PDF fuer den Euro-Office-Viewer (DocumentServer holt es hier ab)
 router.get("/notes/pdf-file/:id", (req, res) => {
   const id = req.params.id, exp = parseInt(req.query.expires, 10) || 0;
   const entry = pdfFiles.get(id);
@@ -524,9 +524,9 @@ router.get("/notes/pdf-file/:id", (req, res) => {
   res.type("application/pdf").send(entry.buf);
 });
 
-// Notiz als PDF: rendert -> konvertiert -> oeffnet im OnlyOffice-PDF-Viewer.
+// Notiz als PDF: rendert -> konvertiert -> oeffnet im Euro-Office-PDF-Viewer.
 // Besitzer und Freigaben (auch nur-lesen) duerfen das. Der Pfad liegt bewusst
-// unter /edit/, damit die Wrapper-App (Voltage) den OnlyOffice-Kontext erkennt
+// unter /edit/, damit die Wrapper-App (Voltage) den Euro-Office-Kontext erkennt
 // und ihren "Zurueck zur Liste"-Knopf zeigt (wie beim normalen Datei-Oeffnen).
 router.get("/edit/notepdf/:owner/*", loginRequired, async (req, res) => {
   const owner = req.params.owner, fid = req.params[0];
@@ -584,7 +584,7 @@ router.get("/edit/notepdf/:owner/*", loginRequired, async (req, res) => {
   creq.end();
 });
 
-// 4) PDF-Bytes puffern und die OnlyOffice-Viewer-Seite (mode:view) rendern —
+// 4) PDF-Bytes puffern und die Euro-Office-Viewer-Seite (mode:view) rendern —
 // signierte Viewer-Config wie in routes/editor.js, aber ohne Callback/Speichern
 function openPdfViewer(req, res, buf, name) {
   const id = crypto.randomUUID().replace(/-/g, "");

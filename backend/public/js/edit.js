@@ -1,4 +1,4 @@
-// Startet den OnlyOffice-Editor. Die JWT-signierte Config liefert der Server
+// Startet den Euro-Office-Editor. Die JWT-signierte Config liefert der Server
 // als JSON in <script id="editor-config">; hier nur noch auslesen und starten.
 //
 // Ladehaenger-Behandlung: Der DocumentServer haelt eine gerade geschlossene

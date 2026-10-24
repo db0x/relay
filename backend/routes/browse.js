@@ -78,13 +78,13 @@ function iconFor(name) {
 }
 
 // Bilder bekommen in der Liste ein echtes Vorschaubild und oeffnen einen
-// Vorschau-Dialog statt OnlyOffice (das kann mit Bildern nichts anfangen).
+// Vorschau-Dialog statt Euro-Office (das kann mit Bildern nichts anfangen).
 function isImageName(name) {
   return !!IMAGE_TYPES[(name.split(".").pop() || "").toLowerCase()];
 }
 
 // Videos oeffnen einen eigenen Dialog mit dem <video> des Browsers
-// (js/files/video-view.js) — OnlyOffice kann damit nichts anfangen.
+// (js/files/video-view.js) — Euro-Office kann damit nichts anfangen.
 function isVideoName(name) {
   return !!VIDEO_TYPES[(name.split(".").pop() || "").toLowerCase()];
 }
@@ -96,7 +96,7 @@ function isAudioName(name) {
   return !!AUDIO_TYPES[(name.split(".").pop() || "").toLowerCase()];
 }
 
-// Formate, die OnlyOffice oeffnet (Dokumente, Tabellen, Praesentationen, PDF).
+// Formate, die Euro-Office oeffnet (Dokumente, Tabellen, Praesentationen, PDF).
 // Fuer Nutzerdateien steckt das im /edit-Link; die Bibliothek braucht die
 // Unterscheidung ausdruecklich, um nicht alles zum Herunterladen zu machen.
 function isDocName(name) {
@@ -388,7 +388,7 @@ router.get("/", loginRequired, (req, res) => {
     isImage: !isDir && isImageName(name),
     isVideo: !isDir && isVideoName(name),
     isAudio: !isDir && isAudioName(name),
-    // Dokumente/Tabellen/PDF gehen in die OnlyOffice-ANSICHT, nicht in den
+    // Dokumente/Tabellen/PDF gehen in die Euro-Office-ANSICHT, nicht in den
     // Download — genau wie eigene Dateien, nur ohne Bearbeiten
     isDoc: !isDir && isDocName(name),
     sizeBytes: isDir ? -1 : sizeBytes,
@@ -946,14 +946,14 @@ router.get("/search", loginRequired, (req, res) => {
     if (h.isLib) {
       const lp = encPath(h.relpath);
       // href ist der Weg fuer alles, was kein Video/Bild ist: Dokumente in die
-      // OnlyOffice-Ansicht, der Rest in den Download.
+      // Euro-Office-Ansicht, der Rest in den Download.
       return { ...h, src: `${BASE}/lib/media/${lp}`, download: `${BASE}/lib/download/${lp}`,
         href: h.isDoc ? `${BASE}/lib/edit/${lp}` : `${BASE}/lib/download/${lp}` };
     }
     const p = `${encodeURIComponent(h.owner)}/${encPath(h.relpath)}`;
     if (h.isImage) return { ...h, src: `${BASE}/image/${p}`, download: `${BASE}/download/${p}` };
     // Videos oeffnen denselben Abspiel-Dialog wie in der Liste — ein
-    // /edit-Link liefe in einen OnlyOffice-Editor, der damit nichts anfangen kann
+    // /edit-Link liefe in einen Euro-Office-Editor, der damit nichts anfangen kann
     if (h.isVideo) return { ...h, src: `${BASE}/video/${p}`, download: `${BASE}/download/${p}` };
     // Ton ebenso — eigene Route, damit der Content-Type aus AUDIO_TYPES kommt
     if (h.isAudio) return { ...h, src: `${BASE}/audio/${p}`, download: `${BASE}/download/${p}` };

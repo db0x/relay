@@ -79,7 +79,7 @@ module.exports = {
   dsFetchUrl,
   HOST_INTERNAL: process.env.HOST_INTERNAL,       // DocumentServer -> uns
   DS_INTERNAL: process.env.DS_INTERNAL,           // uns -> DocumentServer (Cache)
-  JWT_SECRET: process.env.JWT_SECRET,             // OnlyOffice-Config/Callback signieren
+  JWT_SECRET: process.env.JWT_SECRET,             // Euro-Office-Config/Callback signieren
   FILE_SECRET: process.env.FILE_SECRET,           // signierte /files-Links
   SESSION_SECRET: process.env.SESSION_SECRET,     // signiert Login-Session-Cookies
   APP_NAME: process.env.INSTANCE_NAME || "Relay", // Anzeigename der Instanz in der UI
@@ -95,12 +95,12 @@ module.exports = {
   // "theme-white" = "Modern Hell" in der Editor-Oberflaeche.
   EDITOR_THEME: process.env.EDITOR_THEME || "theme-white",
 
-  // Dateiendung -> OnlyOffice-Dokumenttyp
+  // Dateiendung -> Euro-Office-Dokumenttyp
   DOCTYPE: {
     docx: "word", doc: "word", odt: "word", rtf: "word", txt: "word",
     xlsx: "cell", xls: "cell", ods: "cell", csv: "cell",
     pptx: "slide", ppt: "slide", odp: "slide",
-    pdf: "pdf", // Ansicht im OnlyOffice-PDF-Viewer; Upload ja, Erstellen nein
+    pdf: "pdf", // Ansicht im Euro-Office-PDF-Viewer; Upload ja, Erstellen nein
   },
 
   // Bilddateien: Endung -> MIME-Typ. Bewusst eine WHITELIST mit festen Typen —

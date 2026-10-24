@@ -106,7 +106,7 @@ test.describe("Sicherheits-Zusicherungen", () => {
       expect(res.headers()["x-content-type-options"]).toBe("nosniff");
     });
 
-  test("der Editor oeffnet nur Formate, die OnlyOffice kennt", async ({ page }) => {
+  test("der Editor oeffnet nur Formate, die Euro-Office kennt", async ({ page }) => {
     await loginAsAdmin(page);
     const name = uniqueName("seite") + ".html";
     await uploadFile(page, name, "<h1>kein Dokument</h1>");

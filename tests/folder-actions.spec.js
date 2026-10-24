@@ -145,7 +145,7 @@ test.describe("Ordner-Aktionen im geoeffneten Unterordner", () => {
     const name = "Doku" + uniqueName("");
     await openApp(page, '[data-create="docx"]');
     await page.fill("#dlg-create-name", name);
-    // Das Anlegen leitet in den OnlyOffice-Editor weiter — der ist hier nicht
+    // Das Anlegen leitet in den Euro-Office-Editor weiter — der ist hier nicht
     // Teil des Tests; es zaehlt nur, WO die Datei entsteht.
     await Promise.all([
       page.waitForResponse((r) => r.url().includes("/create")),

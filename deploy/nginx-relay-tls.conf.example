@@ -108,7 +108,7 @@ server {
     #     proxy_set_header X-Forwarded-Proto $scheme;
     # }
 
-    # --- OnlyOffice DocumentServer unter /ds/ ------------------------------
+    # --- Euro-Office DocumentServer unter /ds/ ------------------------------
     # Der DS ist das groesste Stueck Fremdsoftware im Stapel. Deshalb gehen
     # NUR die Pfade durch, die der Editor im Browser wirklich braucht — seine
     # Beispiel- und Statusseiten (/welcome, /info, /example) bleiben draussen.

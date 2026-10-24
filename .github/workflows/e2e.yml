@@ -1,4 +1,4 @@
-# End-to-end tests for Relay's own layer around OnlyOffice.
+# End-to-end tests for Relay's own layer around Euro-Office.
 #
 # The suite builds the backend image from backend/Dockerfile and runs it as a
 # throwaway container with an empty database (see tests/global-setup.js), so

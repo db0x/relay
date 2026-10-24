@@ -2,7 +2,7 @@
 //
 // WOFUER: Voltage kann eine Datei oeffnen, die auf dem lokalen Rechner liegt
 // und Relay gar nicht gehoert. Bearbeiten laesst sie sich trotzdem, weil
-// OnlyOffice eine URL braucht — also muss der Inhalt einmal zum Server. Bisher
+// Euro-Office eine URL braucht — also muss der Inhalt einmal zum Server. Bisher
 // landete er im normalen Ordner des Nutzers und blieb dort liegen: aus einer
 // lokalen Datei wurden stillschweigend ZWEI, und die Kopie tauchte in der
 // Dateiliste, in der Suche, im belegten Speicher und im Backup auf.

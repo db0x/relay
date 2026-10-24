@@ -2,10 +2,10 @@
 
 [![platform](https://img.shields.io/badge/platform-docker-2496ED?style=flat-square&logo=docker&logoColor=white)](docker-compose.yml)
 [![License](https://img.shields.io/badge/License-AGPL_v3-blue?style=flat-square)](LICENSE)
-[![editor](https://img.shields.io/badge/editor-OnlyOffice-FF6F3D?style=flat-square)](https://www.onlyoffice.com/)
+[![editor](https://img.shields.io/badge/editor-Euro--Office-003399?style=flat-square)](https://github.com/Euro-Office/DocumentServer)
 [![E2E Tests](https://img.shields.io/github/actions/workflow/status/db0x/relay/e2e.yml?branch=main&style=flat-square&logo=github&label=E2E%20Tests)](https://github.com/db0x/relay/actions/workflows/e2e.yml)
 
-Family document server for the home network: OnlyOffice editor in the browser,
+Family document server for the home network: Euro-Office editor in the browser,
 multiple users with login, per-user files and sharing between users. Auto-save
 to disk, JWT-secured between backend and DocumentServer.
 
@@ -14,7 +14,7 @@ through and passes things on — documents between family members.
 
 ## Components
 
-- **documentserver** — OnlyOffice DocumentServer (editor engine), port `5000`.
+- **documentserver** — Euro-Office DocumentServer (editor engine), port `5000`.
 - **backend** — small Node.js/Express service: login, file list,
   upload/download, WOPI-style integration (signed file links + JWT config +
   callback) and the file API. Web UI on port `5001`. Split by domain:
@@ -26,7 +26,7 @@ through and passes things on — documents between family members.
   - `routes/admin.js` — user management (admins only)
   - `routes/api.js` — session-authenticated file API for Voltage incl. forcesave
   - `routes/browse.js` — home page, file/folder actions, shares
-  - `routes/editor.js` — OnlyOffice: `/edit`, signed `/files` links, `/callback`
+  - `routes/editor.js` — Euro-Office: `/edit`, signed `/files` links, `/callback`
   - `db.js`/`users.js`/`shares.js` (SQLite), `manage.js` (CLI),
     `views/` (EJS templates), `blank/` (empty Office templates for "New file")
 - **documents/** — the files live **directly on local disk** here, one
@@ -128,7 +128,7 @@ the embedded user list via the `onRequestUsers` API event.
 
 ## Editing documents (a window, not a page change)
 
-Clicking a document name opens OnlyOffice **inside Relay**, in a window of the
+Clicking a document name opens Euro-Office **inside Relay**, in a window of the
 desktop — draggable, minimizable, resizable, and switchable to full screen. Before this, it was a full-page
 navigation: the desktop, note icons, open windows and — since it exists — the
 chat event stream were all gone for the duration of the edit. Now the page
@@ -136,7 +136,7 @@ never unloads, so chat messages and the bell keep arriving while you work, and
 closing the document puts you back exactly where you were.
 
 The window's content is an **iframe on the very same `/edit/...` page** that
-existed before. That is deliberate: the whole OnlyOffice side (the JWT-signed
+existed before. That is deliberate: the whole Euro-Office side (the JWT-signed
 config, the load-hang watchdog, the editor theme, co-editing avatars) stays in
 one place — `views/edit.ejs` + `public/js/edit.js`. Only the frame around it is
 new (`views/partials/editor-window.ejs`, `public/js/files/editor-view.js`).
@@ -235,14 +235,14 @@ notes (`iconFuer` in `js/notes/doclinks.js`).
 ## PDF
 
 PDFs can be uploaded (and shared) like any other file and open in the
-OnlyOffice **PDF viewer** — always read-only (download and print allowed, no
+Euro-Office **PDF viewer** — always read-only (download and print allowed, no
 editing, no save callback), regardless of share permissions. Creating and
 editing remain limited to the office formats.
 
 ## Notes
 
 Markdown notes with their own editor — the first feature that does not use
-OnlyOffice. The note icon in the toolbar opens a modal editor (90% of the
+Euro-Office. The note icon in the toolbar opens a modal editor (90% of the
 viewport): **CodeMirror 5** with markdown syntax highlighting on the left,
 a **live HTML preview** (50/50 split) on the right, rendered by **marked**,
 sanitized with **DOMPurify** (shared notes must not inject script) and with
@@ -262,7 +262,7 @@ normal files: share, move, delete, download and sync API all work unchanged.
 Every user can share their own files with other users — via the share icon
 in the file row. The permission is chosen per user:
 
-- **Edit** — real live co-editing (both in the same OnlyOffice document).
+- **Edit** — real live co-editing (both in the same Euro-Office document).
 - **Read-only** — the editor opens in view mode, download allowed, saving not.
 
 Shared files appear in the recipient's list, labeled "von *owner*" (from
@@ -277,7 +277,7 @@ owner's folder, there is no copy.
 
 This is enforced server-side in `accessFor()` (access.js) on all browser
 routes (`/edit`, `/download`, `/delete`); read-only mode is additionally baked
-into the **JWT-signed** OnlyOffice config and cannot be tampered with
+into the **JWT-signed** Euro-Office config and cannot be tampered with
 client-side.
 
 ## Chat (end-to-end encrypted)
@@ -421,7 +421,7 @@ server** — typically a video collection on a NAS. Set `SHARED_LIB` in the
   press left the viewer inside fullscreen in front of a black frame, because
   closing the dialog also strips the video source. Everything else in the
   library can be downloaded; images open the existing preview dialog.
-- **Documents, spreadsheets, presentations and PDFs open in OnlyOffice**, in
+- **Documents, spreadsheets, presentations and PDFs open in Euro-Office**, in
   **view mode**, via `/lib/edit/*` — a separate path, because "lib" would be a
   valid username and `/edit/lib/...` could not be told apart from a user's
   files. The config carries `edit:false`, `mode:"view"` and, deliberately, **no
@@ -511,7 +511,7 @@ do not appear in the API.
 ### Scratch area: documents relay does not own
 
 Voltage can also open a document that lives on the **local disk** and has no
-place in relay at all. Editing it still requires an upload, because OnlyOffice
+place in relay at all. Editing it still requires an upload, because Euro-Office
 opens a URL, not a file — but such a copy must not become a second document.
 It therefore goes to a **scratch area** with its own root (`SCRATCH_DIR`,
 default `/data/scratch`), next to `documents/` rather than inside it. That
@@ -586,7 +586,7 @@ backup either).
 ## Tests
 
 End-to-end tests (Playwright) live in `tests/` and cover **Relay's own layer**
-— login/session, user management and sharing — deliberately *not* OnlyOffice
+— login/session, user management and sharing — deliberately *not* Euro-Office
 itself. They build the backend image and run it as a throwaway container with
 an empty database, so no DocumentServer and no secrets are needed:
 
@@ -645,7 +645,7 @@ CI runs the same suite on every push (`.github/workflows/e2e.yml`).
   skeleton**. The `json` tool does not create missing intermediate objects;
   without the skeleton, the startup script's JWT writes fail silently and JWT
   stays off.
-- `request-filtering-agent.allowPrivateIPAddress=true`: otherwise OnlyOffice
+- `request-filtering-agent.allowPrivateIPAddress=true`: otherwise Euro-Office
   blocks downloads via the private Docker IPs (SSRF protection).
 - `FileConverter.converter.maxDownloadBytes`: the DocumentServer default
   (100 MB) refuses to **open** larger files. `relay-entry.sh` (wrapper
@@ -665,9 +665,8 @@ CI runs the same suite on every push (`.github/workflows/e2e.yml`).
 Relay is licensed under the **GNU AGPL-3.0** (see [LICENSE](LICENSE)).
 Copyright (C) 2026 db0x.
 
-The deployment pulls in the OnlyOffice DocumentServer (Community Edition),
-which is itself AGPL-3.0 licensed — Relay integrates it via its documented
-API (api.js, JWT-signed config, save callbacks) and matches its license, the
-same model OnlyOffice uses for its own connectors. The repository contains
-no OnlyOffice source code; `documentserver/` only holds build/config files
-for the official image.
+The deployment pulls in the **Euro-Office DocumentServer**, a fork of ONLYOFFICE
+Document Server maintained by a European consortium and licensed **AGPL-3.0-only**.
+Relay integrates it through its documented API (api.js, JWT-signed config, save
+callbacks) and matches its license. The repository contains no editor source
+code; `documentserver/` only holds build and config files for the official image.

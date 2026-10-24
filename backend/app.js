@@ -8,7 +8,7 @@
 //   routes/browse.js — Startseite, Datei-/Ordner-Aktionen, Freigaben
 //   routes/media.js  — Videos (eigene/freigegebene) und die geteilte Bibliothek
 //   routes/chat.js   — Chat: Schluesseltausch, Nachrichten, Live-Strom (SSE)
-//   routes/editor.js — OnlyOffice: /edit, signierte /files-Links, /callback
+//   routes/editor.js — Euro-Office: /edit, signierte /files-Links, /callback
 const crypto = require("crypto");
 const path = require("path");
 const express = require("express");

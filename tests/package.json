@@ -1,7 +1,7 @@
 {
   "name": "relay-e2e",
   "private": true,
-  "description": "End-to-end tests for Relay's own layer around OnlyOffice (login, user management, sharing)",
+  "description": "End-to-end tests for Relay's own layer around Euro-Office (login, user management, sharing)",
   "license": "AGPL-3.0-only",
   "scripts": {
     "test": "playwright test",

@@ -126,7 +126,7 @@
                         data-src="<%= f.src %>" data-download="<%= f.download %>"
                         data-label="<%= f.label %>"><%= f.label %></button>
                 <% } else if (f.isLib && f.isDoc) { %>
-                <%# Dokumente, Tabellen, PDF: OnlyOffice-ANSICHT (read-only),
+                <%# Dokumente, Tabellen, PDF: Euro-Office-ANSICHT (read-only),
                     genau wie bei eigenen Dateien — nur ohne Bearbeiten %>
                 <a class="fname" href="<%= f.edit %>"><%= f.label %></a>
                 <% } else if (f.isLib) { %>
@@ -154,7 +154,7 @@
                         data-download="<%= base %>/download/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>"
                         data-label="<%= f.label %>"><%= f.label %></button>
                 <% } else if (f.isImage) { %>
-                <%# Bilder kann OnlyOffice nicht oeffnen -> eigener
+                <%# Bilder kann Euro-Office nicht oeffnen -> eigener
                     Vorschau-Dialog (js/files/image-view.js) %>
                 <button type="button" class="fname image-open"
                         data-src="<%= base %>/image/<%= encodeURIComponent(f.owner) %>/<%= encPath(f.relpath) %>"

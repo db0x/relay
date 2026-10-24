@@ -353,7 +353,7 @@ export function initNoteDialog(baseUrl) {
     });
   }
   if (notePdfBtn) {
-    // oeffnet das gerenderte PDF im OnlyOffice-Viewer — im SELBEN Tab
+    // oeffnet das gerenderte PDF im Euro-Office-Viewer — im SELBEN Tab
     // (wie das normale Datei-Oeffnen), nicht in einem neuen
     notePdfBtn.addEventListener("click", function () {
       if (noteExportUrl) window.location.assign(noteExportUrl);
@@ -377,7 +377,7 @@ export function initNoteDialog(baseUrl) {
     noteTitleEl.textContent = title;
     noteForm.action = action;
     // PDF-Export nur fuer gespeicherte Notizen: die Save-Action traegt owner/rel.
-    // Ziel liegt unter /edit/, damit Voltage den OnlyOffice-Kontext erkennt.
+    // Ziel liegt unter /edit/, damit Voltage den Euro-Office-Kontext erkennt.
     noteExportUrl = action.indexOf("/notes/save/") !== -1
       ? action.replace("/notes/save/", "/edit/notepdf/") : null;
     if (noteCM) {

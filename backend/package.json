@@ -1,7 +1,7 @@
 {
   "name": "relay-backend",
   "version": "1.18.0",
-  "description": "Relay - Familien-Dokumentenserver auf OnlyOffice (Login, Dateien pro Nutzer, Freigaben, Datei-API)",
+  "description": "Relay - Familien-Dokumentenserver auf Euro-Office (Login, Dateien pro Nutzer, Freigaben, Datei-API)",
   "license": "AGPL-3.0-only",
   "main": "app.js",
   "scripts": {
@@ -16,7 +16,7 @@
     "jsonwebtoken": "^9.0.2",
     "adm-zip": "^0.6.0",
     "marked": "^4.3.0",
-    "multer": "^1.4.5-lts.1",
+    "multer": "^2.5.0",
     "sharp": "^0.35.0",
     "helmet": "^8.0.0",
     "qrcode-svg": "^1.1.0"

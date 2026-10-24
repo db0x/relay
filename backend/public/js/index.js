@@ -81,7 +81,7 @@ var chatWindow = createWindow({
   minBtn: "#chat-minimize", key: "chat", baseUrl: BASE_URL,
   cascade: 2, // drittes Fenster, wieder ein Stueck versetzt
 });
-// Editor-Fenster (OnlyOffice). scroll:false — sein Inhalt ist ein iframe und
+// Editor-Fenster (Euro-Office). scroll:false — sein Inhalt ist ein iframe und
 // rollt selbst; eine Huelle darum waere nur im Weg. maxBtn: "Auf
 // Fenstergroesse", das Umschalten macht createWindow.
 var editorWindow = createWindow({
@@ -105,7 +105,7 @@ initFolderNav({ bindNoteOpen: notes && notes.bindNoteOpen });
 // Ordnernavigation: gefundene Notizen sollen im Notiz-Dialog aufgehen.
 initSearch({ baseUrl: BASE_URL, bindNoteOpen: notes && notes.bindNoteOpen });
 
-// Dokumente in OnlyOffice oeffnen, ohne Relay zu verlassen. Braucht sein
+// Dokumente in Euro-Office oeffnen, ohne Relay zu verlassen. Braucht sein
 // Fenster, um es beim Oeffnen aufzuklappen und beim Schliessen wegzuraeumen.
 initEditorView({ win: editorWindow });
 

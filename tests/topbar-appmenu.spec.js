@@ -32,7 +32,7 @@ test.describe("Anwendungs-Menue", () => {
     await expect(page.locator(BTN)).toHaveAttribute("aria-expanded", "true");
 
     await expect(page.locator(`${PANEL} .app-group-title`))
-      .toHaveText(["OnlyOffice", "Notizen"]);
+      .toHaveText(["Euro-Office", "Notizen"]);
     await expect(page.locator(`${PANEL} .app-btn`)).toHaveCount(4);
     // jeder Eintrag hat einen Tooltip …
     for (const [sel, tip] of [
@@ -54,7 +54,7 @@ test.describe("Anwendungs-Menue", () => {
     await page.click(BTN);
     const icons = await page.locator(`${PANEL} .app-group-title img`)
       .evaluateAll((els) => els.map((e) => e.getAttribute("src").split("/").pop().split("?")[0]));
-    expect(icons).toEqual(["onlyoffice.svg", "relay.svg"]);
+    expect(icons).toEqual(["euro-office.svg", "relay.svg"]);
   });
 
   test("jedes Icon hat eine Unterschrift, keine davon abgeschnitten",

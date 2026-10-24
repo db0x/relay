@@ -1,4 +1,4 @@
-# Relay fully behind nginx: UI at http://moria/relay, OnlyOffice
+# Relay fully behind nginx: UI at http://moria/relay, Euro-Office
 # DocumentServer at http://moria/ds — only port 80 is exposed.
 #
 # Matching .env on the server:
@@ -47,7 +47,7 @@ server {
         proxy_set_header X-Relay-Zone lan;
     }
 
-    # --- OnlyOffice DocumentServer at /ds/ ----------------------------------
+    # --- Euro-Office DocumentServer at /ds/ ----------------------------------
     # Official "virtual path" pattern: strip the prefix, allow WebSockets,
     # and send X-Forwarded-Host WITH the path — the DS builds its own
     # absolute URLs from it (api.js, editor assets, cache links).

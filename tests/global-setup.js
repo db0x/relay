@@ -58,7 +58,7 @@ module.exports = async () => {
     "run", "-d", "--name", CONTAINER,
     "-p", `${PORT}:5000`,
     // Dummy-Secrets: die Suite testet weder JWT-Signaturen noch signierte
-    // Datei-Links -- beides gehoert zur OnlyOffice-Anbindung.
+    // Datei-Links -- beides gehoert zur Euro-Office-Anbindung.
     "-e", "SERVER_HOST=localhost",
     "-e", "JWT_SECRET=e2e-dummy-secret-e2e-dummy-secret",
     "-e", "FILE_SECRET=e2e-dummy-secret-e2e-dummy-secret",

@@ -6,7 +6,7 @@
 // FENSTER des Desktops — verschiebbar, minimierbar, in der Groesse zu ziehen
 // (js/files/editor-view.js + core/window.js).
 //
-// WICHTIG fuer diese Suite: OnlyOffice selbst ist hier NICHT erreichbar — der
+// WICHTIG fuer diese Suite: Euro-Office selbst ist hier NICHT erreichbar — der
 // Wegwerf-Container laeuft ohne DocumentServer. Die Tests pruefen deshalb
 // genau das, was UNS gehoert: dass das Fenster aufgeht, die Seite bleibt, der
 // iframe auf die richtige Adresse zeigt, das Schliessen speichern laesst und
@@ -177,7 +177,7 @@ test.describe("Editor-Fenster", () => {
 
     const symbol = page.locator("#editor-toggle img");
     // vorher: das neutrale Anwendungssymbol
-    await expect(symbol).toHaveAttribute("src", /onlyoffice\.svg$/);
+    await expect(symbol).toHaveAttribute("src", /euro-office\.svg$/);
 
     await fileRow(page, name).locator("a.fname").click();
     await expect(page.locator("#editor-win")).toBeVisible();
@@ -191,7 +191,7 @@ test.describe("Editor-Fenster", () => {
     // nicht kurz das Symbol des VORIGEN Dokuments steht
     await page.click("#editor-win-close");
     await expect(page.locator("#editor-win")).toBeHidden();
-    await expect(symbol).toHaveAttribute("src", /onlyoffice\.svg$/);
+    await expect(symbol).toHaveAttribute("src", /euro-office\.svg$/);
   });
 
   test("Schliessen laesst speichern und kappt die Editor-Sitzung", async ({ page }) => {

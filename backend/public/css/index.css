@@ -662,7 +662,7 @@ body:not(.desk-ready) .note-desktop{opacity:0}
    ueber die runden Ecken hinaus (nachgesehen, nicht vermutet). */
 .dialog.dialog-note{overflow:visible}
 
-/* --- Editor-Fenster (OnlyOffice) --------------------------------------
+/* --- Editor-Fenster (Euro-Office) --------------------------------------
    Ein Fenster wie Dateiliste, Board und Chat (.page) — nur groesser: ein
    Textverarbeitungs-Fenster mit Menueband braucht Flaeche. Verschieben,
    Minimieren, Maximieren und das Ziehen der Groesse kommen aus

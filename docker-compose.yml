@@ -48,7 +48,7 @@ services:
       - DS_PORT=${DS_PORT:-5000}
       - HOST_INTERNAL=http://backend:5000               # DocumentServer -> uns
       - DS_INTERNAL=http://documentserver               # uns -> DocumentServer (Cache)
-      - JWT_SECRET=${JWT_SECRET}                        # OnlyOffice-Config/Callback signieren
+      - JWT_SECRET=${JWT_SECRET}                        # Euro-Office-Config/Callback signieren
       - FILE_SECRET=${FILE_SECRET}                      # signierte /files-Links
       - SESSION_SECRET=${SESSION_SECRET}                # signiert Login-Session-Cookies
       - INSTANCE_NAME=${INSTANCE_NAME:-Relay}           # Anzeigename der Instanz in der UI

@@ -1,4 +1,4 @@
-// Dokumente in OnlyOffice oeffnen, OHNE Relay zu verlassen.
+// Dokumente in Euro-Office oeffnen, OHNE Relay zu verlassen.
 //
 // Der Editor laeuft in einem FENSTER des Desktops (views/partials/
 // editor-window.ejs erklaert das Warum): verschiebbar, minimierbar, in der
@@ -90,7 +90,7 @@ function zeigeUmschalter(an) {
 function beschrifteUmschalter(name) {
   if (!el.toggle) return;
   var bild = el.toggle.querySelector("img");
-  if (bild) bild.src = name ? iconUrl(name) : BASE_URL + "/static/img/onlyoffice.svg";
+  if (bild) bild.src = name ? iconUrl(name) : BASE_URL + "/static/img/euro-office.svg";
   var text = name || "Dokument";
   el.toggle.setAttribute("data-tip", text);
   el.toggle.setAttribute("aria-label", name

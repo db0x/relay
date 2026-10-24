@@ -1,8 +1,8 @@
 // Playwright-Konfiguration der Relay-E2E-Suite.
 //
-// Getestet wird ausschliesslich die Schicht, die WIR um OnlyOffice herum
+// Getestet wird ausschliesslich die Schicht, die WIR um Euro-Office herum
 // gebaut haben: Anmelden, Nutzerverwaltung, Freigaben. Der Editor selbst
-// (OnlyOffice-DocumentServer) ist bewusst nicht Teil der Tests -- deshalb
+// (Euro-Office-DocumentServer) ist bewusst nicht Teil der Tests -- deshalb
 // braucht die Suite auch nur den Backend-Container.
 const { defineConfig, devices } = require("@playwright/test");
 

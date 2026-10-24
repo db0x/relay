@@ -1,4 +1,4 @@
-// OnlyOffice-Anbindung: Editor-Seite (/edit), signierte Datei-Links (/files)
+// Euro-Office-Anbindung: Editor-Seite (/edit), signierte Datei-Links (/files)
 // und der Speicher-Callback des DocumentServers (/callback).
 const fs = require("fs");
 const path = require("path");
@@ -156,7 +156,7 @@ router.get("/edit/:owner/*", loginRequired, async (req, res) => {
   const acc = accessFor(req.session.user, uid, fid);
   if (!acc) return res.sendStatus(404);
   const ext = fid.split(".").pop().toLowerCase();
-  // Nur Formate, die OnlyOffice ueberhaupt oeffnet. Frueher gab es fuer JEDE
+  // Nur Formate, die Euro-Office ueberhaupt oeffnet. Frueher gab es fuer JEDE
   // vorhandene Datei einen Editor — und damit auch einen signierten /files-Link
   // auf beliebige Inhalte. Fuer alles andere gibt es Download bzw. die eigenen
   // Ansichten (Bilder, Notizen).
@@ -292,7 +292,7 @@ router.get("/edit/:fid", loginRequired, (req, res) => {
 });
 
 // --- Bibliothek: Dokumente ANSEHEN --------------------------------------
-// Dieselbe OnlyOffice-Ansicht wie fuer eigene Dateien, aber ohne jeden Weg
+// Dieselbe Euro-Office-Ansicht wie fuer eigene Dateien, aber ohne jeden Weg
 // zurueck: Ansichtsmodus, keine Bearbeitungsrechte und vor allem KEIN
 // callbackUrl — waere er da, koennte der DocumentServer die Datei
 // zurueckschreiben. Die Bibliothek wird nur gelesen; sie ist ausserdem
@@ -306,7 +306,7 @@ router.get("/lib/edit/*", loginRequired, (req, res) => {
   const abs = library.absOf(rel);
   if (!abs || library.isDir(abs)) return res.sendStatus(404);
   const ext = (rel.split(".").pop() || "").toLowerCase();
-  // wie bei den Nutzerdateien: nur Formate, die OnlyOffice oeffnet — sonst
+  // wie bei den Nutzerdateien: nur Formate, die Euro-Office oeffnet — sonst
   // gaebe es einen signierten Link auf beliebige Inhalte
   if (!DOCTYPE[ext]) return res.sendStatus(404);
 
