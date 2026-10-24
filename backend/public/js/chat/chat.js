@@ -498,6 +498,23 @@ function frischePeersAuf() {
         if (!knopf) return;
         knopf.dataset.haskeys = p.hasKeys ? "1" : "0";
         knopf.classList.toggle("chat-peer-nokeys", !p.hasKeys);
+        // Der Zaehler des GERADE ANGESEHENEN Gespraechs wird NICHT vom Server
+        // uebernommen. Beim Aufklappen laufen zwei Anfragen nebeneinander:
+        // dieses GET /chat/peers holt die Staende, waehrend gelesenMelden()
+        // den Zaehler lokal auf 0 setzt und per POST /chat/read abmeldet
+        // (pruefeSichtbarkeit stoesst beides an). Antwortet das GET spaeter
+        // als die lokale Null, hat der Server das POST aber noch nicht
+        // verarbeitet, schrieb diese Zeile den ALTEN Stand zurueck — und er
+        // blieb stehen, weil nichts ihn nochmal neu zeichnet. Ein Zaehler,
+        // der an einem offenen Gespraech klebt, obwohl man es liest.
+        // (Auf dem CI-Runner reproduzierbar, lokal nur selten: es ist eine
+        // Frage der Reihenfolge, nicht des Zufalls.)
+        //
+        // Massgeblich ist dieselbe Bedingung wie ueberall sonst hier:
+        // ausgewaehlt UND sichtbar heisst gelesen (siehe sichtbar()). Fuer
+        // dieses eine Gespraech gehoert der Zaehler der lokalen Logik, fuer
+        // alle anderen weiterhin dem Server.
+        if (p.username === aktuell && sichtbar()) return;
         setzeUngelesen(p.username, p.unread);
       });
     })

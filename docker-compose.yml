@@ -1,6 +1,6 @@
 services:
   documentserver:
-    build: ./documentserver            # bringt local.json als echte Datei ins Image
+    build: ./documentserver            # duennes Vorschalt-Skript, siehe dessen Dockerfile
     restart: unless-stopped
     environment:
       # JWT an: schuetzt die Kommunikation Backend<->DocumentServer vor Manipulation
@@ -10,11 +10,25 @@ services:
       # gemeinsames Cache-Secret fuer nginx (ds.conf) und DocService (storage.fs)
       - SECURE_LINK_SECRET=${SECURE_LINK_SECRET}
       - MAX_FILE_MB=${MAX_FILE_MB:-}                    # harte Datei-Obergrenze; leer = 512 (relay-entry.sh)
+      # Der DocumentServer holt die Datei bei UNS ab (HOST_INTERNAL=backend:5000)
+      # und schickt den Speicher-Callback dorthin zurueck — beides private
+      # Adressen, die er ohne diese Freigabe von sich aus verweigert.
+      # Frueher stand das in unserer local.json; Euro-Office nimmt es als
+      # Umgebungsvariable, und damit faellt die halbe Datei weg.
+      - ALLOW_PRIVATE_IP_ADDRESS=true
+      - ALLOW_META_IP_ADDRESS=true
     volumes:
-      # Persistenz ueber Neustarts (DB, Cache, Lizenz/Daten)
-      - ds_data:/var/www/onlyoffice/Data
-      - ds_lib:/var/lib/onlyoffice
-      - ds_db:/var/lib/postgresql
+      # Persistenz ueber Neustarts (DB, Cache, Daten).
+      # EIGENE Namen fuer Euro-Office, nicht die alten ds_*: ein bereits
+      # gefuelltes Volume wird von Docker NICHT aus dem Image aufgefuellt,
+      # sondern verdeckt dessen Inhalt. Bei /var/lib/postgresql waere das
+      # fatal — das Image bringt einen fertig eingerichteten Cluster mit, und
+      # der alte OnlyOffice-Cluster kennt dessen Rolle nicht. Nebenbei bleiben
+      # die alten Volumes unangetastet, der Rueckweg ist also nur ein
+      # Branch-Wechsel.
+      - ds_eo_data:/var/www/euro-office/Data
+      - ds_eo_lib:/var/lib/euro-office
+      - ds_eo_db:/var/lib/postgresql
     # im LAN erreichbar: Browser laedt api.js/Editor direkt von hier;
     # ohne gueltiges JWT bzw. signierten Link gibt der Server nichts heraus.
     # Default 5000 statt 8080 — der ist auf vielen Rechnern schon belegt.
@@ -90,6 +104,7 @@ services:
     depends_on: [documentserver]
 
 volumes:
-  ds_data:
-  ds_lib:
-  ds_db:
+  # Euro-Office-DocumentServer
+  ds_eo_data:
+  ds_eo_lib:
+  ds_eo_db:

@@ -1,4 +1,8 @@
-FROM node:20-slim
+# Node 24 "Krypton" — die Active-LTS-Linie. Bewusst NICHT 26: das ist zwar
+# erschienen, steht aber noch nicht unter Langzeitpflege. Bewusst auch keine
+# Patch-Version: -slim folgt der Linie, Sicherheitsstaende kommen so mit einem
+# Neubau statt mit einer Aenderung hier.
+FROM node:24-slim
 WORKDIR /app
 # better-sqlite3 wird beim Install nativ kompiliert -> Build-Tools noetig.
 # fontconfig + DejaVu-Fonts: sharp rendert damit den Text in den PDF-Badges

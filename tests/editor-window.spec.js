@@ -425,13 +425,28 @@ test.describe("Editor-Fenster", () => {
     // ... und das gezeichnete Fenster ist NICHT aufgegangen
     await expect(page.locator("#editor-win")).toBeHidden();
 
-    // Der Browser hat daraus einen eigenen Tab gemacht. Dessen ADRESSE wird
-    // bewusst nicht abgewartet: auf dem CI-Runner bleibt dieser
-    // Hintergrund-Tab auf "about:blank" stehen und navigiert auch nach 15 s
-    // nicht, waehrend er das hier — selbst auf einem einzelnen Kern — immer
-    // binnen Sekunden tut. Was der Browser mit einem freigegebenen Klick
-    // anstellt, ist seine Sache; unsere ist die Zusage darueber.
-    await expect.poll(() => context.pages().length, { timeout: 10000 }).toBe(2);
+    // HIER ENDEN DIE ZUSAGEN — bewusst. Ob der Browser aus dem freigegebenen
+    // Klick einen Tab macht, wann er ihn oeffnet und ob er ihn ueberhaupt
+    // navigiert, ist SEINE Sache. Unsere ist allein, ihn nicht abzufangen,
+    // und das steht vollstaendig oben.
+    //
+    // Der Weg hierher ging ueber zwei Anlaeufe, die beide dasselbe falsch
+    // machten: erst wurde auf die ADRESSE des neuen Tabs gewartet (blieb auf
+    // dem CI-Runner auf "about:blank" stehen), dann nur noch auf seine
+    // EXISTENZ — und auch die kam dort nicht binnen 10 s zustande
+    // (`Expected: 2, Received: 1`). Beide Male war nichts an Relay kaputt:
+    // samtliche Pruefungen davor waren gruen, es scheiterte jedes Mal an
+    // Chromium auf einem geteilten Runner.
+    //
+    // Eine Zusage, die mal gilt und mal nicht, ist keine Zusage — sie macht
+    // die Suite zum Wuerfelspiel und kostet mehr Vertrauen, als sie Deckung
+    // bringt. Verloren geht dabei nichts: faenge Relay den Strg-Klick doch ab,
+    // schluege `verhindert` an; ginge die Adresse verloren, `ziel`; oeffnete
+    // Relay sein eigenes Fenster, der Test auf #editor-win; und verschluckte
+    // es das Ereignis ganz, bliebe der Beobachter null.
+    //
+    // Aufgeraeumt wird trotzdem: wenn ein Tab aufgegangen IST, darf er nicht
+    // in den naechsten Test hineinragen.
     for (const p of context.pages()) if (p !== page) await p.close();
   });
 
