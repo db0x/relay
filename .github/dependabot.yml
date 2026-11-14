@@ -1,0 +1,68 @@
+# Paket-Updates als Pull Request statt als Zufall.
+#
+# HINTERGRUND: Der naechtliche Neubau auf dem Server baut mit --no-cache
+# (maintenance/nightly-rebuild.sh), damit Node- und Betriebssystem-Patches
+# aus dem Basis-Image landen. Solange es keine Lockfile gab, loeste er dabei
+# jede Nacht auch alle "^"-Bereiche neu auf: ein gekapertes npm-Paket waere
+# wenige Stunden spaeter auf einem aus dem Internet erreichbaren Dienst
+# gelaufen, ohne dass jemand hingesehen haette.
+#
+# Seit backend/package-lock.json + `npm ci` ist das zu. Damit die Pakete
+# darueber aber nicht langsam veralten, kommen Aktualisierungen jetzt hier
+# herein — sichtbar, einzeln, mit Changelog und durch die CI gelaufen.
+#
+# Die Arbeitsteilung ist also: Basis-Image naechtlich (automatisch, schnell),
+# npm-Pakete woechentlich (als PR, gesehen).
+version: 2
+updates:
+  # --- Backend ---------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    # Patch- und Minor-Staende gebuendelt: einzelne PRs fuer jede
+    # Kleinigkeit liest am Ende niemand mehr, und genau dann rutscht das
+    # Wichtige durch. Hauptversionen bleiben bewusst einzeln — die koennen
+    # brechen und gehoeren einzeln angesehen (multer 1.x -> 2.x war so ein
+    # Fall).
+    groups:
+      kleinkram:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "deps"
+
+  # --- Testsuite -------------------------------------------------------
+  # Eigenes package.json, eigener Rhythmus: Playwright zieht bei jedem
+  # Update einen Browser nach, das soll nicht im selben PR stecken wie eine
+  # Backend-Abhaengigkeit.
+  - package-ecosystem: npm
+    directory: /tests
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "deps(tests)"
+
+  # --- Basis-Images der Dockerfiles ------------------------------------
+  # Faengt das, was der naechtliche Neubau NICHT faengt: einen Sprung der
+  # Node-Hauptversion (node:24-slim -> node:26-slim). `--pull` holt nur
+  # neue Staende DESSELBEN Tags.
+  - package-ecosystem: docker
+    directories: [/backend, /documentserver]
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "docker"
+
+  # --- GitHub Actions ---------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"

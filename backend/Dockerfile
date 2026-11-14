@@ -11,8 +11,23 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ fontconfig fonts-dejavu-core rsync \
     && rm -rf /var/lib/apt/lists/*
-COPY package.json ./
-RUN npm install --omit=dev
+# package-lock.json MUSS mit: ohne sie faellt `npm ci` auf die Nase, und
+# genau das ist gewollt — der Bau soll scheitern statt stillschweigend etwas
+# anderes zu installieren.
+COPY package.json package-lock.json ./
+# `npm ci` statt `npm install`: installiert AUSSCHLIESSLICH, was in der
+# Lockfile steht, und bricht ab, wenn sie nicht zu package.json passt.
+#
+# WARUM das wichtig ist: der naechtliche Neubau auf dem Server baut mit
+# --no-cache (maintenance/nightly-rebuild.sh), damit Node- und
+# Betriebssystem-Patches aus dem Basis-Image landen. Mit `npm install` loeste
+# er dabei JEDE Nacht auch alle "^"-Bereiche neu auf — ein gekapertes
+# npm-Paket waere also wenige Stunden spaeter auf einem Dienst gewesen, der
+# aus dem Internet erreichbar ist. Mit `npm ci` bleiben die Pakete auf dem
+# geprueften Stand, waehrend Basis-Image-Patches weiter jede Nacht kommen.
+# Paket-Updates laufen stattdessen ueber Dependabot (.github/dependabot.yml)
+# als Pull Request — also gesehen, nicht zugefallen.
+RUN npm ci --omit=dev
 COPY app.js config.js storage.js access.js avatars.js db.js doclang.js settings.js users.js loginguard.js zone.js totp.js twofactor.js sessionstore.js eventlog.js csrf.js shares.js notemeta.js notifications.js chat.js noteicon.js mimeicons.js manage.js maintenance.js format.js library.js foldersort.js scratch.js ./
 COPY routes ./routes
 COPY views ./views
