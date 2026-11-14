@@ -60,7 +60,7 @@ jobs:
       # Der Name MUSS den Shard tragen — gleichnamige Artefakte kollidieren.
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-shard-${{ matrix.shard }}
           path: tests/playwright-report/
