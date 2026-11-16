@@ -4,12 +4,35 @@
 # Neubau statt mit einer Aenderung hier.
 FROM node:24-slim
 WORKDIR /app
-# better-sqlite3 wird beim Install nativ kompiliert -> Build-Tools noetig.
+# KEIN Compiler mehr. better-sqlite3 brachte frueher python3/make/g++ hier
+# herein — gemessen am 16.11.2026 zu Unrecht:
+#
+#   * Es LIEFERT seine Binaerdateien mit (node_modules/better-sqlite3/
+#     prebuilds/linux-x64.node) und laedt zur Laufzeit genau die. Nachgewiesen
+#     ueber einen Haken in process.dlopen; lib/binding.js sagt es auch selbst:
+#     die node-gyp-Pfade "only contain a binary if one was compiled on purpose".
+#   * Der Bau lief trotzdem, weil npm bei einer vorhandenen binding.gyp ohne
+#     eigenes install-Skript IMPLIZIT `node-gyp rebuild` anhaengt. Herausgekommen
+#     sind dabei zwei .stamp-Dateien in build/Release/obj.target und sonst
+#     nichts — die Toolchain stand also nur da, damit ein Schritt gelingt,
+#     dessen Ergebnis niemand benutzt.
+#
+# Seit "allowScripts": {"better-sqlite3": false} in der package.json laesst npm
+# den Schritt weg (der Mechanismus kam mit npm 11.19). Damit faellt der
+# Compiler weg: `npm ci` braucht 3 statt ~60 Sekunden, das Image wird um rund
+# 250 MB kleiner, und ein fremdes Skript weniger laeuft beim Bau.
+#
+# ACHTUNG beim naechsten Hauptversionssprung von better-sqlite3: liefert es
+# fuer linux-x64 keine Binaerdatei mehr mit, faellt das NICHT beim Bau auf,
+# sondern erst beim Start. Dann hier python3 make g++ zurueckholen und in der
+# package.json auf `true` drehen.
+#
 # fontconfig + DejaVu-Fonts: sharp rendert damit den Text in den PDF-Badges
-# (SVG->PNG); ohne Fonts kaemen nur Tofu-Kaestchen heraus.
+# (SVG->PNG); ohne Fonts kaemen nur Tofu-Kaestchen heraus. sharp bringt seine
+# Binaerdateien als optionale Pakete mit und braucht ebenfalls keinen Compiler.
 # rsync: fuer "Backup ausfuehren" (Admin-Menue, routes/admin.js).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ fontconfig fonts-dejavu-core rsync \
+    fontconfig fonts-dejavu-core rsync \
     && rm -rf /var/lib/apt/lists/*
 # package-lock.json MUSS mit: ohne sie faellt `npm ci` auf die Nase, und
 # genau das ist gewollt — der Bau soll scheitern statt stillschweigend etwas
