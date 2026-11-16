@@ -2,7 +2,7 @@
 # erschienen, steht aber noch nicht unter Langzeitpflege. Bewusst auch keine
 # Patch-Version: -slim folgt der Linie, Sicherheitsstaende kommen so mit einem
 # Neubau statt mit einer Aenderung hier.
-FROM node:24-slim
+FROM node:25-slim
 WORKDIR /app
 # better-sqlite3 wird beim Install nativ kompiliert -> Build-Tools noetig.
 # fontconfig + DejaVu-Fonts: sharp rendert damit den Text in den PDF-Badges
