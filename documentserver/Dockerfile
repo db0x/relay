@@ -32,19 +32,28 @@ FROM ghcr.io/euro-office/documentserver:latest
 # die EINZIGE --eo-*-Variable im ganzen Stylesheet; diese Leiste ist der
 # gesamte sichtbare Umfang des Rebrandings.)
 #
-# Angewandt wird es auf die drei Editor-Stylesheets. Der Schritt laeuft bei
-# JEDEM Neubau gegen das frische Basis-Image, haelt also auch den
-# naechtlichen Neubau aus. Rueckgaengig: diese RUN-Zeile loeschen.
+# GESUCHT statt aufgezaehlt: betroffen sind nicht nur die drei grossen
+# Editoren. Ein erster Anlauf zaehlte documenteditor/spreadsheeteditor/
+# presentationeditor auf — und liess den PDF-Reader (roter Strich),
+# visioeditor und documenteditor/forms stehen. Wer die Liste pflegt, vergisst
+# sie; wer sucht, findet auch, was Euro-Office spaeter dazulegt.
 #
-# `grep -q` davor ist Absicht: findet sich die Regel nicht mehr (weil
-# Euro-Office sie umbaut), bricht der Bau ab, statt stillschweigend nichts
-# zu tun und uns im Glauben zu lassen, es sei erledigt.
+# Der Schritt laeuft bei JEDEM Neubau gegen das frische Basis-Image, haelt
+# also auch den naechtlichen Neubau aus. Rueckgaengig: diese RUN-Zeile
+# loeschen.
+#
+# Findet sich die Variable nirgends mehr (weil der Fork sie umbaut), bricht
+# der Bau ab, statt stillschweigend nichts zu tun und uns im Glauben zu
+# lassen, es sei erledigt.
 RUN set -eu; \
-    for d in documenteditor spreadsheeteditor presentationeditor; do \
-      f="/var/www/euro-office/documentserver/web-apps/apps/$d/main/app.css"; \
-      grep -q -- "--eo-app-accent" "$f" || { echo "ERWARTETE REGEL FEHLT in $f"; exit 1; }; \
+    R=/var/www/euro-office/documentserver/web-apps; \
+    n=0; \
+    for f in $(grep -rl -- "--eo-app-accent" "$R"); do \
       printf '\n/* Relay: Akzentleiste je Dokumenttyp abschalten */\n:root body[data-editor-type] #viewport::before{display:none !important}\n:root body[data-editor-type] #viewport{top:0 !important}\n' >> "$f"; \
-    done
+      n=$((n + 1)); \
+    done; \
+    [ "$n" -gt 0 ] || { echo "KEIN Stylesheet mit --eo-app-accent gefunden - Regel umgebaut?"; exit 1; }; \
+    echo "[relay] Akzentleiste in $n Stylesheets abgeschaltet"
 
 COPY relay-entry.sh /relay-entry.sh
 RUN chmod +x /relay-entry.sh
