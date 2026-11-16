@@ -2269,14 +2269,9 @@ a.crumb:hover{text-decoration:underline}
      Ordner-Aktionen im Fensterkopf (dorthin sind sie gewandert) */
   .toolbar .tool-label,.page-actions .tool-label{display:none}
 }
-@media (max-width:600px){
-  .topbar .uname{display:none}       /* Nutzername weg; Avatar + Menue bleiben */
-}
-
-@media (max-width:560px){
-  .page{padding:18px 16px 22px}
-  .col-date{display:none}
-}
+/* Die frueheren Abfragen bei 600px und 560px (Nutzername weg, Karte enger,
+   Datumsspalte weg) sind in den Abschnitt MOBIL am Dateiende aufgegangen —
+   drei verstreute Kosmetik-Regeln gegen einen zusammenhaengenden Modus. */
 
 /* ========================================================================
    RAUCHGLAS — die eine Definition
@@ -2599,4 +2594,317 @@ a.crumb:hover{text-decoration:underline}
 .audio-err{
   margin:0;padding:1.2rem 0;color:var(--muted);
   font-size:.85rem;line-height:1.5;text-align:center;
+}
+
+
+/* ========================================================================
+   MOBIL — eine Ansicht auf einmal
+   ========================================================================
+   Unter 760px faellt die Schreibtisch-Metapher weg. Nicht als Sparversion,
+   sondern weil sie dort eine falsche Behauptung ist: frei verschiebbare,
+   skalierbare Fenster brauchen Flaeche NEBEN dem Inhalt, und die hat ein
+   Telefon nicht. Zwei Fenster auf 390px liegen nicht nebeneinander, sie
+   liegen uebereinander — und das untere ist dann einfach weg.
+
+   Also:
+     * Jedes Fenster fuellt den Platz unter der Titelleiste.
+     * Es wird nicht gezogen, nicht skaliert, nicht gestapelt.
+     * Die Umschalter in der Titelleiste sind die Navigation: wer eine
+       Ansicht aufklappt, klappt die anderen zu (core/window.js).
+     * Vom Telefon wird keine Lage gemerkt — desktop_layout haengt am
+       Nutzer, nicht am Geraet (Begruendung in saveLayout()).
+
+   Der Umbruchpunkt steht ZWEIMAL: hier und als MOBIL_Q in
+   js/core/mobil.js. CSS kennt keine selbst benannten Media-Abfragen, und
+   ohne Javascript soll die Oberflaeche trotzdem schmal werden. Wer dreht,
+   dreht an beiden — dasselbe Paar-Verhaeltnis wie bei --desk-bg.
+
+   Der Abschnitt steht am DATEIENDE mit Absicht: er muss gegen die
+   Einzelmasse der vier Fenster gewinnen (.page.board, .page.chat,
+   .page.editor-win) und gegen den Schatten des aktiven Fensters. Darum
+   stehen diese Klassen hier ausgeschrieben in der Selektorliste statt nur
+   .page — bei gleichem Gewicht gewinnt sonst die frueher gesetzte, weil
+   spezifischere Regel. */
+
+@media (max-width:760px){
+  /* EIN Wert, zwei Verwendungen: die Hoehe der Titelleiste und damit die
+     Oberkante jedes Fensters. 44px Beruehrungsziel plus Luft. */
+  :root{--mobil-top:52px}
+
+  /* --- Titelleiste als Navigationsleiste -------------------------------
+     Der Name weicht, das Logo bleibt: es ist der Knopf zum Anwendungs-Menue
+     mit Suche und "Neu" — auf dem Telefon der einzige Weg dorthin. Die
+     Startseite erreicht man ueber die Dateiliste selbst. */
+  .topbar{height:var(--mobil-top);padding:0 6px;gap:.3rem}
+  .topbar .brand{display:none}
+  .topbar .uname{display:none}       /* Avatar und Menue sagen genug */
+  .topbar-left{gap:.3rem;min-width:0}
+  /* Die Umschalter sind hier keine Beigabe mehr, sondern die Navigation —
+     also auf das Mindestmass fuer den Finger (44px, Apple/Google nennen
+     beide diese Zahl). */
+  .topbar .view-btn{width:44px;height:44px}
+  .topbar .tool-icons{gap:0}
+
+  /* --- Fenster ----------------------------------------------------------
+     inset statt left/top/width/height: so steht die Geometrie in EINER
+     Zeile und bottom:0 erledigt die Hoehe, ohne 100vh gegen die
+     ein- und ausfahrende Browserleiste rechnen zu muessen (der klassische
+     Grund fuer abgeschnittene Fusszeilen auf dem Telefon).
+     Die Inline-Masse nimmt place() im Mobilmodus weg — ohne das muesste
+     hier alles !important tragen. */
+  .page,.page.board,.page.chat,.page.editor-win,
+  .page.win-active,.page.win-max{
+    inset:var(--mobil-top) 0 0;
+    width:auto;max-width:none;height:auto;max-height:none;
+    border:0;border-radius:0;box-shadow:none;
+  }
+  /* Engeres Raster: 22px Rand sind auf 390px Breite ein Zehntel des Bildes.
+     Ueber die Variable statt ueber `padding`, damit die Titelleiste des
+     Fensters (negative Raender) und der Rumpf (padding-inline) mitgehen —
+     und damit das Editor-Fenster seine padding:0 behaelt. */
+  .page{--page-pad:14px}
+
+  /* Was es auf dem Telefon nicht gibt, soll man auch nicht sehen:
+     der Griff zum Skalieren und "Auf Fenstergroesse" (das Fenster IST
+     bildschirmgross). Die Mechanik dahinter steigt zusaetzlich selbst aus
+     (core/window.js) — Sichtbarkeit und Wirkung getrennt abgesichert. */
+  .win-resize{display:none}
+  #editor-win-max{display:none}
+  /* Die Titelleiste ist nicht mehr Greif-Flaeche. touch-action MUSS zurueck
+     auf auto: mit `none` schluckt sie jeden Wisch, und auf einem Telefon
+     wischt man ueber die ganze Flaeche, nicht nur ueber den Rumpf. */
+  .page-head{cursor:default;touch-action:auto}
+
+  /* Die frei gezogenen Notiz-Icons setzen voraus, dass neben dem Fenster
+     Platz ist — hier ist keiner. Die Notizen bleiben ueber das Board und
+     die Dateiliste erreichbar, es verschwindet nur ihre Ablage. */
+  .note-desktop{display:none}
+
+  /* --- Dateiliste: Liste statt Tabelle ----------------------------------
+     Vier Spalten nebeneinander gehen auf 390px nicht auf — der Name, das
+     einzig Gesuchte, bekaeme den kleinsten Rest. Also wird aus jeder Zeile
+     ein Eintrag mit zwei Zeilen:
+
+         [Icon] Name der Datei                     [Kebab]
+                35,7 KB   14.11.2026
+
+     Das geschieht in REINEM CSS, ohne zweite Vorlage: die Tabelle bleibt im
+     Markup stehen und wird zum Raster umgedeutet. Zwei Fassungen desselben
+     Markups waeren sonst bei jeder neuen Spalte, jedem neuen Abzeichen und
+     jeder neuen Aktion zu pflegen — und die zweite wuerde vergessen. Die
+     Handler in js/ (Zeilenmenue, Filter "Nur eigene", Hervorhebung nach
+     einem Sprung aus den Nachrichten) suchen weiter tr und td und finden
+     sie unveraendert.
+
+     Die Spalten des Rasters: Groesse | Datum | Kebab. Der Name spannt ueber
+     die ersten beiden. */
+  .table-wrap{overflow-x:visible}
+  .files,.files tbody,.files thead,.files tr{display:block}
+  .files tr{
+    display:grid;
+    grid-template-columns:auto 1fr auto;
+    align-items:center;
+    column-gap:.5rem;
+    padding:.5rem 0;
+    border-bottom:1px solid var(--line-soft);
+  }
+  /* ACHTUNG, dieselbe Falle wie an mehreren Stellen weiter oben: display
+     oben schlaegt das display:none, mit dem der Browser [hidden] umsetzt.
+     Der Filter "Nur eigene Dateien" setzt genau dieses Attribut
+     (js/files/own-filter.js) — ohne diese Zeile zeigte er keine Wirkung. */
+  .files tr[hidden]{display:none}
+  .files tbody tr:last-child{border-bottom:0}
+  /* width/max-width zuruecknehmen: .col-name traegt in der Tabelle
+     max-width:0 (der Kniff, der lange Namen zur Ellipsis zwingt) — als
+     Block waere die Zelle damit schlicht weg. */
+  .files td{display:block;padding:0;border:0;width:auto;max-width:none}
+  .files td.col-name{grid-area:1/1/2/3}
+  .files td.col-size{grid-area:2/1/3/2}
+  .files td.col-date{display:block;grid-area:2/2/3/3}
+  .files td.col-actions{grid-area:1/3/3/4}
+  .files td.empty{grid-area:1/1/2/4;padding:2.5rem 0}
+  /* Die zweite Zeile beginnt unter dem NAMEN, nicht unter dem Icon — sonst
+     haengt sie in der Luft. Das Mass ist die Icon-Breite plus der Abstand
+     aus .file-cell. Die Polsterung steht an der Groesse und traegt auch
+     dann, wenn dort nichts steht (Ordner): die Zelle behaelt ihre Breite,
+     das Datum rueckt also nicht nach links. */
+  .files td.col-size{padding-left:calc(28px + .6em)}
+  .files td.col-size,.files td.col-date{font-size:.78rem}
+
+  /* Abzeichen (geteilt, ToDo, Bibliothek) duerfen umbrechen statt den Namen
+     zusammenzuquetschen — auf 390px bleibt sonst von ihm nichts uebrig. */
+  .file-cell .fname-wrap{flex-wrap:wrap}
+  /* Beruehrungsflaeche fuer den Namen, ohne das Raster zu verschieben:
+     Polsterung an einem INLINE-Element vergroessert die Trefferflaeche,
+     nicht die Zeilenhoehe. */
+  .files .fname{padding:.35rem 0}
+  .files .row-menu-btn{width:40px;height:40px}
+
+  /* Die Spaltenkoepfe werden zur Sortierleiste: eine Reihe kleiner Links
+     ueber der Liste. Bewusst NICHT weggelassen — nach Datum zu sortieren
+     ist unterwegs eher wichtiger als am Schreibtisch, wo man die ganze
+     Liste auf einmal sieht. */
+  .files thead{border-bottom:1px solid var(--line)}
+  .files thead tr{display:flex;gap:1rem;padding:var(--page-gap) 0 .1rem;border-bottom:0}
+  .files th{display:block;padding:0;border-bottom:0;width:auto;max-width:none}
+  .files th.col-actions{display:none}
+  .files th .sort{padding:.35rem 0}
+
+  /* --- Dialoge ----------------------------------------------------------
+     Ein zentrierter Kasten mit Luft ringsum ist die Form fuer einen grossen
+     Schirm: er zeigt, dass dahinter weitergeht, was man gerade nicht
+     bearbeitet. Auf 390px gibt es kein "dahinter" — der Kasten waere nur ein
+     kleineres Rechteck in einem kleinen Rechteck.
+
+     Zwei Formen statt einer, nach dem, was drinsteht:
+
+       BLATT am unteren Rand — fuer die kurzen Sachen (Neuer Ordner, Teilen,
+       Verschieben, Rueckfragen, Hinweise). Sie faehrt von unten herein, wo
+       der Daumen ist, und laesst oben sehen, worauf sie sich bezieht. Ein
+       Loeschen-Dialog, der den ganzen Schirm nimmt, wirkt wie ein Umzug in
+       eine andere Ansicht — es ist aber nur eine Frage.
+
+       FORMATFUELLEND — fuer alles, was Inhalt traegt: Notiz, Bild, Film, Ton,
+       Konto und die Verwaltungs-Dialoge. Dort IST der Dialog die Ansicht.
+
+     Die Zuordnung laeuft ueber die Spezifitaet, nicht ueber eine Liste von
+     Ausnahmen: .dialog allein ist das Blatt, jede Zusatzklasse (.dialog-wide,
+     .dialog-note, …) ist formatfuellend und gewinnt mit ihrem zweiten
+     Klassen-Punkt. Ein neuer Dialog ohne Zusatzklasse ist damit automatisch
+     ein Blatt — und das ist bei kurzen Formularen die richtige Vorgabe. */
+  .dialog{
+    --dlg-radius:16px;
+    inset:auto 0 0;margin:0;
+    width:auto;max-width:none;
+    /* nicht ganz bis oben: der Streifen darueber zeigt, dass die Ansicht
+       noch da ist, und ist zugleich die Flaeche zum Wegtippen */
+    max-height:88dvh;
+    /* Die Dialoge haben keinen eigenen rollenden Rumpf — sie waren immer so
+       kurz, dass keiner noetig war. Mit einer Hoehengrenze UND overflow:
+       hidden (Grundregel weiter oben) waere der Rest unerreichbar; hier
+       rollt deshalb der Dialog selbst. */
+    overflow-y:auto;
+    border-radius:var(--dlg-radius) var(--dlg-radius) 0 0;
+    border-bottom:0;
+    padding-bottom:max(1.1rem,env(safe-area-inset-bottom));
+  }
+  .dialog.dialog-wide,.dialog.dialog-xwide,
+  .dialog.dialog-note,.dialog.dialog-note.note-view,
+  .dialog.dialog-image,.dialog.dialog-video,.dialog.dialog-audio{
+    --dlg-radius:0;
+    inset:0;margin:0;
+    width:auto;max-width:none;height:auto;max-height:none;
+    /* Die Mindestmasse des Notiz-Dialogs (min-width:520px) sind eine
+       Untergrenze fuer ein ZIEHBARES Fenster — formatfuellend gibt es nichts
+       zu unterschreiten. */
+    min-width:0;min-height:0;
+  }
+  /* Bild, Film, Ton und Notiz ordnen ihren Inhalt selbst (flex, eigene
+     Rollbereiche) — die sollen NICHT zusaetzlich als Ganzes rollen. */
+  .dialog.dialog-note,.dialog.dialog-image,
+  .dialog.dialog-video,.dialog.dialog-audio{overflow:hidden}
+  /* Der Kopf traegt dieselbe Rundung wie der Dialog — eine Variable, zwei
+     Stellen, statt derselben Zahl an fuenf Selektoren. */
+  .dialog-head{border-radius:var(--dlg-radius) var(--dlg-radius) 0 0}
+
+  /* Herein von UNTEN statt aus der Mitte: die Bewegung sagt, wo das Blatt
+     herkommt und wohin es wieder verschwindet. Gilt fuer beide Formen —
+     zwei verschiedene Bewegungen in derselben Oberflaeche waeren Unruhe
+     ohne Gewinn. */
+  .dialog{transform:translateY(100%)}
+  .dialog[open]{transform:none}
+  @starting-style{.dialog[open]{transform:translateY(100%)}}
+
+  /* Was auf dem Telefon nicht greifbar ist: die Vergroessern-Ecke der
+     Notiz, der Griff am Film und "Auf Fenstergroesse" — der Dialog IST
+     bildschirmgross. */
+  .note-resize,.video-resize,#dlg-video-max{display:none}
+  /* Der Kopf des Notiz-Dialogs ist nicht mehr Greif-Flaeche (siehe
+     js/notes/note-dialog.js) — touch-action MUSS zurueck, sonst schluckt er
+     jeden Wisch, genau wie beim Fensterkopf. */
+  .dialog-note .dialog-head{cursor:default;touch-action:auto}
+  /* Schliessen ist der am haeufigsten getroffene Knopf eines Dialogs und
+     sitzt am Rand — mit 1,4rem Schrift und .1rem Polster war er rund 24px
+     hoch. */
+  .dialog-x{padding:.4rem .7rem}
+
+  /* --- Notiz-Editor -----------------------------------------------------
+     Zwei Spalten, Text links und Vorschau rechts, ergeben auf 390px zwei
+     Saeulen von je rund 180px — in keiner laesst sich lesen, in keiner
+     schreiben. Im BEARBEITEN-Modus faellt die Vorschau deshalb weg: die
+     gesetzte Fassung ist der Lese-Modus, und der ist einen Knopf entfernt.
+     Im Lese-Modus ist es umgekehrt (.note-view blendet die Textspalte aus,
+     Regel weiter oben) — dort bleibt also alles, wie es ist. */
+  .dialog-note:not(.note-view) .note-preview,
+  .dialog-note .note-splitter{display:none}
+  /* flex:0 0 50% zuruecknehmen. Den gemerkten Prozentwert haengt
+     js/notes/note-dialog.js im Mobilmodus gar nicht erst an. */
+  .dialog-note .note-editor-pane{flex:1 1 auto}
+  /* Die Formatierungsleiste brach auf drei Zeilen um und nahm damit ein
+     Viertel der Schreibflaeche. Eine Zeile, die man seitlich schiebt, kostet
+     nichts — und die haeufigen Knoepfe (fett, kursiv, Ueberschrift) stehen
+     ohnehin vorn. */
+  .note-toolbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .note-toolbar::-webkit-scrollbar{display:none}
+  .note-tb{flex:0 0 auto;width:34px;height:34px}
+
+  /* --- Chat -------------------------------------------------------------
+     Aus nebeneinander wird untereinander: oben, wer da ist, darunter das
+     Gespraech. Die Liste bekommt einen Deckel statt einer festen Hoehe —
+     bei drei Leuten in der Familie nimmt sie dann auch nur den Platz fuer
+     drei. (Die Alternative, je nach Auswahl immer nur EINE der beiden
+     Flaechen zu zeigen, braucht einen Zurueck-Knopf im Gespraechskopf; bei
+     einer Handvoll Gespraechspartner ist das mehr Weg als Gewinn.) */
+  #chat .chat-split{
+    grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr);
+    height:100%;gap:var(--page-gap);
+  }
+  #chat .chat-peers{
+    max-height:30dvh;
+    border-right:0;border-bottom:1px solid var(--line-soft);
+    padding-right:0;padding-bottom:var(--page-gap);
+  }
+  /* Beruehrungsziel: die Zeilen sassen mit .4rem Polster bei rund 36px. */
+  #chat .chat-peer{padding:.6rem .5rem}
+  /* Damit height:100% oben ueberhaupt ankommt. Am Schreibtisch hat
+     .chat-split ein FESTES Mass (min(56vh,460px)), und der Kommentar dort
+     nennt den Grund: zwischen Rumpf und Inhalt schiebt OverlayScrollbars
+     eigene Ebenen, durch die eine Prozenthoehe nicht hindurchfindet.
+     Formatfuellend geht ein festes Mass aber nicht — das Eingabefeld stuende
+     sonst auf halber Hoehe in der Luft.
+     Der Weg durch die Ebenen: `> *` ist NICHT .chat-split, sondern der
+     Viewport, den OverlayScrollbars dazwischenhaengt. Er bekommt hier die
+     Hoehe, und erst an ihm rechnet .chat-split seine 100%. Der Rumpf selbst
+     steht ohnehin schon auf display:flex — das setzt OverlayScrollbars, wir
+     schreiben es nur aus, statt uns darauf zu verlassen. */
+  #chat .page-body{display:flex;flex-direction:column}
+  #chat .page-body > *{flex:1 1 auto;min-height:0}
+
+  /* --- Notiz-Board ------------------------------------------------------
+     Die drei Spalten BLEIBEN nebeneinander. Untereinander waeren sie zwar
+     breiter, aber eine Karte von "Offen" nach "Erledigt" zu ziehen hiesse
+     dann, waehrend des Ziehens zu rollen. Eine Notiz-Karte ist 72px breit
+     und passt zu dritt — es fehlt nur der Abstand dazwischen. */
+  .board-cols{gap:6px}
+  .board-col-head{font-size:.68rem;letter-spacing:.02em;padding:.45rem .4rem}
+}
+
+/* --- Tooltips auf Beruehrung -------------------------------------------
+   Diese eine Regel haengt BEWUSST nicht am Umbruchpunkt, sondern an
+   (hover:none) — und das ist der Unterschied zwischen "schmal" und "kein
+   Mauszeiger". Ein Tooltip braucht ein Verlassen des Elements, um wieder zu
+   verschwinden; auf Beruehrung gibt es keines. Der Browser haelt :hover
+   nach dem Antippen stehen, der Tooltip bleibt liegen und deckt zu, was
+   man gerade geoeffnet hat (gesehen: "Notiz-Board" quer ueber dem
+   Fenstertitel). Ein Hinweis, den man nicht wegbekommt, ist schlechter als
+   gar keiner.
+
+   Die Beschriftung geht dabei nicht verloren: jeder dieser Knoepfe traegt
+   dasselbe Wort als aria-label, Vorleseprogramme lesen es unveraendert.
+   Nur die SICHTBARE Blase faellt weg.
+
+   Ein schmal gezogenes Fenster MIT Maus behaelt seine Tooltips — dort
+   funktionieren sie ja. */
+@media (hover:none){
+  [data-tip]::after{display:none}
 }

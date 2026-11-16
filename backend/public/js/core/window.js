@@ -15,6 +15,20 @@
 import { attachScrollbar } from "./scrollbars.js";
 
 import { schreibKopf } from "./base.js";
+import { istMobil, beiMobilWechsel } from "./mobil.js";
+
+// --- Alle erzeugten Fenster -------------------------------------------
+// Gebraucht fuer die EINE Regel, die den Mobilmodus von der Schreibtisch-
+// Metapher trennt: dort liegen Fenster nebeneinander, hier gilt eine Ansicht
+// auf einmal. Wer aufklappt, klappt die anderen zu — zwei formatfuellende
+// Fenster uebereinander waeren nicht zwei Fenster, sondern eines mit
+// unerreichbarem Inhalt darunter.
+var fenster = [];
+function alleAnderenZu(mich) {
+  fenster.forEach(function (w) {
+    if (w !== mich && !w.isMinimized()) w.minimize();
+  });
+}
 // Untergrenze fuer alle frei platzierten Elemente: unter der Titelleiste,
 // damit nichts hinter ihr verschwindet.
 export function deskMinY() {
@@ -82,6 +96,18 @@ export function createWindow(config) {
     // die gemerkte Position mit offsetWidth 0 verfaelschen. restore() ruft
     // place() ohnehin nach.
     if (isMinimized()) return;
+    // Auf schmalen Schirmen legt das CSS die Fenster aus (Abschnitt MOBIL in
+    // index.css): formatfuellend unter der Titelleiste, ohne Lage und ohne
+    // Masse. Hier werden die Inline-Werte nur WEGGENOMMEN — sonst muesste
+    // jede dieser CSS-Regeln ein !important tragen, um gegen style="" zu
+    // gewinnen, und das waere ein Kampf, den man nicht gewinnt, sondern nur
+    // vererbt. Beim Wechsel zurueck auf breit rechnet place() wieder normal.
+    if (istMobil()) {
+      ["left", "top", "width", "height", "maxHeight"].forEach(function (k) {
+        el.style[k] = "";
+      });
+      return;
+    }
     if (isMaximized()) return passeMaxAn();
     var vw = window.innerWidth, vh = window.innerHeight, minY = deskMinY();
 
@@ -123,6 +149,13 @@ export function createWindow(config) {
   }
 
   function saveLayout(minimized) {
+    // Vom Telefon wird NICHTS gemerkt. desktop_layout ist je Nutzer, nicht je
+    // Geraet: wer unterwegs kurz das Board aufmacht, haette sonst beim
+    // naechsten Mal am Rechner die Dateiliste zugeklappt und das Board an
+    // einer Stelle, die es dort nie hatte. Im Mobilmodus gibt es ausserdem
+    // gar keine Lage und keine Masse zu merken (siehe place()) — es wuerden
+    // Nullen in den Datensatz geschrieben.
+    if (istMobil()) return;
     var x = parseFloat(el.style.left) || 0;
     var y = parseFloat(el.style.top) || 0;
     // data-x/y sind die Quelle, aus der place() rechnet — sie kamen bisher NUR
@@ -160,6 +193,10 @@ export function createWindow(config) {
 
   function restore() {
     if (!isMinimized()) return;
+    // Mobilmodus: eine Ansicht auf einmal. Vor dem Aufklappen raeumen, nicht
+    // danach — sonst traegt applyStack() kurz ein anderes Fenster als das
+    // aktive.
+    if (istMobil()) alleAnderenZu(api);
     el.classList.remove("page-min");
     syncToggle();
     raise(el);      // wiederhergestellt heisst: nach vorn, nicht hinter andere
@@ -256,6 +293,10 @@ export function createWindow(config) {
   var MIN_H = config.minHeight || 200;
 
   griff.addEventListener("pointerdown", function (e) {
+    // Im Mobilmodus gibt es keine Groesse zu ziehen (das CSS blendet den
+    // Griff auch aus) — der Zweig hier ist das Netz darunter: zwischen dem
+    // Dreh am Umbruchpunkt und dem naechsten place() darf nichts passieren.
+    if (istMobil()) return;
     if (e.button !== 0 || isMaximized()) return;
     e.preventDefault();
     e.stopPropagation();          // nicht zugleich das Fenster anfassen
@@ -302,6 +343,11 @@ export function createWindow(config) {
   // die closest()-Pruefung heraus.
   var DRAG_SKIP = "a,button,input,select,textarea,label,summary,[data-dialog],[data-create]";
   el.addEventListener("pointerdown", function (e) {
+    // Dasselbe wie beim Griff: ein formatfuellendes Fenster laesst sich nicht
+    // verschieben. Wichtiger als die fehlende Wirkung ist, was sonst
+    // GESCHIEHT — die Titelleiste traegt touch-action:none, jeder Wisch
+    // darauf wuerde also zum Ziehversuch statt zum Rollen.
+    if (istMobil()) return;
     if (e.button !== 0) return;
     if (!e.target.closest(".page-head")) return; // nur die Titelleiste zieht
     if (e.target.closest(DRAG_SKIP)) return;     // Bedienelemente darin nicht
@@ -333,8 +379,25 @@ export function createWindow(config) {
     el.addEventListener("pointercancel", up);
   });
 
-  return {
+  // Benannt statt direkt zurueckgegeben: restore() braucht sich selbst, um
+  // sich beim Zuklappen der anderen auszunehmen.
+  var api = {
     place: place, minimize: minimize, restore: restore, toggle: toggle,
     isMinimized: isMinimized, isMaximized: isMaximized, setMax: setMax,
   };
+  fenster.push(api);
+  return api;
 }
+
+// Wechsel des Umbruchpunkts (Telefon gedreht, Fenster am Rechner schmal
+// gezogen): jedes Fenster neu einpassen. place() nimmt im Mobilmodus die
+// Inline-Masse weg und rechnet beim Weg zurueck wieder aus data-x/y/w/h —
+// die gemerkte Lage ist also nach einem Ausflug ins Schmale unveraendert da.
+//
+// Beim Weg INS Schmale bleibt stehen, was gerade offen ist. Zwei offene
+// Fenster liegen dann einen Moment uebereinander; "eine Ansicht auf einmal"
+// greift ab dem naechsten Umschalten. Bewusst NICHT hier erzwungen: es waere
+// ein Zuklappen, das der Nutzer nicht ausgeloest hat.
+beiMobilWechsel(function () {
+  fenster.forEach(function (w) { w.place(); });
+});

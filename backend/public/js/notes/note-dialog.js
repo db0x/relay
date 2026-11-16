@@ -13,6 +13,7 @@ import { initEmoji, bindEmoticons } from "./emoji.js";
 import { bindDocLinks } from "./doclinks.js";
 import { initMention } from "./mention.js";
 import { initNetz } from "./netz.js";
+import { istMobil } from "../core/mobil.js";
 
 // baseUrl: Basis-URL der Notiz-Endpunkte (.../notes/create ohne den Suffix).
 // Rueckgabe: { openNote } — von notes.js an das Hover-/Klick-Modul weitergereicht.
@@ -227,7 +228,12 @@ export function initNoteDialog(baseUrl) {
     // merken sich ihre eigene: die Lese-Ansicht ist schmaler (keine
     // Editor-Spalte), eine gemeinsame Groesse waere fuer einen der beiden
     // immer falsch. Ohne gemerkte Groesse gilt die CSS-Vorgabe.
-    var s = (localStorage.getItem(groesseKey()) || "").split("x");
+    // Auf dem Telefon fuellt der Dialog den Schirm (Abschnitt MOBIL in
+    // index.css). Die am Rechner gezogene Groesse darf hier nicht angewendet
+    // werden — sie stuende als Inline-Mass vor der CSS-Regel und machte aus
+    // dem formatfuellenden Dialog wieder ein 900px breites Fenster, von dem
+    // man ein Drittel saehe. Gemerkt bleibt sie; am Rechner gilt sie weiter.
+    var s = istMobil() ? [] : (localStorage.getItem(groesseKey()) || "").split("x");
     if (s.length === 2 && +s[0] && +s[1]) {
       noteDlg.style.width = Math.min(+s[0], window.innerWidth - 24) + "px";
       noteDlg.style.height = Math.min(+s[1], window.innerHeight - 24) + "px";
@@ -292,6 +298,11 @@ export function initNoteDialog(baseUrl) {
   }
   function noteDrag(handle, onMove) {
     handle.addEventListener("pointerdown", function (e) {
+      // Dieselbe Regel wie bei den Fenstern (core/window.js): formatfuellend
+      // heisst weder verschiebbar noch skalierbar. Wichtiger als die fehlende
+      // Wirkung ist das preventDefault am Ende — ohne diesen Ausstieg wuerde
+      // jeder Wisch ueber die Kopfzeile abgefangen statt zu rollen.
+      if (istMobil()) return;
       if (e.button !== 0) return;
       // Klicks auf Bedienelemente im Kopf (×) nicht kapern
       if (e.target.closest("button,a,input")) return;
@@ -337,7 +348,10 @@ export function initNoteDialog(baseUrl) {
       // enthaelt diese Skalierung. Waehrend der Oeffnen-Animation gemessen,
       // wanderten so bei JEDEM Oeffnen 3% Groesse in den Speicher — der Dialog
       // schrumpfte mit der Zeit. Die Layout-Masse kennen kein transform.
-      if (noteDlg.style.width) {
+      // Im Mobilmodus steht kein Inline-Mass mehr (siehe oben) — die Bedingung
+      // traegt also schon. Die zweite Haelfte ist das Netz darunter, fuer den
+      // Moment des Umschaltens zwischen breit und schmal.
+      if (noteDlg.style.width && !istMobil()) {
         localStorage.setItem(groesseKey(),
           noteDlg.offsetWidth + "x" + noteDlg.offsetHeight);
       }
@@ -432,11 +446,17 @@ export function initNoteDialog(baseUrl) {
   var noteMain = noteForm.querySelector(".note-main");
   var noteEditorPane = noteForm.querySelector(".note-editor-pane");
   var SPLIT_KEY = "relay-note-split";
-  var savedSplit = parseFloat(localStorage.getItem(SPLIT_KEY));
+  // Auf dem Telefon gibt es keine zwei Spalten mehr (Abschnitt MOBIL in
+  // index.css blendet die Vorschau im Bearbeiten-Modus aus) — und damit auch
+  // nichts aufzuteilen. Der gemerkte Prozentwert wird hier gar nicht erst
+  // angehaengt: als Inline-Stil stuende er vor der CSS-Regel und gaebe der
+  // Textspalte wieder ihre halbe Breite, nur ohne etwas daneben.
+  var savedSplit = istMobil() ? NaN : parseFloat(localStorage.getItem(SPLIT_KEY));
   if (savedSplit >= 20 && savedSplit <= 80)
     noteEditorPane.style.flex = "0 0 " + savedSplit + "%";
   if (noteSplitter) {
     noteSplitter.addEventListener("pointerdown", function (e) {
+      if (istMobil()) return;
       e.preventDefault();
       noteSplitter.setPointerCapture(e.pointerId);
       noteSplitter.classList.add("dragging");

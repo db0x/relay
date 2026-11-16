@@ -4,6 +4,19 @@
     bevor das Hintergrundbild greift -> schwarzer Blitz. Die Grundfarbe ist der
     Mittelton des Desktop-Bildes, damit der Moment vor dem Bild nahtlos wirkt. %>
 <meta name="color-scheme" content="light">
+<%# OHNE DIESE ZEILE gibt es keinen Mobilmodus: ein Telefon legt sonst eine
+    980px breite Phantom-Leinwand an und zoomt sie herunter — die
+    @media-Abfragen sehen dann 980px und greifen nie. Die Anmeldeseiten
+    trugen sie von Anfang an, die Hauptseite nicht; genau darum war Relay
+    dort nur verkleinert statt angepasst. %>
+<%# interactive-widget: bei aufgefahrener Bildschirmtastatur soll der LAYOUT-
+    Bereich schrumpfen, nicht nur der sichtbare Ausschnitt. Relay legt seine
+    Ansichten formatfuellend als position:fixed aus — ohne diese Angabe
+    schoebe die Tastatur das Eingabefeld des Chats und die Fusszeile des
+    Notiz-Editors einfach darunter, statt sie mitzunehmen. Android/Chrome
+    wertet es aus, iOS/Safari ignoriert es (dort bleibt es beim bisherigen
+    Verhalten — schlechter als vorher wird es also nirgends). %>
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <%# Nachweis gegen faelschende Fremdseiten (csrf.js). Die fetch-Aufrufe im
     Frontend lesen ihn hier heraus und schicken ihn als X-CSRF-Token mit;
     Formulare tragen ihn als verstecktes Feld. %>

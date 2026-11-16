@@ -125,6 +125,27 @@ function libFileToken(rel, expires) {
 // damit ohne Login-Cookie)
 const LINK_STUNDEN = 12;
 
+// Soll der Editor in seiner MOBILEN Fassung starten?
+//
+// Der DocumentServer bringt eigene, beruehrungstaugliche Editoren mit
+// (web-apps/apps/*/mobile, Framework7) — aber `api.js` erkennt das Geraet
+// NICHT von selbst, nachgemessen: dort steht keine Zeile, die den User-Agent
+// oder Beruehrungsfaehigkeiten auswertet. Wer `type` nicht setzt, bekommt
+// immer die Desktop-Fassung.
+//
+// Entschieden wird im BROWSER und in der Adresse weitergereicht (`?m=1`),
+// nicht serverseitig am User-Agent:
+//   - User-Agent-Raten ist seit Jahren unzuverlaessig (Tablets, Desktop-Modus,
+//     Voltage mit eigener Kennung — siehe [[voltage-relay]]),
+//   - die Config ist JWT-SIGNIERT, der Wert muss also VOR dem Signieren
+//     feststehen; im Browser nachtraeglich zu biegen bricht die Signatur,
+//   - und `(pointer: coarse)` im Browser weiss es ohnehin genauer als jede
+//     Zeichenkette.
+// Die Oberflaeche haengt das Kuerzel an, wenn sie den Editor oeffnet.
+function willMobil(req) {
+  return req.query.m === "1";
+}
+
 // Namen und Avatare, die der Editor braucht — als { avatarUrl, teilnehmer }.
 //
 // WOFUER GENAU: Der Editor fragt ueber onRequestUsers (js/edit.js) Name und
@@ -181,6 +202,7 @@ router.get("/edit/:owner/*", loginRequired, async (req, res) => {
   // laenger) -> die Datei hat dann den aktuellen Stand, kein Datenverlust.
   const retrySuffix = req.query["relay-retry"] ? "-r" + crypto.randomBytes(4).toString("hex") : "";
   const { avatarUrl, teilnehmer } = editorNutzer(req, exp);
+  const mobil = willMobil(req);
   // --- Dokument-Key ----------------------------------------------------
   // Grundform: Nutzer + Datei + mtime. Gleichzeitige Editoren bekommen so
   // denselben Key und teilen die DS-Sitzung (Co-Editing); nach einem Speichern
@@ -221,6 +243,9 @@ router.get("/edit/:owner/*", loginRequired, async (req, res) => {
       permissions: { edit: canEdit, download: true, print: true, comment: canEdit },
     },
     documentType: DOCTYPE[ext] || "word",
+    // "mobile" laedt die beruehrungstaugliche Fassung des Editors und setzt
+    // den iframe auf position:fixed (api.js). Ohne Angabe: Desktop.
+    type: mobil ? "mobile" : "desktop",
     editorConfig: {
       mode: canEdit ? "edit" : "view",
       lang: "de-DE",
@@ -235,6 +260,11 @@ router.get("/edit/:owner/*", loginRequired, async (req, res) => {
         forcesave: true, autosave: true,
         uiTheme: EDITOR_THEME,
         features: { tabStyle: "fill" },
+        // Auf dem Telefon startet der Editor sonst im LESEMODUS
+        // (forceView ist dort standardmaessig an). Wer eine Datei zum
+        // Bearbeiten oeffnet, will nicht erst einen Modus umschalten —
+        // und ob er ueberhaupt darf, steht schon in `permissions`.
+        mobile: { forceView: !canEdit },
       },
     },
   };
@@ -326,12 +356,23 @@ router.get("/lib/edit/*", loginRequired, (req, res) => {
       permissions: { edit: false, download: true, print: true, comment: false },
     },
     documentType: DOCTYPE[ext] || "word",
+    // Dieselbe Weiche wie bei den Nutzerdateien (siehe willMobil): ein
+    // Hoerbuch-Begleitheft oder ein Arbeitsblatt aus der Bibliothek wird
+    // unterwegs genauso gelesen wie ein eigenes Dokument.
+    type: willMobil(req) ? "mobile" : "desktop",
     editorConfig: {
       mode: "view",
       lang: "de-DE",
       region: "de-DE",
       user: { id: req.session.user, name: req.session.name },
-      customization: { uiTheme: EDITOR_THEME, features: { tabStyle: "fill" } },
+      customization: {
+        uiTheme: EDITOR_THEME,
+        features: { tabStyle: "fill" },
+        // Hier IMMER true, anders als bei den Nutzerdateien: die Bibliothek
+        // ist schreibgeschuetzt eingehaengt und hat keinen callbackUrl —
+        // ein Bearbeitungsmodus waere ein Versprechen, das niemand einloest.
+        mobile: { forceView: true },
+      },
     },
   };
   config.token = jwt.sign(config, JWT_SECRET, { algorithm: "HS256", noTimestamp: true });

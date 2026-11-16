@@ -97,7 +97,10 @@
       </button>
 
       <%# Ruhezustand: noch niemand ausgewaehlt %>
-      <p class="chat-empty" id="chat-empty">Wähle links aus, mit wem du schreiben möchtest.</p>
+      <%# OHNE Ortsangabe ("links"): im Mobilmodus steht die Liste OBEN, nicht
+          daneben (Abschnitt MOBIL in index.css). Ein Hinweis, der in die
+          falsche Richtung zeigt, ist schlimmer als keiner. %>
+      <p class="chat-empty" id="chat-empty">Wähle aus, mit wem du schreiben möchtest.</p>
 
       <%# Der Chat ist auf diesem Geraet nicht aufgeschlossen (anderer Browser,
           Speicher geleert, Passwort anderswo geaendert). Der private

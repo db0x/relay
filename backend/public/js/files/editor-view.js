@@ -19,6 +19,7 @@
 // Fenster wuerde aus beidem eine Liste — die Trennung ist schon so gezogen.
 import { BASE_URL, schreibKopf } from "../core/base.js";
 import { imVoltage, oeffneEigenesFenster } from "../core/voltage.js";
+import { istMobil } from "../core/mobil.js";
 
 var win = null;        // Fenster-Objekt aus core/window.js
 var el = {};
@@ -98,6 +99,26 @@ function beschrifteUmschalter(name) {
     : "Editor anzeigen oder ausblenden");
 }
 
+// Auf schmalen Schirmen die mobile Fassung von Euro-Office anfordern.
+//
+// Die Entscheidung faellt HIER, im Browser, und reist als `?m=1` mit —
+// routes/editor.js kann sie nicht selbst treffen: die Editor-Config ist
+// JWT-signiert, `type` muss also schon vor dem Signieren feststehen, und
+// User-Agent-Raten trifft bei Voltage ohnehin daneben. Die ausfuehrliche
+// Begruendung steht bei willMobil() im Backend.
+//
+// Gilt auch fuer "in neuem Tab oeffnen": wer das Dokument auf dem Telefon
+// herausloest, will dort nicht die Desktop-Fassung vorfinden.
+//
+// Die Marke wird NICHT nachtraeglich umgehaengt, wenn sich die Breite
+// aendert — ein laufender Editor liesse sich nicht umschalten, ohne die
+// Sitzung neu aufzubauen (und damit ungesicherte Eingaben zu verlieren).
+// Beim naechsten Oeffnen stimmt sie wieder.
+function mitMobilMarke(href) {
+  if (!istMobil()) return href;
+  return href + (href.indexOf("?") === -1 ? "?" : "&") + "m=1";
+}
+
 function oeffne(href, beschriftung) {
   var ziel = zerlege(href);
   if (!ziel || !win) return false;
@@ -113,10 +134,10 @@ function oeffne(href, beschriftung) {
   schliesstGerade = false;
   el.titel.textContent = beschriftung || "Dokument";
   el.icon.src = iconUrl(beschriftung || href);
-  el.newtab.href = href;
+  el.newtab.href = mitMobilMarke(href);
   if (el.busy) el.busy.hidden = true;
   // Adresse erst JETZT setzen: vorher soll nichts geladen werden
-  el.frame.src = href;
+  el.frame.src = mitMobilMarke(href);
 
   win.restore();          // aufklappen und nach vorn holen
   beschrifteUmschalter(beschriftung);
